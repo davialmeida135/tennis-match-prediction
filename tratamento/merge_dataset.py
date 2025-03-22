@@ -10,6 +10,7 @@ def merge_datasets():
     for file in files:
         if file.startswith("atp_matches_1") or file.startswith("atp_matches_2"):
             dfs.append(pd.read_csv(path+file))
+            print("Reading file: ", file)
         
     df = pd.concat(dfs)
     df.to_csv("dados_tratados/all_atp_matches.csv", index=False)
