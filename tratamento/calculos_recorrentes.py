@@ -136,7 +136,7 @@ def get_partidas_jogadores(df, player1_id, player2_id):
 
 
 df = pd.read_csv("dataset/tennis_atp/atp_matches_2017.csv")
-print(get_partidas_jogadores(df, 100644,104898)[['winner_name', 'loser_name','tourney_name']])
+print(get_partidas_jogadores(df, 106378,106298)[['winner_name', 'loser_name','tourney_name']])
 
 #calcular_h2h(df)
 #tempo_jogado_dataframe(df)
