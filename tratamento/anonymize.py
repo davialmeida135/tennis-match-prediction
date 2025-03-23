@@ -78,5 +78,6 @@ def anonymize(df):
             })
 
     anon_df = pd.DataFrame(rows_list)
+    return anon_df
 #print(anon_df['round'].value_counts())
 #anon_df.to_csv("dados_tratados/anon_atp_matches_2017.csv", index=False)

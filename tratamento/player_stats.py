@@ -1,6 +1,4 @@
 import pandas as pd
-import numpy as np
-import time
 from prefect import flow, task
 
 @task
@@ -30,8 +28,7 @@ def _calcular_carga_previa_jogadores(row, df):
     Calcula o tempo jogado por cada jogador no torneio antes 
     da partida atual
     """
-    minutes = row['minutes']
-    tourney = row['tourney_id']
+    
     t_round = row['round']
     player1 = row['winner_id']
     player2 = row['loser_id']

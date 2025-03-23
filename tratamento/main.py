@@ -1,6 +1,6 @@
 
 from tratamento.player_stats import calcular_h2h, calcular_elo, tempo_jogado_dataframe
-from prefect import flow, task
+from prefect import flow
 import pandas as pd
 import os
 import pathlib

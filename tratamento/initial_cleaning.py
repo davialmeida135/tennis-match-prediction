@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import numpy as np
 
 def merge_datasets():
     # Read csv files from folder and merge datasets
