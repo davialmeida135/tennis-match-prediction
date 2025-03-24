@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-def merge_datasets():
+def merge_datasets() -> pd.DataFrame:
     # Read csv files from folder and merge datasets
     path = "dataset/tennis_atp/"
     files = os.listdir(path)
@@ -12,7 +12,10 @@ def merge_datasets():
             print("Reading file: ", file)
         
     df = pd.concat(dfs)
+
     df.to_csv("dados_tratados/all_atp_matches.csv", index=False)
+    
+    return df
 
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:

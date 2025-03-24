@@ -1,5 +1,5 @@
-
-from tratamento.player_stats import calcular_h2h, calcular_elo, tempo_jogado_dataframe
+from initial_cleaning import merge_datasets, transform_seed_data
+from tratamento.player_stats import calcular_h2h, calcular_elo
 from prefect import flow
 import pandas as pd
 import os
@@ -10,39 +10,37 @@ class CompletePipeline():
         self.df = df
         self.output_folder = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "dados_tratados")
 
-    def merge_pipeline(self):
-        #self.df = self.df.pipe(merge_datasets)
-        return
-    
-    def clean_pipeline(self):
-        self.df = self.df.pipe()
+    @flow
+    def initial_clean_pipeline(self):
+        self.df = self.df.pipe(transform_seed_data)
         return self.df
     
-    def calculate_stats_pipeline(self):
-        self.df = self.df.pipe(tempo_jogado_dataframe)
+    @flow
+    def surface_stats_pipeline(self):
+        return self.df
 
-    def anonymize_pipeline(self):
+    @flow 
+    def encounter_stats_pipeline(self):
+        self.df = self.df.pipe(calcular_h2h)
+        return self.df
+
+    @flow
+    def player_stats_pipeline(self):
+        self.df = self.df.pipe(calcular_elo)
+        return self.df
+    @flow
+    def final_clean_pipeline(self):
         # self.df = self.df.pipe(anonymize)
         return self.df
 
         
     @flow
     def run(self):
-        self.df = self.df.pipe(tempo_jogado_dataframe).pipe(calcular_h2h).pipe(calcular_elo)
-        self.df.to_csv(os.path.join(self.output_folder, "final_dataset.csv"), index=False)
-        return self.df
-    
-@flow(log_prints=True)
-def modularizado():
-    df = pd.read_csv("dataset/tennis_atp/atp_matches_2017.csv")
-    df_processed = df.pipe(tempo_jogado_dataframe)
-    return df_processed
 
-@flow(log_prints=True)
-def modularizado2(df_processed):
-    df_processed.pipe(calcular_h2h)
-    df_processed.to_csv("dados_tratados/teste_pipe.csv", index=False)
+
+        return self.df
+
 
 if __name__ == "__main__":
-    df = modularizado()
-    modularizado2(df)
+    pipeline = CompletePipeline(pd.read_csv("dados_tratados/all_atp_matches.csv"))
+    

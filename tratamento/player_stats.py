@@ -9,9 +9,6 @@ def calcular_minutos_acumulados_torneio(df):
     rows_list = []
     for index, row in df.iterrows():
         tourney = df[df['tourney_id']==row['tourney_id']]
-        # Skip Davies Cup
-        if tourney['round'].values[0] == 'D' or tourney['round'].values[0] == 'RR':
-            continue
         new_row = _calcular_carga_previa_jogadores(row,tourney)
         #print(new_row)
         if new_row is not None:

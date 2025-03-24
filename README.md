@@ -19,3 +19,39 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 | Player1 Id| Player2 Id | Winner
     123             124         1
+
+## TODO
+### Limpeza inicial
+- Tirar colunas desnecessárias
+- Refazer seeds (one-hot encoding nos entry_methods)
+
+### Cálculo de dados dos jogadores
+- Winrate Total
+- Winrate nas ultimas 50 partidas
+- Winrate das ultimas 10 partidas
+- Winrate em uma superfície
+- Winrate superfície ultimas 50
+- Winrate superfície ultimas 10
+- Winrate em um torneio
+- ELO
+- Diferença de rank
+- Diferença de ELO
+- Diferença de idade
+- Diferença de Altura
+
+
+### Limpeza final
+- Limpar colunas desnecessárias
+- Anonimizar os dados
+
+## DONE
+### Limpeza inicial
+- Merge datasets
+
+### Cálculo de dados dos jogadores
+- H2H
+- Tempo jogado em um torneio
+- Helper functions de pegar todos os confrontos entre jogadores e todas as partidas de um jogador
+
+### Limpeza final
+- 
