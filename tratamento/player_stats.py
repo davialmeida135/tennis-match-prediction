@@ -1,7 +1,7 @@
 import pandas as pd
-from prefect import flow, task
+#from prefect import flow, task
 
-@task
+#@task
 def calcular_minutos_acumulados_torneio(df):
     """
     Calcula para todas as partidas, o tempo jogado por cada jogador no torneio antes da partida atual
@@ -61,7 +61,7 @@ def _calcular_carga_previa_jogadores(row, df):
     #print(row[['player1_tournament_minutes','player2_tournament_minutes', 'winner_name', 'loser_name']])
     return row 
 
-@task
+#@task
 def calcular_elo(df):
     """
     Soma um ponto para cada vitória do jogador e subtrai um ponto para cada derrota.
@@ -93,7 +93,7 @@ def calcular_elo(df):
 
     elo.to_csv("dados_tratados/atp_matches_2017_elo.csv", index=False)
 
-@task
+#@task
 def calcular_h2h(df):
     '''
     Para cada partida, calcula o histórico de confrontos entre os jogadores
@@ -138,7 +138,7 @@ def _get_previous_encounters(df, player1_id, player2_id, date):
     df.sort_values(by='tourney_date', inplace=True)
     return df[df['tourney_date']<date]
 
-@flow(log_prints=True)
+#@flow(log_prints=True)
 def main():
     df = pd.read_csv("dataset/tennis_atp/atp_matches_2017.csv")
     df_processed = df.pipe(calcular_minutos_acumulados_torneio).pipe(calcular_h2h)
