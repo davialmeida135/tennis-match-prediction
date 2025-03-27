@@ -13,6 +13,10 @@ Partidas de 1968-2024
 
 https://www.kaggle.com/datasets/guillemservera/tennis
 
+API pra pegar mais dados no futuro
+
+https://developer.sportradar.com/tennis/reference/overview
+
 ## Conceito inicial
 
 Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 2
