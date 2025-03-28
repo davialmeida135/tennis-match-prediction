@@ -17,6 +17,12 @@ def merge_datasets() -> pd.DataFrame:
     
     return df
 
+def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
+    # Remove matches with walkover
+    df = df[df['score'] != 'W/O']
+
+    return df
+
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
     print("Transforming seed data")
