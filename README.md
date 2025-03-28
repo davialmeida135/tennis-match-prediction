@@ -21,7 +21,7 @@ https://developer.sportradar.com/tennis/reference/overview
 
 Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 2
 
-| Player1 Id| Player2 Id | Winner
+| Player1_info| Player2_info| Winner
     123             124         1
 
 ## TODO

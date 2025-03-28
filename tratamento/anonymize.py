@@ -3,11 +3,11 @@ import numpy as np
 
 def anonymize(df):
     """
-    Troca os nomes dos jogadores por player_1 e player_2"
+    Troca os nomes dos jogadores por player1 e player2"
     """
     rows_list = []
 
-    # Iterar sobre as linhas do DataFrame trocando loser por player_1 e winner por player_2
+    # Iterar sobre as linhas do DataFrame trocando loser por player1 e winner por player2
     # Fazer de maneira aleatória para evitar bias
     for index, row in df.iterrows():
         if np.random.randint(0, 2) == 0:
@@ -29,19 +29,19 @@ def anonymize(df):
                 'player1_age': row['loser_age'],
                 'player1_rank': row['loser_rank'],
                 'player1_rank_points': row['loser_rank_points'],
-                'player2_id': row['winner_id'],
-                'player2_seed': row['winner_seed'],
-                'player2_entry': row['winner_entry'],
-                'player2_name': row['winner_name'],
-                'player2_hand': row['winner_hand'],
-                'player2_ht': row['winner_ht'],
-                'player2_ioc': row['winner_ioc'],
-                'player2_age': row['winner_age'],
-                'player2_rank': row['winner_rank'],
-                'player2_rank_points': row['winner_rank_points'],
+                'player0_id': row['winner_id'],
+                'player0_seed': row['winner_seed'],
+                'player0_entry': row['winner_entry'],
+                'player0_name': row['winner_name'],
+                'player0_hand': row['winner_hand'],
+                'player0_ht': row['winner_ht'],
+                'player0_ioc': row['winner_ioc'],
+                'player0_age': row['winner_age'],
+                'player0_rank': row['winner_rank'],
+                'player0_rank_points': row['winner_rank_points'],
                 'best_of': row['best_of'],
                 'round': row['round'],
-                'winner':2,
+                'winner':0,
             })
         else:
             rows_list.append({
@@ -62,16 +62,16 @@ def anonymize(df):
                 'player1_age': row['winner_age'],
                 'player1_rank': row['winner_rank'],
                 'player1_rank_points': row['winner_rank_points'],
-                'player2_id': row['loser_id'],
-                'player2_seed': row['loser_seed'],
-                'player2_entry': row['loser_entry'],
-                'player2_name': row['loser_name'],
-                'player2_hand': row['loser_hand'],
-                'player2_ht': row['loser_ht'],
-                'player2_ioc': row['loser_ioc'],
-                'player2_age': row['loser_age'],
-                'player2_rank': row['loser_rank'],
-                'player2_rank_points': row['loser_rank_points'],
+                'player0_id': row['loser_id'],
+                'player0_seed': row['loser_seed'],
+                'player0_entry': row['loser_entry'],
+                'player0_name': row['loser_name'],
+                'player0_hand': row['loser_hand'],
+                'player0_ht': row['loser_ht'],
+                'player0_ioc': row['loser_ioc'],
+                'player0_age': row['loser_age'],
+                'player0_rank': row['loser_rank'],
+                'player0_rank_points': row['loser_rank_points'],
                 'best_of': row['best_of'],
                 'round': row['round'],
                 'winner':1,
