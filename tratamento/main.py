@@ -44,5 +44,7 @@ class CompletePipeline():
 
 
 if __name__ == "__main__":
-    pipeline = CompletePipeline(pd.read_csv("dados_tratados/all_atp_matches.csv"))
+    #pipeline = CompletePipeline(pd.read_csv("dados_tratados/all_atp_matches.csv"))
+    pipeline = CompletePipeline(pd.read_csv("dataset/tennis_atp/atp_matches_2023.csv"))
+    
     pipeline.run()
