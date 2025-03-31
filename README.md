@@ -27,7 +27,6 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
-- Limpar W/O
 
 ### Cálculo de dados dos jogadores
 - Winrate Total
@@ -52,6 +51,7 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ### Limpeza inicial
 - Merge datasets
 - Refazer seeds (one-hot encoding nos entry_methods)
+- Limpar W/O
 
 ### Cálculo de dados dos jogadores
 - H2H

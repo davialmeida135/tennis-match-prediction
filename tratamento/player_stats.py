@@ -1,4 +1,5 @@
 import pandas as pd
+from util import _get_previous_encounters
 #from prefect import flow, task
 
 #@task
@@ -120,23 +121,6 @@ def calcular_h2h(df):
     df.to_csv("dados_tratados/atp_matches_2017_h2h.csv", index=False)
     return df
 
-
-def _get_previous_matches(df, player_id, date):
-    """
-    Retorna todas as partidas de um jogador antes de uma data
-    """
-    df = df[(df['winner_id']==player_id) | (df['loser_id']==player_id)]
-    return df[df['tourney_date']<date]
-
-def _get_previous_encounters(df, player1_id, player2_id, date):
-    """
-    Retorna todas as partidas entre dois jogadores antes de uma data
-    """
-    df1 = df[(df['winner_id']==player1_id) & (df['loser_id']==player2_id)]
-    df2 = df[(df['winner_id']==player2_id) & (df['loser_id']==player1_id)]
-    df = pd.concat([df1, df2])
-    df.sort_values(by='tourney_date', inplace=True)
-    return df[df['tourney_date']<date]
 
 #@flow(log_prints=True)
 def main():

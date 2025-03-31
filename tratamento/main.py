@@ -1,4 +1,4 @@
-from initial_cleaning import transform_seed_data
+from initial_cleaning import transform_seed_data, remove_wo
 from anonymize import anonymize
 from player_stats import calcular_h2h, calcular_elo
 #from prefect import flow
@@ -13,7 +13,8 @@ class CompletePipeline():
 
     #@flow
     def initial_clean_pipeline(self):
-        self.df = self.df.pipe(transform_seed_data)
+        self.df = remove_wo(self.df)
+        self.df = transform_seed_data(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "initial_clean.csv"), index=False)
         return self.df
     
@@ -45,6 +46,8 @@ class CompletePipeline():
 
 if __name__ == "__main__":
     #pipeline = CompletePipeline(pd.read_csv("dados_tratados/all_atp_matches.csv"))
-    pipeline = CompletePipeline(pd.read_csv("dataset/tennis_atp/atp_matches_2023.csv"))
+    self_path = pathlib.Path(__file__).parent.absolute()
+    csv_path = self_path/".."/"dataset"/"tennis_atp"/"atp_matches_2023.csv"
+    pipeline = CompletePipeline(pd.read_csv(csv_path))
     
     pipeline.run()

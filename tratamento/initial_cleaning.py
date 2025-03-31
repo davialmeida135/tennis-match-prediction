@@ -19,9 +19,11 @@ def merge_datasets() -> pd.DataFrame:
 
 def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
     # Remove matches with walkover
+    print("Removing Walkovers")
     df = df[df['score'] != 'W/O']
-
+    print("Removed Walkovers")
     return df
+
 
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -31,8 +33,6 @@ def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
 
     result['winner_seed_value'] = pd.to_numeric(result['winner_seed'], errors='coerce')
     result['loser_seed_value'] = pd.to_numeric(result['loser_seed'], errors='coerce')
-    #result['winner_entry_method'] = 'Not Set'
-    #result['loser_entry_method'] = 'Not Set'
     result['winner_seeded'] = False
     result['loser_seeded'] = False
     result['winner_unseeded'] = False
