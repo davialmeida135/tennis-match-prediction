@@ -29,12 +29,13 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Tirar colunas desnecessárias
 
 ### Cálculo de dados dos jogadores
-- Winrate Total
+- Partidas ganhas
+- Winrate Total 
 - Winrate nas ultimas 50 partidas
 - Winrate das ultimas 10 partidas
-- Winrate em uma superfície
-- Winrate superfície ultimas 50
-- Winrate superfície ultimas 10
+- Winrate em uma superfície Consertar isso (não precisa de uma coluna pra cada superfície)
+- Winrate superfície ultimas 50 Consertar isso
+- Winrate superfície ultimas 10 Consertar isso
 - Winrate em um torneio
 - ELO
 - Diferença de rank
