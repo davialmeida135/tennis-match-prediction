@@ -1,4 +1,4 @@
-from initial_cleaning import transform_seed_data, remove_wo
+from initial_cleaning import transform_seed_data, remove_wo, remove_stat_cols
 from anonymize import anonymize
 from player_stats import calcular_h2h, calcular_elo
 #from prefect import flow
@@ -13,6 +13,7 @@ class CompletePipeline():
 
     #@flow
     def initial_clean_pipeline(self):
+        self.df = remove_stat_cols(self.df)
         self.df = remove_wo(self.df)
         self.df = transform_seed_data(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "initial_clean.csv"), index=False)
