@@ -5,6 +5,7 @@ def calcular_winrate_total(df:pd.DataFrame)->pd.DataFrame:
     """
     Calculate total winrate for each player before each match
     """
+    print("Calculando winrate para cada jogador")
     df['winner_winrate'] = 0.0
     df['loser_winrate'] = 0.0
     
@@ -31,6 +32,8 @@ def calcular_winrate_ultimas_n(df:pd.DataFrame, n=50)->pd.DataFrame:
     """
     Calculate winrate for each player in their last n matches before each match
     """
+    print(f"Calculando winrate para cada jogador nas últimas {n} partidas")
+
     column_winner = f'winner_winrate_last_{n}'
     column_loser = f'loser_winrate_last_{n}'
     
@@ -64,6 +67,8 @@ def calcular_winrate_superficie(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate winrate for each player on a specific surface before each match
     """
+    print("Calculando winrate para cada jogador em cada superficie")
+
     column_winner = 'winner_winrate_surface'
     column_loser = 'loser_winrate_surface'
     
@@ -100,6 +105,7 @@ def calcular_winrate_superficie_ultimas_n(df:pd.DataFrame, n=50)->pd.DataFrame:
     """
     Calculate winrate for each player on a specific surface in their last n matches before each match
     """
+    print(f"Calculando winrate para cada jogador em cada superficie nas últimas {n} partidas")	 
     column_winner = 'winner_winrate_surface'
     column_loser = 'loser_winrate_surface'
     
@@ -139,6 +145,7 @@ def calcular_winrate_torneio(df):
     """
     Calculate winrate for each player in a specific tournament before each match
     """
+    print("Calculando winrate para cada jogador em cada torneio")
     df['winner_winrate_tournament'] = 0.0
     df['loser_winrate_tournament'] = 0.0
     
@@ -172,24 +179,12 @@ def calcular_todas_winrates(df):
     """
     Calculate all winrate statistics for players
     """
-    print("Calculating winrate statistics...")
     df = calcular_winrate_total(df)
-    print("Calculating winrate statistics...")
-    df = calcular_winrate_ultimas_n(df, n=50)
-    print("Calculating winrate statistics...")
-    df = calcular_winrate_ultimas_n(df, n=10)
-    print("Calculating winrate statistics...")
-    #df = calcular_winrate_superficie(df)  # All surfaces
-    
-
-    print("Calculating winrate statistics...")
+    df = calcular_winrate_ultimas_n(df, n=50) 
+    df = calcular_winrate_ultimas_n(df, n=10)    
     df = calcular_winrate_superficie(df)
-    print("Calculating winrate statistics...")
     df = calcular_winrate_superficie_ultimas_n(df, n=50)
-    print("Calculating winrate statistics...")
     df = calcular_winrate_superficie_ultimas_n(df, n=10)
-    
-    print("Calculating winrate statistics...")
     df = calcular_winrate_torneio(df)
     
     return df
