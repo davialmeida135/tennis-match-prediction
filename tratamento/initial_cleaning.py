@@ -49,6 +49,8 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert integer dates to datetime format"""
     df['tourney_date'] = pd.to_datetime(df['tourney_date'].astype(str), format='%Y%m%d')
+    df['week'] = df['tourney_date'].dt.isocalendar().week
+
     return df
 
 def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
