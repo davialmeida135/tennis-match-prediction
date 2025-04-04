@@ -42,12 +42,18 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
                      'l_2ndWon',
                      'l_SvGms',
                      'l_bpSaved',
-                     'l_bpFaced',])
+                     'l_bpFaced',
+                     'score'])
     return df
 
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert integer dates to datetime format"""
     df['tourney_date'] = pd.to_datetime(df['tourney_date'].astype(str), format='%Y%m%d')
+    return df
+
+def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
+    """Sort dataframe by date"""
+    df = df.sort_values(by=['tourney_date','tourney_id','match_num'])
     return df
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
