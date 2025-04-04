@@ -45,6 +45,11 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
                      'l_bpFaced',])
     return df
 
+def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert integer dates to datetime format"""
+    df['tourney_date'] = pd.to_datetime(df['tourney_date'].astype(str), format='%Y%m%d')
+    return df
+
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
     print("Transforming seed data")
     # Create copy to avoid warnings
