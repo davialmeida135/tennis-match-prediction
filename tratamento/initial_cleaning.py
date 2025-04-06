@@ -43,7 +43,9 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
                      'l_SvGms',
                      'l_bpSaved',
                      'l_bpFaced',
-                     'score'])
+                     'score',
+                     'winner_ioc',
+                     'loser_ioc',])
     return df
 
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
@@ -56,6 +58,12 @@ def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
 def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
     """Sort dataframe by date"""
     df = df.sort_values(by=['tourney_date','tourney_id','match_num'])
+    return df
+
+def transform_tourney_level(df: pd.DataFrame) -> pd.DataFrame:
+    """Transform tournament level to categorical values"""
+    df['tourney_level'] = df['tourney_level'].astype('category')
+
     return df
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
