@@ -60,8 +60,6 @@ def calcular_h2h(df:pd.DataFrame)->pd.DataFrame:
             df.loc[index, 'h2h'] = last_encounter_h2h
         else:
             continue
-
-    #df.to_csv("dados_tratados/atp_matches_2017_h2h.csv", index=False)
     return df
 
 def calcular_partidas_jogadas(df:pd.DataFrame)->pd.DataFrame:

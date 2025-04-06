@@ -36,7 +36,7 @@ class CompletePipeline():
 
     #@flow 
     def encounter_stats_pipeline(self):
-        self.df = self.df.pipe(calcular_h2h)
+        self.df = calcular_h2h(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "encounter_stats.csv"), index=False)
         return self.df
 
@@ -47,6 +47,7 @@ class CompletePipeline():
         #self.df = calcular_elo(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "player_stats.csv"), index=False)
         return self.df
+    
     #@flow
     def final_clean_pipeline(self):
         self.df = self.df.pipe(anonymize)
@@ -56,9 +57,11 @@ class CompletePipeline():
     #@flow
     def run(self):
         self.initial_clean_pipeline()
-        #self.winrate_stats_pipeline()
-        #self.encounter_stats_pipeline()
+        self.winrate_stats_pipeline()
+        self.encounter_stats_pipeline()
         self.player_stats_pipeline()
+        #self.final_clean_pipeline()
+        self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
         return self.df
 
 
@@ -67,5 +70,4 @@ if __name__ == "__main__":
     self_path = pathlib.Path(__file__).parent.absolute()
     csv_path = self_path/".."/"dataset"/"tennis_atp"/"atp_matches_2023.csv"
     pipeline = CompletePipeline(pd.read_csv(csv_path))
-    
     pipeline.run()
