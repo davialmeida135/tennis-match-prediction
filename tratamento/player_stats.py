@@ -108,19 +108,36 @@ def calcular_partidas_jogadas_ultimo_mes(df:pd.DataFrame)->pd.DataFrame:
     return df
 
 #@flow(log_prints=True)
-def main():
-    df = pd.read_csv("dataset/tennis_atp/atp_matches_2017.csv")
-    df_processed = df.pipe(calcular_minutos_acumulados_torneio).pipe(calcular_h2h)
-    df_processed.to_csv("dados_tratados/teste_pipe.csv", index=False)
-
-if __name__ == "__main__":
-    main()
 
 #print(get_previous_encounters(df, 105223,104925,201800000)[['winner_name', 'loser_name','tourney_name']])
 #print(get_previous_matches(df, 106378, 20170130)[['winner_name', 'loser_name','tourney_name']])
 #calcular_h2h(df)
 #tempo_jogado_dataframe(df)
 #print(calcular_elo(df))
+
+def calcular_round_semana_passada(df:pd.DataFrame)->pd.DataFrame:
+    """
+    Calcula o round da semana passada para cada jogador
+    """
+    print("Calculando round da semana passada")
+    df['winner_round_last_week'] = 0
+    df['loser_round_last_week'] = 0
+
+    for index, row in df.iterrows():
+        tourney_date = row['tourney_date']
+        one_week_ago = tourney_date - pd.Timedelta(days=7)
+        
+        winner_matches, loser_matches = _get_previous_matches(df, row)
+        
+        recent_matches = winner_matches[winner_matches['tourney_date'] == one_week_ago]
+        if len(recent_matches) > 0:
+            df.loc[index, 'winner_round_last_week'] = recent_matches.iloc[-1]['round']
+        
+        recent_matches = loser_matches[loser_matches['tourney_date'] == one_week_ago]
+        if len(recent_matches) > 0:
+            df.loc[index, 'loser_round_last_week'] = recent_matches.iloc[-1]['round']
+    
+    return df
 
 def calcular_minutos_acumulados_torneio(df):
     """
@@ -148,7 +165,7 @@ def _calcular_carga_previa_jogadores(row, df):
     
     t_round = row['round']
     player1 = row['winner_id']
-    player2 = row['loser_id']
+    player2 = row['loser_id'] 
     row['winner_tournament_minutes'] = 0
     row['loser_tournament_minutes'] = 0
 
@@ -180,3 +197,12 @@ def _calcular_carga_previa_jogadores(row, df):
 
     #print(row[['player1_tournament_minutes','player2_tournament_minutes', 'winner_name', 'loser_name']])
     return row 
+
+def main():
+    df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
+    #df_processed = calcular_round_semana_passada(df)
+    df_processed = calcular_round_semana_passada(df)
+    df_processed.to_csv("dados_tratados/teste_pipe.csv", index=False)
+
+if __name__ == "__main__":
+    main()

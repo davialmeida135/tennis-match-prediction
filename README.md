@@ -41,13 +41,6 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Numerar mão do forehand
 
 ### Cálculo de dados dos jogadores
-- Partidas ganhas
-- Winrate Total 
-- Winrate nas ultimas 50 partidas
-- Winrate das ultimas 10 partidas
-- Winrate em uma superfície Consertar isso (não precisa de uma coluna pra cada superfície)
-- Winrate superfície ultimas 50 Consertar isso
-- Winrate superfície ultimas 10 Consertar isso
 - Winrate em um torneio
 - ELO
 - Diferença de rank
@@ -55,12 +48,12 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Diferença de idade
 - Diferença de Altura
 
-
 ### Limpeza final
 - Limpar colunas desnecessárias
 - Tirar player id, score, match_num, tourney_date
 - tirar partidas RET
 - Anonimizar os dados
+- Mudar tipo das datas
 
 ## DONE
 ### Limpeza inicial
@@ -72,6 +65,13 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - H2H
 - Tempo jogado em um torneio
 - Helper functions de pegar todos os confrontos entre jogadores e todas as partidas de um jogador
+- Winrate Total 
+- Winrate nas ultimas 50 partidas
+- Winrate das ultimas 10 partidas
+- Winrate em uma superfície Consertar isso (não precisa de uma coluna pra cada superfície)
+- Winrate superfície ultimas 50 Consertar isso
+- Winrate superfície ultimas 10 Consertar isso
+- Partidas ganhas
 
 ### Limpeza final
 - 
