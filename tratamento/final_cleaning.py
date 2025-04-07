@@ -1,6 +1,30 @@
 import pandas as pd
 import numpy as np
 
+def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
+    df = df.drop(columns=['w_ace',
+                     'w_df',
+                     'w_svpt',
+                     'w_1stIn',
+                     'w_1stWon',
+                     'w_2ndWon',
+                     'w_SvGms',
+                     'w_bpSaved',
+                     'w_bpFaced',
+                     'l_ace',
+                     'l_df',
+                     'l_svpt',
+                     'l_1stIn',
+                     'l_1stWon',
+                     'l_2ndWon',
+                     'l_SvGms',
+                     'l_bpSaved',
+                     'l_bpFaced',
+                     'score',
+                     'winner_ioc',
+                     'loser_ioc',])
+    return df
+
 def anonymize(df):
     """
     Troca os nomes dos jogadores por player1 e player2"
