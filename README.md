@@ -27,6 +27,9 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
+- Fillar altura, minutos(com media do torneio)
+- Numerar tourney level
+- numerar round
 
 ### Cálculo de dados dos jogadores
 - Partidas ganhas
@@ -46,6 +49,8 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 ### Limpeza final
 - Limpar colunas desnecessárias
+- Tirar player id, score, match_num, tourney_date
+- tirar partidas RET sem minutos (ou completar com a média do torneio)
 - Anonimizar os dados
 
 ## DONE
