@@ -13,6 +13,13 @@ Partidas de 1968-2024
 
 https://www.kaggle.com/datasets/guillemservera/tennis
 
+Partidas 2000-2025
+https://www.kaggle.com/datasets/dissfya/atp-tennis-2000-2023daily-pull
+
+Script tratamento partidas
+https://www.kaggle.com/code/dissfya/atp-tennis-daily-pull
+http://tennis-data.co.uk/2025/2025.xlsx
+
 API pra pegar mais dados no futuro
 
 https://developer.sportradar.com/tennis/reference/overview
@@ -27,9 +34,11 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
-- Fillar altura, minutos(com media do torneio)
+- Fillar altura, idade, minutos(com media do torneio)
+- Fillar falta de rank (não sei como)
 - Numerar tourney level
-- numerar round
+- Numerar round
+- Numerar mão do forehand
 
 ### Cálculo de dados dos jogadores
 - Partidas ganhas
@@ -50,7 +59,7 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ### Limpeza final
 - Limpar colunas desnecessárias
 - Tirar player id, score, match_num, tourney_date
-- tirar partidas RET sem minutos (ou completar com a média do torneio)
+- tirar partidas RET
 - Anonimizar os dados
 
 ## DONE
