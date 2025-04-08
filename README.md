@@ -34,22 +34,25 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
-- Fillar altura, idade, minutos(com media do torneio)
-- Fillar falta de rank (não sei como)
 - Numerar tourney level
 - Numerar round
 - Numerar mão do forehand
 
 ### Cálculo de dados dos jogadores
 - Winrate em um torneio
+- H2H recente (last 5)
 - ELO
 - Diferença de rank
 - Diferença de ELO
 - Diferença de idade
 - Diferença de Altura
+- Win streak
+- Win streak na superfície
+- Win streak no torneio (massa)
 
 ### Limpeza final
 - Limpar colunas desnecessárias
+- Surface one-hot encode
 - Tirar player id, score, match_num, tourney_date
 - tirar partidas RET
 - Anonimizar os dados
@@ -60,6 +63,8 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Merge datasets
 - Refazer seeds (one-hot encoding nos entry_methods)
 - Limpar W/O
+- Fillar altura, idade, minutos(com media do torneio)
+- Fillar falta de rank (não sei como)
 
 ### Cálculo de dados dos jogadores
 - H2H

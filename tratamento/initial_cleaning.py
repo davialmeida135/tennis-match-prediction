@@ -23,30 +23,6 @@ def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
     print("Removed Walkovers")
     return df
 
-def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
-    df = df.drop(columns=['w_ace',
-                     'w_df',
-                     'w_svpt',
-                     'w_1stIn',
-                     'w_1stWon',
-                     'w_2ndWon',
-                     'w_SvGms',
-                     'w_bpSaved',
-                     'w_bpFaced',
-                     'l_ace',
-                     'l_df',
-                     'l_svpt',
-                     'l_1stIn',
-                     'l_1stWon',
-                     'l_2ndWon',
-                     'l_SvGms',
-                     'l_bpSaved',
-                     'l_bpFaced',
-                     'score',
-                     'winner_ioc',
-                     'loser_ioc',])
-    return df
-
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert integer dates to datetime format"""
     df['tourney_date'] = pd.to_datetime(df['tourney_date'].astype(str), format='%Y%m%d')
