@@ -2,7 +2,7 @@ from initial_cleaning import preprocess_dates, transform_seed_data, remove_wo, s
 from winrate import calcular_winrate_total, calcular_winrate_superficie,calcular_winrate_superficie_ultimas_n,calcular_winrate_torneio,calcular_winrate_ultimas_n
 from final_cleaning import anonymize, remove_stat_cols
 from player_stats import calcular_h2h, calcular_elo, calcular_partidas_jogadas, calcular_partidas_jogadas_ultimo_mes
-from fill_missing import fill_null_surface
+from fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
 #from prefect import flow
 import pandas as pd
 import os
@@ -24,6 +24,9 @@ class CompletePipeline():
     
     def fill_missing_pipeline(self):
         self.df = fill_null_surface(self.df)
+        self.df = fill_null_height(self.df)
+        self.df = fill_null_age(self.df)
+        self.df = fill_null_rank(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "not_null.csv"), index=False)
         return self.df
     
@@ -64,9 +67,9 @@ class CompletePipeline():
     def run(self):
         self.initial_clean_pipeline()
         self.fill_missing_pipeline()
-        self.winrate_stats_pipeline()
-        self.encounter_stats_pipeline()
-        self.player_stats_pipeline()
+        #self.winrate_stats_pipeline()
+        #self.encounter_stats_pipeline()
+        #self.player_stats_pipeline()
         #self.final_clean_pipeline()
         self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
         return self.df

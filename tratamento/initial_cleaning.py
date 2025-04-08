@@ -7,9 +7,8 @@ def merge_datasets() -> pd.DataFrame:
     files = os.listdir(path)
     dfs = []
     for file in files:
-        if file.startswith("atp_matches_199") or file.startswith("atp_matches_2"):
-            dfs.append(pd.read_csv(path+file))
-            print("Reading file: ", file)
+        dfs.append(pd.read_csv(path+file))
+        print("Reading file: ", file)
         
     df = pd.concat(dfs)
 

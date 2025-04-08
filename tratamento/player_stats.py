@@ -107,14 +107,6 @@ def calcular_partidas_jogadas_ultimo_mes(df:pd.DataFrame)->pd.DataFrame:
     
     return df
 
-#@flow(log_prints=True)
-
-#print(get_previous_encounters(df, 105223,104925,201800000)[['winner_name', 'loser_name','tourney_name']])
-#print(get_previous_matches(df, 106378, 20170130)[['winner_name', 'loser_name','tourney_name']])
-#calcular_h2h(df)
-#tempo_jogado_dataframe(df)
-#print(calcular_elo(df))
-
 def calcular_round_semana_passada(df:pd.DataFrame)->pd.DataFrame:
     """
     Calcula o round da semana passada para cada jogador
