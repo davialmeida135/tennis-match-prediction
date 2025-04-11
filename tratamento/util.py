@@ -9,7 +9,7 @@ def _get_previous_matches(df:pd.DataFrame, match_row) -> list[pd.DataFrame]:
     loser = match_row['loser_id']
     winner_matches:pd.DataFrame = df[(df['winner_id']==winner) | (df['loser_id']==winner)]
     winner_matches:pd.DataFrame = winner_matches[winner_matches['tourney_date']<=date]
-    while True:
+    while len(winner_matches)>0:
         row = winner_matches.iloc[-1]
         if row.equals(match_row):
             winner_matches = winner_matches.iloc[:-1]
@@ -18,7 +18,7 @@ def _get_previous_matches(df:pd.DataFrame, match_row) -> list[pd.DataFrame]:
     
     loser_matches:pd.DataFrame = df[(df['winner_id']==loser) | (df['loser_id']==loser)]
     loser_matches:pd.DataFrame = loser_matches[loser_matches['tourney_date']<=date]
-    while True:
+    while len(loser_matches)>0:
         row = loser_matches.iloc[-1]
         if row.equals(match_row):
             loser_matches = loser_matches.iloc[:-1]

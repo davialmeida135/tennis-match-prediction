@@ -45,7 +45,7 @@ class CompletePipeline():
         self.df.to_csv(os.path.join(self.output_folder, "winrate_stats.csv"), index=False)
         return self.df
 
-    #@flow 
+
     def encounter_stats_pipeline(self):
         self.df = calcular_h2h(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "encounter_stats.csv"), index=False)
@@ -53,10 +53,10 @@ class CompletePipeline():
 
     #@flow
     def player_stats_pipeline(self):
-        self.df = calcular_partidas_jogadas(self.df)
-        self.df = calcular_partidas_jogadas_ultimo_mes(self.df)
-        self.df = calcular_minutos_acumulados_torneio(self.df)
-        #self.df = calcular_elo(self.df)
+        #self.df = calcular_partidas_jogadas(self.df)
+        #self.df = calcular_partidas_jogadas_ultimo_mes(self.df)
+        #self.df = calcular_minutos_acumulados_torneio(self.df)
+        self.df = calcular_elo(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "player_stats.csv"), index=False)
         return self.df
     

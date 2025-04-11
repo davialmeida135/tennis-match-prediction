@@ -1,6 +1,5 @@
 import pandas as pd
 from util import _get_previous_encounters, _get_previous_matches
-from datetime import datetime,timedelta
 #from prefect import flow, task
 
 #@task
@@ -12,30 +11,42 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
     Um jogador novo deve iniciar com 100 pontos.
     """
     print("Calculando elo")
-    elo = pd.DataFrame(columns=['player_id', 'elo', 'date'])
+    elo = {}
     for index, row in df.iterrows():
-        player1 = row['winner_id']
-        player2 = row['loser_id']
+        winner = row['winner_name']
+        loser = row['loser_name']
         date = row['tourney_date']
         
-        if player1 not in elo['player_id'].values:
-            # Use loc to add a row
-            elo.loc[len(elo)] = {'player_id': player1, 'elo': 100, 'date': date}
+        if winner not in elo:
+            elo[winner]= 1500
             
-        if player2 not in elo['player_id'].values:
-            elo.loc[len(elo)] = {'player_id': player2, 'elo': 100, 'date': date}
+        if loser not in elo:
+            elo[loser]= 1500
             
         # Get most recent elo record
-        player1_elo = elo[elo['player_id']==player1].iloc[-1]['elo']
-        player2_elo = elo[elo['player_id']==player2].iloc[-1]['elo']
+        winner_elo = elo[winner]
+        loser_elo = elo[loser]
         
-        player1_elo += 1
-        player2_elo -= 1
-        # Update elo
-        elo.loc[len(elo)] = {'player_id': player1, 'elo': player1_elo, 'date': date}
-        elo.loc[len(elo)] = {'player_id': player2, 'elo': player2_elo, 'date': date}
+        winner_matches, loser_matches = _get_previous_matches(df,row)
 
-    return elo
+        expected_winner = 1/(1 + 10 ** ((loser_elo - winner_elo)/400))
+        expected_loser = 1/(1 + 10 ** ((winner_elo - loser_elo)/400))
+        
+        kwinner = 250/((len(winner_matches)+5)**0.4)
+        kloser = 250/((len(loser_matches)+5)**0.4)
+
+        k = 1.1 if row['tourney_level']=="G" else 1
+
+        winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
+        loser_elo = loser_elo + (k*kloser)*(-expected_loser)
+
+        elo[winner] = winner_elo
+        elo[loser] = loser_elo
+        # Update elo
+        df.loc[index, 'winner_elo'] = winner_elo
+        df.loc[index, 'loser_elo'] = loser_elo
+    
+    return df
 #@task
 def calcular_h2h(df:pd.DataFrame)->pd.DataFrame:
     '''
@@ -193,7 +204,7 @@ def _calcular_carga_previa_jogadores(row, df):
 def main():
     df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
     #df_processed = calcular_round_semana_passada(df)
-    df_processed = calcular_round_semana_passada(df)
+    df_processed = calcular_elo(df)
     df_processed.to_csv("dados_tratados/teste_pipe.csv", index=False)
 
 if __name__ == "__main__":

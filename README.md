@@ -26,6 +26,8 @@ https://developer.sportradar.com/tennis/reference/overview
 
 ## Conceito inicial
 
+https://www.tennisabstract.com/blog/2019/12/03/an-introduction-to-tennis-elo/
+
 Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 2
 
 | Player1_info| Player2_info| Winner

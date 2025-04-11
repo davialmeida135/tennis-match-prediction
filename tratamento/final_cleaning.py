@@ -22,7 +22,10 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
                      'l_bpFaced',
                      'score',
                      'winner_ioc',
-                     'loser_ioc',])
+                     'loser_ioc',
+                     #'winner_id',
+                     #'loser_id'
+                     ])
     return df
 
 def anonymize(df):
