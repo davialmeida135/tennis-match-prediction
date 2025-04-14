@@ -35,7 +35,7 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
         kwinner = 250/((len(winner_matches)+5)**0.4)
         kloser = 250/((len(loser_matches)+5)**0.4)
 
-        k = 1.1 if row['tourney_level']=="G" else 1
+        k = 1.1 if row['tourney_level']==3 else 1
 
         winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
         loser_elo = loser_elo + (k*kloser)*(-expected_loser)

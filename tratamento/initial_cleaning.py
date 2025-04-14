@@ -37,8 +37,14 @@ def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
 
 def transform_tourney_level(df: pd.DataFrame) -> pd.DataFrame:
     """Transform tournament level to categorical values"""
-    df['tourney_level'] = df['tourney_level'].astype('category')
+    dictionary = {'D':0,'A':1,'M':2,'G':3,'F':4,}
+    df['tourney_level'] = df['tourney_level'].apply(lambda x: dictionary.get(x, 0))
+    return df
 
+def transform_handedness(df: pd.DataFrame) -> pd.DataFrame:
+    """Transform handedness to categorical values"""
+    df['winner_hand'] = df['winner_hand'].apply(lambda x: 0 if x == 'R' else 1)
+    df['loser_hand'] = df['loser_hand'].apply(lambda x: 0 if x == 'R' else 1)
     return df
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -113,4 +119,6 @@ def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 if __name__ == "__main__":
-    merge_datasets()
+    df = pd.read_csv("dados_tratados/all_atp_matches.csv")
+    df = transform_tourney_level(df)
+    df.to_csv("dados_tratados/teste.csv", index=False)

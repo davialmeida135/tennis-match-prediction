@@ -1,4 +1,4 @@
-from initial_cleaning import preprocess_dates, transform_seed_data, remove_wo, sort_by_date
+from initial_cleaning import preprocess_dates, transform_handedness, transform_seed_data, remove_wo, sort_by_date, transform_tourney_level
 from winrate import calcular_winrate_total, calcular_winrate_superficie,calcular_winrate_superficie_ultimas_n,calcular_winrate_torneio,calcular_winrate_ultimas_n
 from final_cleaning import anonymize, remove_stat_cols
 from player_stats import (calcular_h2h, 
@@ -22,6 +22,8 @@ class CompletePipeline():
         self.df = preprocess_dates(self.df)
         self.df = sort_by_date(self.df)
         self.df = transform_seed_data(self.df)
+        self.df = transform_handedness(self.df)
+        self.df = transform_tourney_level(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "initial_clean.csv"), index=False)
         return self.df
     
@@ -63,7 +65,7 @@ class CompletePipeline():
     #@flow
     def final_clean_pipeline(self):
         self.df = remove_stat_cols(self.df)
-        self.df = self.df.pipe(anonymize)
+        self.df = anonymize(self.df)
         return self.df
 
         

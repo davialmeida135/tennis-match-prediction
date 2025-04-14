@@ -38,7 +38,7 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Tirar colunas desnecessárias
 - Numerar tourney level
 - Numerar round
-- Numerar mão do forehand
+
 
 ### Cálculo de dados dos jogadores
 - Winrate em um torneio
@@ -67,6 +67,7 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Limpar W/O
 - Fillar altura, idade, minutos(com media do torneio)
 - Fillar falta de rank (não sei como)
+- Numerar mão do forehand
 
 ### Cálculo de dados dos jogadores
 - H2H
