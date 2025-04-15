@@ -16,13 +16,6 @@ def merge_datasets() -> pd.DataFrame:
     
     return df
 
-def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
-    # Remove matches with walkover
-    print("Removing Walkovers")
-    df = df[df['score'] != 'W/O']
-    print("Removed Walkovers")
-    return df
-
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert integer dates to datetime format"""
     df['tourney_date'] = pd.to_datetime(df['tourney_date'].astype(str), format='%Y%m%d')
@@ -33,18 +26,6 @@ def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
 def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
     """Sort dataframe by date"""
     df = df.sort_values(by=['tourney_date','tourney_id','match_num'])
-    return df
-
-def transform_tourney_level(df: pd.DataFrame) -> pd.DataFrame:
-    """Transform tournament level to categorical values"""
-    dictionary = {'D':0,'A':1,'M':2,'G':3,'F':4,}
-    df['tourney_level'] = df['tourney_level'].apply(lambda x: dictionary.get(x, 0))
-    return df
-
-def transform_handedness(df: pd.DataFrame) -> pd.DataFrame:
-    """Transform handedness to categorical values"""
-    df['winner_hand'] = df['winner_hand'].apply(lambda x: 0 if x == 'R' else 1)
-    df['loser_hand'] = df['loser_hand'].apply(lambda x: 0 if x == 'R' else 1)
     return df
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:

@@ -1,6 +1,6 @@
-from initial_cleaning import preprocess_dates, transform_handedness, transform_seed_data, remove_wo, sort_by_date, transform_tourney_level
+from initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
 from winrate import calcular_winrate_total, calcular_winrate_superficie,calcular_winrate_superficie_ultimas_n,calcular_winrate_torneio,calcular_winrate_ultimas_n
-from final_cleaning import anonymize, remove_stat_cols
+from final_cleaning import anonymize, remove_stat_cols, transform_handedness, transform_tourney_level, remove_wo
 from player_stats import (calcular_h2h, 
 calcular_elo, calcular_partidas_jogadas, 
 calcular_partidas_jogadas_ultimo_mes, 
@@ -18,12 +18,9 @@ class CompletePipeline():
 
     #@flow
     def initial_clean_pipeline(self):
-        self.df = remove_wo(self.df)
         self.df = preprocess_dates(self.df)
         self.df = sort_by_date(self.df)
         self.df = transform_seed_data(self.df)
-        self.df = transform_handedness(self.df)
-        self.df = transform_tourney_level(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "initial_clean.csv"), index=False)
         return self.df
     
@@ -55,8 +52,8 @@ class CompletePipeline():
 
     #@flow
     def player_stats_pipeline(self):
-        #self.df = calcular_partidas_jogadas(self.df)
-        #self.df = calcular_partidas_jogadas_ultimo_mes(self.df)
+        self.df = calcular_partidas_jogadas(self.df)
+        self.df = calcular_partidas_jogadas_ultimo_mes(self.df)
         #self.df = calcular_minutos_acumulados_torneio(self.df)
         self.df = calcular_elo(self.df)
         self.df.to_csv(os.path.join(self.output_folder, "player_stats.csv"), index=False)
@@ -64,11 +61,14 @@ class CompletePipeline():
     
     #@flow
     def final_clean_pipeline(self):
+        self.df = remove_wo(self.df)
+        self.df = transform_tourney_level(self.df)
+        self.df = transform_handedness(self.df)
         self.df = remove_stat_cols(self.df)
-        self.df = anonymize(self.df)
+        #self.df = anonymize(self.df)
         return self.df
 
-        
+
     #@flow
     def run(self):
         self.initial_clean_pipeline()
@@ -76,7 +76,7 @@ class CompletePipeline():
         #self.winrate_stats_pipeline()
         #self.encounter_stats_pipeline()
         self.player_stats_pipeline()
-        #self.final_clean_pipeline()
+        self.final_clean_pipeline()
         self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
         return self.df
 

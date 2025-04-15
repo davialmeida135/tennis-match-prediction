@@ -1,6 +1,25 @@
 import pandas as pd
 import numpy as np
 
+def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
+    # Remove matches with walkover
+    print("Removing Walkovers")
+    df = df[df['score'] != 'W/O']
+    print("Removed Walkovers")
+    return df
+
+def transform_tourney_level(df: pd.DataFrame) -> pd.DataFrame:
+    """Transform tournament level to categorical values"""
+    dictionary = {'D':0,'A':1,'M':2,'G':3,'F':4,}
+    df['tourney_level'] = df['tourney_level'].apply(lambda x: dictionary.get(x, 0))
+    return df
+
+def transform_handedness(df: pd.DataFrame) -> pd.DataFrame:
+    """Transform handedness to categorical values"""
+    df['winner_hand'] = df['winner_hand'].apply(lambda x: 0 if x == 'R' else 1)
+    df['loser_hand'] = df['loser_hand'].apply(lambda x: 0 if x == 'R' else 1)
+    return df
+
 def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=['w_ace',
                      'w_df',

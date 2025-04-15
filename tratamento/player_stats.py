@@ -15,7 +15,6 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
     for index, row in df.iterrows():
         winner = row['winner_name']
         loser = row['loser_name']
-        date = row['tourney_date']
         
         if winner not in elo:
             elo[winner]= 1500
@@ -35,7 +34,7 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
         kwinner = 250/((len(winner_matches)+5)**0.4)
         kloser = 250/((len(loser_matches)+5)**0.4)
 
-        k = 1.1 if row['tourney_level']==3 else 1
+        k = 1.1 if row['tourney_level']=='G' else 1
 
         winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
         loser_elo = loser_elo + (k*kloser)*(-expected_loser)
@@ -45,6 +44,7 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
         # Update elo
         df.loc[index, 'winner_elo'] = winner_elo
         df.loc[index, 'loser_elo'] = loser_elo
+        df.loc[index, 'elo_diff'] = winner_elo-loser_elo
     
     return df
 #@task
