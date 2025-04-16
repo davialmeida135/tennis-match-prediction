@@ -7,8 +7,11 @@ def _get_previous_matches(df:pd.DataFrame, match_row) -> list[pd.DataFrame]:
     date = match_row['tourney_date']
     winner = match_row['winner_id']
     loser = match_row['loser_id']
+    print("==")
     winner_matches:pd.DataFrame = df[(df['winner_id']==winner) | (df['loser_id']==winner)]
+    print(len(winner_matches))
     winner_matches:pd.DataFrame = winner_matches[winner_matches['tourney_date']<=date]
+    print(len(winner_matches))
     while len(winner_matches)>0:
         row = winner_matches.iloc[-1]
         if row.equals(match_row):
@@ -25,6 +28,7 @@ def _get_previous_matches(df:pd.DataFrame, match_row) -> list[pd.DataFrame]:
             break
         loser_matches = loser_matches.iloc[:-1]
 
+    print(len(winner_matches))
     return [winner_matches,loser_matches]
 
 def _get_previous_encounters(df, player1_id, player2_id, date):
@@ -38,8 +42,8 @@ def _get_previous_encounters(df, player1_id, player2_id, date):
     return df[df['tourney_date']<date]
 
 if __name__ == '__main__':
-    df = pd.read_csv("../dataset/tennis_atp/atp_matches_2023.csv")
-    row = df.iloc[12]
+    df = pd.read_csv("dataset/tennis_atp/atp_matches_2023.csv")
+    row = df.iloc[5]
     w,l = _get_previous_matches(df,row)
-    print(l)
+    print(w)
     #print(l)

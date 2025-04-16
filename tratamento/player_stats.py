@@ -8,11 +8,12 @@ from util import _get_previous_encounters, _get_previous_matches
 def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
     """
     Soma um ponto para cada vitória do jogador e subtrai um ponto para cada derrota.
-    Um jogador novo deve iniciar com 100 pontos.
+    Um jogador novo deve iniciar com 1500 pontos.
     """
     print("Calculando elo")
     elo = {}
     for index, row in df.iterrows():
+        winner_matches, loser_matches = _get_previous_matches(df,row)
         winner = row['winner_name']
         loser = row['loser_name']
         
@@ -25,6 +26,81 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
         # Get most recent elo record
         winner_elo = elo[winner]
         loser_elo = elo[loser]
+        
+        print(len(winner_matches))
+        if len(winner_matches)>0:
+            print('calculating new winner elo')
+            last_winner_match = winner_matches.iloc[-1]
+            last_winner_match_winner = last_winner_match['winner_name']
+            last_winner_match_loser = last_winner_match['loser_name']
+            # This winner won last match
+            if last_winner_match_winner == winner:
+                last_winner_match_loser_elo = elo[last_winner_match_loser]
+            
+                expected_winner = 1/(1 + 10 ** ((last_winner_match_loser_elo - winner_elo)/400))
+                kwinner = 250/((len(winner_matches)+5)**0.4)
+                k = 1.1 if row['tourney_level']=='G' else 1
+                winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
+
+            # This winner lost last match
+            else:
+                last_winner_match_winner_elo = elo[last_winner_match_loser]
+                expected_loser = 1/(1 + 10 ** ((last_winner_match_winner_elo - winner_elo)/400))            
+                kloser = 250/((len(loser_matches)+5)**0.4)
+                k = 1.1 if row['tourney_level']=='G' else 1
+                winner_elo = winner_elo + (k*kloser)*(-expected_loser)
+        
+        if len(loser_matches)>0:
+            last_loser_match = loser_matches.iloc[-1]
+            last_loser_match_winner = last_loser_match['winner_name']
+            last_loser_match_loser = last_loser_match['loser_name']
+
+            if last_loser_match_winner == loser:
+                last_loser_match_loser_elo = elo[last_loser_match_loser]
+                expected_winner = 1/(1 + 10 ** ((last_loser_match_loser_elo - loser_elo)/400))
+                kwinner = 250/((len(loser_matches)+5)**0.4)
+                k = 1.1 if row['tourney_level']=='G' else 1
+                loser_elo = loser_elo + (k*kwinner)*(1-expected_winner)
+            else:
+                last_loser_match_winner_elo = elo[last_loser_match_winner]
+                expected_loser =  1/(1 + 10 ** ((last_loser_match_winner_elo - loser_elo)/400))
+                kloser = 250/((len(loser_matches)+5)**0.4)
+                k = 1.1 if row['tourney_level']=='G' else 1
+                loser_elo = loser_elo + (k*kloser)*(-expected_loser)
+    
+        elo[winner] = winner_elo
+        elo[loser] = loser_elo
+        # Update elo
+        df.loc[index, 'winner_elo'] = winner_elo
+        df.loc[index, 'loser_elo'] = loser_elo
+        df.loc[index, 'elo_diff'] = winner_elo-loser_elo
+    
+    return df
+
+def calcular_elo_superficies(df:pd.DataFrame)->pd.DataFrame:
+    """
+    Soma um ponto para cada vitória do jogador e subtrai um ponto para cada derrota em cada superfície.
+    Um jogador novo deve iniciar com 1500 pontos.
+    """
+    print("Calculando elo")
+    elo = pd.DataFrame(columns=['player','surface','elo'])
+    for index, row in df.iterrows():
+        winner = row['winner_name']
+        winner = str(winner).lower()
+        loser = row['loser_name']
+        loser = str(loser).lower()
+        surface = row['surface']
+        surface = str(surface).lower()
+
+        if len(elo[(elo['player']==winner) & (elo['surface']==surface)]) == 0:
+            elo.loc[len(elo)]= [winner,surface,1500.0]
+            
+        if len(elo[(elo['player']==loser) & (elo['surface']==surface)]) == 0:
+            elo.loc[len(elo)]= [loser,surface,1500.0]
+            
+        # Get most recent elo record
+        winner_elo = elo[(elo['player']==winner) & (elo['surface']==surface)].iloc[-1].elo
+        loser_elo = elo[(elo['player']==loser) & (elo['surface']==surface)].iloc[-1].elo
         
         winner_matches, loser_matches = _get_previous_matches(df,row)
 
@@ -39,12 +115,12 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
         winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
         loser_elo = loser_elo + (k*kloser)*(-expected_loser)
 
-        elo[winner] = winner_elo
-        elo[loser] = loser_elo
+        elo.loc[(elo['player']==winner) & (elo['surface']==surface),'elo']= winner_elo
+        elo.loc[(elo['player']==loser) & (elo['surface']==surface),'elo']= loser_elo
         # Update elo
-        df.loc[index, 'winner_elo'] = winner_elo
-        df.loc[index, 'loser_elo'] = loser_elo
-        df.loc[index, 'elo_diff'] = winner_elo-loser_elo
+        df.loc[index, 'winner_surface_elo'] = winner_elo
+        df.loc[index, 'loser_surface_elo'] = loser_elo
+        df.loc[index, 'surface_elo_diff'] = winner_elo-loser_elo
     
     return df
 #@task
@@ -205,7 +281,7 @@ def main():
     df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
     #df_processed = calcular_round_semana_passada(df)
     df_processed = calcular_elo(df)
-    df_processed.to_csv("dados_tratados/teste_pipe.csv", index=False)
+    df_processed.to_csv("dados_tratados/teste_stats.csv", index=False)
 
 if __name__ == "__main__":
     main()
