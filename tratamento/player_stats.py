@@ -12,24 +12,28 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
     """
     print("Calculando elo")
     elo = {}
+    df['winner_elo'] = 0
+    df['loser_elo'] = 0
+    df['elo_diff'] = 0
     for index, row in df.iterrows():
         winner_matches, loser_matches = _get_previous_matches(df,row)
+
         winner = row['winner_name']
         loser = row['loser_name']
         
         if winner not in elo:
-            elo[winner]= 1500
+            elo[winner]= 1500.0
+            new_winner_elo = 1500.0
             
         if loser not in elo:
-            elo[loser]= 1500
+            elo[loser]= 1500.0
+            new_loser_elo = 1500.0
             
         # Get most recent elo record
         winner_elo = elo[winner]
         loser_elo = elo[loser]
         
-        print(len(winner_matches))
         if len(winner_matches)>0:
-            print('calculating new winner elo')
             last_winner_match = winner_matches.iloc[-1]
             last_winner_match_winner = last_winner_match['winner_name']
             last_winner_match_loser = last_winner_match['loser_name']
@@ -39,16 +43,16 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
             
                 expected_winner = 1/(1 + 10 ** ((last_winner_match_loser_elo - winner_elo)/400))
                 kwinner = 250/((len(winner_matches)+5)**0.4)
-                k = 1.1 if row['tourney_level']=='G' else 1
-                winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
+                k = 1.1 if last_winner_match['tourney_level']=='G' else 1
+                new_winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
 
             # This winner lost last match
             else:
                 last_winner_match_winner_elo = elo[last_winner_match_loser]
                 expected_loser = 1/(1 + 10 ** ((last_winner_match_winner_elo - winner_elo)/400))            
                 kloser = 250/((len(loser_matches)+5)**0.4)
-                k = 1.1 if row['tourney_level']=='G' else 1
-                winner_elo = winner_elo + (k*kloser)*(-expected_loser)
+                k = 1.1 if last_winner_match['tourney_level']=='G' else 1
+                new_winner_elo = winner_elo + (k*kloser)*(-expected_loser)
         
         if len(loser_matches)>0:
             last_loser_match = loser_matches.iloc[-1]
@@ -59,21 +63,21 @@ def calcular_elo(df:pd.DataFrame)->pd.DataFrame:
                 last_loser_match_loser_elo = elo[last_loser_match_loser]
                 expected_winner = 1/(1 + 10 ** ((last_loser_match_loser_elo - loser_elo)/400))
                 kwinner = 250/((len(loser_matches)+5)**0.4)
-                k = 1.1 if row['tourney_level']=='G' else 1
-                loser_elo = loser_elo + (k*kwinner)*(1-expected_winner)
+                k = 1.1 if last_winner_match['tourney_level']=='G' else 1
+                new_loser_elo = loser_elo + (k*kwinner)*(1-expected_winner)
             else:
                 last_loser_match_winner_elo = elo[last_loser_match_winner]
                 expected_loser =  1/(1 + 10 ** ((last_loser_match_winner_elo - loser_elo)/400))
                 kloser = 250/((len(loser_matches)+5)**0.4)
-                k = 1.1 if row['tourney_level']=='G' else 1
-                loser_elo = loser_elo + (k*kloser)*(-expected_loser)
+                k = 1.1 if last_winner_match['tourney_level']=='G' else 1
+                new_loser_elo = loser_elo + (k*kloser)*(-expected_loser)
     
-        elo[winner] = winner_elo
-        elo[loser] = loser_elo
-        # Update elo
-        df.loc[index, 'winner_elo'] = winner_elo
-        df.loc[index, 'loser_elo'] = loser_elo
-        df.loc[index, 'elo_diff'] = winner_elo-loser_elo
+        elo[winner] = new_winner_elo
+        elo[loser] = new_loser_elo
+        # # Update elo
+        df.loc[index, 'winner_elo'] = new_winner_elo
+        df.loc[index, 'loser_elo'] = new_loser_elo
+        df.loc[index, 'elo_diff'] = new_winner_elo-new_loser_elo
     
     return df
 
@@ -278,8 +282,8 @@ def _calcular_carga_previa_jogadores(row, df):
     return row 
 
 def main():
-    df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
     #df_processed = calcular_round_semana_passada(df)
+    df = pd.read_csv("dados_tratados/all_atp_matches.csv", parse_dates=['tourney_date'])
     df_processed = calcular_elo(df)
     df_processed.to_csv("dados_tratados/teste_stats.csv", index=False)
 

@@ -101,5 +101,5 @@ def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == "__main__":
     df = pd.read_csv("dados_tratados/all_atp_matches.csv")
-    df = transform_tourney_level(df)
+    #df = transform_tourney_level(df)
     df.to_csv("dados_tratados/teste.csv", index=False)
