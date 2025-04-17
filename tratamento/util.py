@@ -1,47 +1,62 @@
 import pandas as pd
 
-def _get_previous_matches(df:pd.DataFrame, match_row) -> list[pd.DataFrame]:
-    """
-    Retorna todas as partidas de um jogador antes de uma data
-    """
-    date = match_row['tourney_date']
-    winner = match_row['winner_id']
-    loser = match_row['loser_id']
-    winner_matches:pd.DataFrame = df[(df['winner_id']==winner) | (df['loser_id']==winner)]
-    winner_matches:pd.DataFrame = winner_matches[winner_matches['tourney_date']<=date]
-    while len(winner_matches)>0:
-        row = winner_matches.iloc[-1]
-        if row.equals(match_row):
-            winner_matches = winner_matches.iloc[:-1]
-            break
-        winner_matches = winner_matches.iloc[:-1]
-    
-    loser_matches:pd.DataFrame = df[(df['winner_id']==loser) | (df['loser_id']==loser)]
-    loser_matches:pd.DataFrame = loser_matches[loser_matches['tourney_date']<=date]
-    while len(loser_matches)>0:
-        row = loser_matches.iloc[-1]
-        if row.equals(match_row):
-            loser_matches = loser_matches.iloc[:-1]
-            break
-        loser_matches = loser_matches.iloc[:-1]
+import polars as pl
+import datetime
 
-    return [winner_matches,loser_matches]
+# ... existing pandas code ...
 
-def _get_previous_encounters(df, player1_id, player2_id, date):
+def _get_previous_matches(df: pl.DataFrame, winner_id: int, loser_id: int, date, match_num: int) -> list[pl.DataFrame]:
     """
-    Retorna todas as partidas entre dois jogadores antes de uma data
+    Retorna todas as partidas de um jogador antes de uma partida específica, usando Polars.
+    Assumes df is sorted by tourney_date and match_num.
     """
-    df1 = df[(df['winner_id']==player1_id) & (df['loser_id']==player2_id)]
-    df2 = df[(df['winner_id']==player2_id) & (df['loser_id']==player1_id)]
-    df = pd.concat([df1, df2])
-    df.sort_values(by='tourney_date', inplace=True)
-    return df[df['tourney_date']<date]
+    # Filter for matches involving the winner that occurred before the current match
+    winner_matches = df.filter(
+        ((pl.col("winner_id") == winner_id) | (pl.col("loser_id") == winner_id)) 
+    )
+    print(len(winner_matches))
+    winner_matches = winner_matches.filter(
+        ((pl.col("tourney_date") < date) | ((pl.col("tourney_date") == date) & (pl.col("match_num") < match_num)))
+    )
+    # Filter for matches involving the loser that occurred before the current match
+    loser_matches = df.filter(
+        ((pl.col("winner_id") == loser_id) | (pl.col("loser_id") == loser_id)) &
+        ((pl.col("tourney_date") < date) | ((pl.col("tourney_date") == date) & (pl.col("match_num") < match_num)))
+    )
+
+    return [winner_matches, loser_matches]
+
+def _get_previous_encounters(df: pl.DataFrame, player1_id: int, player2_id: int, date: datetime.date, match_num: int) -> pl.DataFrame:
+    """
+    Retorna todas as partidas entre dois jogadores antes de uma partida específica, usando Polars.
+    Assumes df is sorted by tourney_date and match_num.
+    """
+    encounters = df.filter(
+        (
+            ((pl.col("winner_id") == player1_id) & (pl.col("loser_id") == player2_id)) |
+            ((pl.col("winner_id") == player2_id) & (pl.col("loser_id") == player1_id))
+        ) &
+        (
+            (pl.col("tourney_date") < date) |
+            ((pl.col("tourney_date") == date) & (pl.col("match_num") < match_num))
+        )
+    )
+    # Sorting might not be strictly necessary here if df is already sorted,
+    # but it ensures chronological order within the result.
+    return encounters.sort("tourney_date", "match_num")
 
 if __name__ == '__main__':
     
-    df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
-    for index, row in df.iterrows():
-        w,l = _get_previous_matches(df,row)
-        print("Len: ",len(w))
+    # df = pd.read_csv("dados_tratados/initial_clean.csv", parse_dates=['tourney_date'])
+    # for index, row in df.iterrows():
+    #     w,l = _get_previous_matches(df,row)
+    #     print("Len: ",len(w))
+
+    df_pl = pl.read_csv("dados_tratados/initial_clean.csv", 
+                        try_parse_dates=True,
+                        schema_overrides={"winner_seed": pl.Utf8, 
+                                        "loser_seed": pl.Utf8} ) 
     
-    #print(l)
+    print(df_pl.get_column("tourney_date").dtype)
+    winner,loser = _get_previous_matches(df_pl, 211663, 105430, datetime.date(2024,10,10), 289)
+    print(winner)
