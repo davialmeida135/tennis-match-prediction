@@ -130,53 +130,131 @@ def calcular_elo(df: pl.DataFrame) -> pl.DataFrame:
         (pl.col("winner_elo") - pl.col("loser_elo")).alias("elo_diff")
     ).drop("original_order") # Remove the temporary ordering column
 
-def calcular_elo_superficies(df:pd.DataFrame)->pd.DataFrame:
+    # Join back any columns from the original df that were dropped
+    # Assuming 'tourney_date', 'match_num', 'winner_id', 'loser_id' are keys
+    original_cols_to_keep = [col for col in df.columns if col not in final_df.columns] + ["tourney_date", "match_num", "winner_id", "loser_id"]
+    if original_cols_to_keep:
+        final_df = df.select(original_cols_to_keep).join(
+            final_df, on=["tourney_date", "match_num", "winner_id", "loser_id"], how="left"
+        )
+
+    return final_df
+
+def calcular_elo_superficies(df:pl.DataFrame)->pl.DataFrame:
     """
     Soma um ponto para cada vitória do jogador e subtrai um ponto para cada derrota em cada superfície.
     Um jogador novo deve iniciar com 1500 pontos.
     """
-    print("Calculando elo")
-    elo = pd.DataFrame(columns=['player','surface','elo'])
-    for index, row in df.iterrows():
-        winner = row['winner_name']
-        winner = str(winner).lower()
-        loser = row['loser_name']
-        loser = str(loser).lower()
-        surface = row['surface']
-        surface = str(surface).lower()
+    print("Calculando elo (Polars Standard Logic)")
 
-        if len(elo[(elo['player']==winner) & (elo['surface']==surface)]) == 0:
-            elo.loc[len(elo)]= [winner,surface,1500.0]
-            
-        if len(elo[(elo['player']==loser) & (elo['surface']==surface)]) == 0:
-            elo.loc[len(elo)]= [loser,surface,1500.0]
-            
-        # Get most recent elo record
-        winner_elo = elo[(elo['player']==winner) & (elo['surface']==surface)].iloc[-1].elo
-        loser_elo = elo[(elo['player']==loser) & (elo['surface']==surface)].iloc[-1].elo
-        
-        winner_matches, loser_matches = _get_previous_matches(df,row)
+    # Ensure DataFrame is Polars
+    if not isinstance(df, pl.DataFrame):
+        df = pl.from_pandas(df) # Convert if input is pandas
 
-        expected_winner = 1/(1 + 10 ** ((loser_elo - winner_elo)/400))
-        expected_loser = 1/(1 + 10 ** ((winner_elo - loser_elo)/400))
-        
-        kwinner = 250/((len(winner_matches)+5)**0.4)
-        kloser = 250/((len(loser_matches)+5)**0.4)
+    # 1. Prepare data: Select necessary columns, sort, add unique order
+    df_sorted = df.select([
+        "tourney_date", "match_num", "tourney_level", # Ensure these columns exist
+        "winner_id", "loser_id", "winner_name", "loser_name", "surface" # Ensure these columns exist
+    ]).with_row_index("original_order")
 
-        k = 1.1 if row['tourney_level']=='G' else 1
+    # 2. Melt to long format (one row per player per match)
+    winners = df_sorted.select([
+        pl.col("original_order"), "tourney_date", "match_num", "tourney_level", "surface",
+        pl.col("winner_id").alias("player_id"),
+        pl.col("loser_id").alias("opponent_id"),
+        pl.col("winner_name").alias("player_name"), # Keep name if needed later
+        pl.lit(True).alias("won")
+    ])
+    losers = df_sorted.select([
+        pl.col("original_order"), "tourney_date", "match_num", "tourney_level", "surface",
+        pl.col("loser_id").alias("player_id"),
+        pl.col("winner_id").alias("opponent_id"),
+        pl.col("loser_name").alias("player_name"), # Keep name if needed later
+        pl.lit(False).alias("won")
+    ])
 
-        winner_elo = winner_elo + (k*kwinner)*(1-expected_winner)
-        loser_elo = loser_elo + (k*kloser)*(-expected_loser)
+    # Combine and sort by the original match order to process chronologically
+    matches_long = pl.concat([winners, losers]).sort("original_order")
 
-        elo.loc[(elo['player']==winner) & (elo['surface']==surface),'elo']= winner_elo
-        elo.loc[(elo['player']==loser) & (elo['surface']==surface),'elo']= loser_elo
-        # Update elo
-        df.loc[index, 'winner_surface_elo'] = winner_elo
-        df.loc[index, 'loser_surface_elo'] = loser_elo
-        df.loc[index, 'surface_elo_diff'] = winner_elo-loser_elo
+    # 3. Calculate cumulative match count per player efficiently
+    matches_long = matches_long.with_columns(
+        # Count matches *before* the current one
+        (pl.col("player_id").cum_count().over("player_id")).alias("player_match_count")
+    )
+    matches_long.write_csv("dados_tratados/matches_long.csv")
+    elo_state = {}
+    results_list = [] # List to store results including pre-match Elo
+    for match_dict in matches_long.iter_rows(named=True):
+        #print('i')
+        player_id = match_dict['player_id']
+        opponent_id = match_dict['opponent_id']
+        surface = match_dict['surface']
+
+        # Create keys for the dictionary lookup
+        player_key = (player_id, surface)
+        opponent_key = (opponent_id, surface)
+
+        # Get Elo ratings *before* the current match from state using dict.get()
+        player_elo_before = elo_state.get(player_key, 1500.0)
+        opponent_elo_before = elo_state.get(opponent_key, 1500.0)
+
+        # Store pre-match Elo with the match data
+        match_dict['player_elo_before'] = player_elo_before
+        # We only need the player's pre-match elo for joining back later
+        results_list.append(match_dict)    
+
+        # Calculate the player's Elo *after* the current match
+        new_player_elo = _calculate_elo_update(
+            player_elo=player_elo_before,
+            opponent_elo=opponent_elo_before,
+            player_won=match_dict['won'],
+            player_match_count=match_dict['player_match_count'],
+            tourney_level=match_dict['tourney_level']
+        )
+
+        # Update the Elo state for this player for the *next* iteration
+        elo_state[player_key] = new_player_elo
+
+
+    # Convert the results list (with pre-match Elos) back to a DataFrame
+    results_df = pl.DataFrame(results_list)
+
+    # 5. Join pre-match Elos back to the original DataFrame structure
     
-    return df
-#@task
+    # Select winner's pre-match Elo
+    winner_elo_df = results_df.filter(pl.col("won")==True).select(
+        pl.col("original_order"),
+        pl.col("player_elo_before").alias("winner_surface_elo")
+    )
+    
+    # Select loser's pre-match Elo
+    loser_elo_df = results_df.filter(pl.col("won")==False).select(
+        pl.col("original_order"),
+        pl.col("player_elo_before").alias("loser_surface_elo")
+    )
+
+    # Join back to the original sorted DataFrame (df_sorted)
+    final_df = df_sorted.join(
+        winner_elo_df, on="original_order", how="left"
+    ).join(
+        loser_elo_df, on="original_order", how="left"
+    )
+
+    # Calculate Elo difference and clean up
+    final_df = final_df.with_columns(
+        (pl.col("winner_surface_elo") - pl.col("loser_surface_elo")).alias("surface_elo_diff")
+    ).drop("original_order") # Remove the temporary ordering column
+
+    # Join back any columns from the original df that were dropped
+    # Assuming 'tourney_date', 'match_num', 'winner_id', 'loser_id' are keys
+    original_cols_to_keep = [col for col in df.columns if col not in final_df.columns] + ["tourney_date", "match_num", "winner_id", "loser_id"]
+    if original_cols_to_keep:
+        final_df = df.select(original_cols_to_keep).join(
+            final_df, on=["tourney_date", "match_num", "winner_id", "loser_id"], how="left"
+        )
+
+    return final_df
+
 def calcular_h2h(df:pd.DataFrame)->pd.DataFrame:
     '''
     Para cada partida, calcula o histórico de confrontos entre os jogadores
@@ -349,7 +427,7 @@ def main():
 
     #df_processed = calcular_elo(df_pl) # Call the Polars version
     df_processed = calcular_elo_superficies(df_pl) # Call the Polars version
-    df_processed.write_csv("dados_tratados/teste_stats_polars.csv") # Save the result
+    df_processed.write_csv("dados_tratados/teste_surf_stats_polars.csv") # Save the result
 
 
 
