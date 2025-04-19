@@ -191,8 +191,8 @@ def calcular_elo_superficies(df:pl.DataFrame)->pl.DataFrame:
         surface = match_dict['surface']
 
         # Create keys for the dictionary lookup
-        player_key = (player_id, surface)
-        opponent_key = (opponent_id, surface)
+        player_key = (player_id, surface.lower())
+        opponent_key = (opponent_id, surface.lower())
 
         # Get Elo ratings *before* the current match from state using dict.get()
         player_elo_before = elo_state.get(player_key, 1500.0)
