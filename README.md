@@ -83,3 +83,17 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 ### Limpeza final
 - 
+
+## Roadmap
+- EDA
+- Limpeza Inicial
+- Criação de Features novas *
+- Limpeza final, one hot encoding, anonimizar players
+- Versionar dataset final
+
+- Rodar algum algoritmo de feature importance para determinar quais features serão usadas
+- Treinar um modelo inicial, documentar testes no MLFlow ou WandB
+- Manter comparações com baseline (elo)
+
+- Conexão com uma api para alimentação do dataset
+- Pipeline de retreino do modelo
