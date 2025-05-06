@@ -84,6 +84,12 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ### Limpeza final
 - 
 
+## Modelo
+- Baseline de performance = elo
+- Random Forest/DT
+- Experimentos com redes neurais + MLFlow
+- Regularização L1 ou L2 com rede neural
+
 ## Roadmap
 - EDA
 - Limpeza Inicial
