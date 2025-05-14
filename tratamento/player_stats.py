@@ -30,7 +30,7 @@ def _calculate_elo_update(player_elo, opponent_elo, player_won, player_match_cou
         return player_elo # Return previous Elo if update results in invalid number
     return new_elo
 
-def calcular_elo(df: pl.DataFrame) -> pl.DataFrame:
+def calcular_elo(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculates Elo ratings using standard update logic with Polars.
     Iterates once through matches chronologically to handle state dependency.
@@ -138,7 +138,7 @@ def calcular_elo(df: pl.DataFrame) -> pl.DataFrame:
             final_df, on=["tourney_date", "match_num", "winner_id", "loser_id"], how="left"
         )
 
-    return final_df
+    return final_df.to_pandas()
 
 def calcular_elo_superficies(df:pl.DataFrame)->pl.DataFrame:
     """
@@ -284,6 +284,7 @@ def calcular_partidas_jogadas(df:pd.DataFrame)->pd.DataFrame:
     """
     Calcula o número de partidas jogadas por cada jogador
     """
+    # FIXME: This function is not working properly with Polars
     print("Calculando partidas jogadas")
     df['winner_matches_played'] = 0
     df['loser_matches_played'] = 0
@@ -291,6 +292,9 @@ def calcular_partidas_jogadas(df:pd.DataFrame)->pd.DataFrame:
     for index, row in df.iterrows():
         
         # Get previous matches for winner
+        winner_id = row['winner_id']
+        loser_id = row['loser_id']
+
         winner_matches, loser_matches = _get_previous_matches(df, row)
         if len(winner_matches) > 0:
             df.loc[index, 'winner_matches_played'] = len(winner_matches)
