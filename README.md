@@ -80,4 +80,25 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Partidas ganhas
 
 ### Limpeza final
-- Mudar tipo das datas
+- 
+
+## Modelo
+- Baseline de performance = elo
+- Random Forest/DT
+- Experimentos com redes neurais + MLFlow
+- Regularização L1 ou L2 com rede neural
+
+## Roadmap
+- EDA
+- Limpeza Inicial
+- Criação de Features novas *
+- Limpeza final, one hot encoding, anonimizar players
+- Versionar dataset final
+
+- Rodar algum algoritmo de feature importance para determinar quais features serão usadas
+- Treinar um modelo inicial, documentar testes no MLFlow ou WandB
+- Manter comparações com baseline (elo)
+
+- Conexão com uma api para alimentação do dataset
+- Pipeline de retreino do modelo
+

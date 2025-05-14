@@ -7,12 +7,15 @@ def merge_datasets() -> pd.DataFrame:
     files = os.listdir(path)
     dfs = []
     for file in files:
+        # Only files from 2000s
+        if len(file) != 20 or file[0:5] != "atp_m":
+            continue
         dfs.append(pd.read_csv(path+file))
         print("Reading file: ", file)
         
     df = pd.concat(dfs)
 
-    df.to_csv("dados_tratados/all_atp_matches.csv", index=False)
+    df.to_csv("dados_tratados/all_atp_matches2.csv", index=False)
     
     return df
 
@@ -92,9 +95,7 @@ def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
     # Drop original columns
     result = result.drop(columns=['winner_seed', 'loser_seed', 'winner_entry', 'loser_entry'])
     result['winner_seed_value'] = result['winner_seed_value'].astype('Int64',errors='ignore')
-    #result['winner_entry_method'] = result['winner_entry_method'].astype('Int64',errors='ignore')
     result['loser_seed_value'] = result['loser_seed_value'].astype('Int64',errors='ignore')
-    #result['loser_entry_method'] = result['loser_entry_method'].astype('Int64',errors='ignore')
     
     print("Seed data transformed")
     return result
@@ -102,4 +103,5 @@ def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:
 if __name__ == "__main__":
     df = pd.read_csv("dados_tratados/all_atp_matches.csv")
     #df = transform_tourney_level(df)
-    df.to_csv("dados_tratados/teste.csv", index=False)
+    #df.to_csv("dados_tratados/teste.csv", index=False)
+    merge_datasets()
