@@ -36,21 +36,22 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
-- Numerar tourney level
-- Numerar round
-
 
 ### Cálculo de dados dos jogadores
 - Winrate em um torneio
-- H2H recente (last 5)
-- ELO
+- H2H recente (last 5) (polars) talvez fazer H2H padrao com polars tambem
 - Diferença de rank
-- Diferença de ELO
 - Diferença de idade
 - Diferença de Altura
-- Win streak
-- Win streak na superfície
-- Win streak no torneio (massa)
+- Win streak (polars)
+- Win streak na superfície (polars)
+- Win streak no torneio (polars)
+- Winrate Total (polars)
+- Winrate nas ultimas 50 partidas (polars)
+- Winrate das ultimas 10 partidas (polars)
+- Winrate em uma superfície (polars)
+- Winrate superfície ultimas 50 Consertar isso (polars)
+- Winrate superfície ultimas 10 Consertar isso (polars)
 
 ### Limpeza final
 - Limpar colunas desnecessárias
@@ -58,7 +59,8 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Tirar player id, score, match_num, tourney_date
 - tirar partidas RET
 - Anonimizar os dados
-- Mudar tipo das datas
+- Numerar tourney level
+- Numerar round
 
 ## DONE
 ### Limpeza inicial
@@ -71,14 +73,10 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 ### Cálculo de dados dos jogadores
 - H2H
+- ELO
+- Diferença de ELO
 - Tempo jogado em um torneio
 - Helper functions de pegar todos os confrontos entre jogadores e todas as partidas de um jogador
-- Winrate Total 
-- Winrate nas ultimas 50 partidas
-- Winrate das ultimas 10 partidas
-- Winrate em uma superfície Consertar isso (não precisa de uma coluna pra cada superfície)
-- Winrate superfície ultimas 50 Consertar isso
-- Winrate superfície ultimas 10 Consertar isso
 - Partidas ganhas
 
 ### Limpeza final
@@ -103,3 +101,4 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 - Conexão com uma api para alimentação do dataset
 - Pipeline de retreino do modelo
+
