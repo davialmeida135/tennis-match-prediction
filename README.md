@@ -55,7 +55,6 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 ### Limpeza final
 - Limpar colunas desnecessárias
-- Surface one-hot encode
 - Tirar player id, score, match_num, tourney_date
 - tirar partidas RET
 - Anonimizar os dados
@@ -65,11 +64,9 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 ## DONE
 ### Limpeza inicial
 - Merge datasets
-- Refazer seeds (one-hot encoding nos entry_methods)
 - Limpar W/O
 - Fillar altura, idade, minutos(com media do torneio)
 - Fillar falta de rank (não sei como)
-- Numerar mão do forehand
 
 ### Cálculo de dados dos jogadores
 - H2H
@@ -80,6 +77,9 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Partidas ganhas
 
 ### Limpeza final
+- Refazer seeds (one-hot encoding nos entry_methods)
+- Surface one-hot encode
+- Numerar mão do forehand
 - 
 
 ## Modelo

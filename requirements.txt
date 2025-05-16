@@ -4,3 +4,4 @@ seaborn
 ipython
 missingno
 scikit-learn
+polars
