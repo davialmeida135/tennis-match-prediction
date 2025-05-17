@@ -1,5 +1,5 @@
 import pandas as pd
-from util import _get_previous_encounters, _get_previous_matches
+from tratamento.util import _get_previous_encounters, _get_previous_matches
 import math
 import polars as pl
 #from prefect import flow, task
