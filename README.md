@@ -97,6 +97,7 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 - Rodar algum algoritmo de feature importance para determinar quais features serão usadas
 - Treinar um modelo inicial, documentar testes no MLFlow ou WandB
+- Plot Model com netron
 - Manter comparações com baseline (elo)
 
 - Conexão com uma api para alimentação do dataset
