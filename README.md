@@ -33,6 +33,10 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 | Player1_info| Player2_info| Winner
     123             124         1
 
+## Como rodar
+
+dagster dev
+
 ## TODO
 ### Limpeza inicial
 - Tirar colunas desnecessárias
@@ -87,6 +91,20 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Random Forest/DT
 - Experimentos com redes neurais + MLFlow
 - Regularização L1 ou L2 com rede neural
+
+## Arquitetura
+- Dagster: 
+  - Alimentar banco de dados
+  - Tratamento automático de dados
+  - Métricas sobre os conjuntos
+  - Divisão Treino/Validação/Teste
+  - Divisão entre real/predicted
+  - Avisos
+  - Versionamento de datasets?
+- WandB
+  - Treino de modelos
+  - Versionamento de modelos
+  - Salvar parâmetros e métricas de modelos
 
 ## Roadmap
 - EDA
