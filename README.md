@@ -1,8 +1,8 @@
 # tennis-match-prediction
 
-Repositório para trabalho da disciplina de Introdução à Inteligência Artificial
+Sistema de machine learning para predição de vencedor de partidas de tênis
 
-Envolve tratamento de dados e aplicaão de modelos de aprendizado de máquina
+Envolve tratamento de dados e aplicação de modelos de aprendizado de máquina
 
 ## Datasets
 
