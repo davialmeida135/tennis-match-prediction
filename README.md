@@ -100,13 +100,18 @@ ETL/
 │ └── players_original.csv
 ├── past_matches_api/
 ├── next_matches_api/
+├── anonymize_past/
+└── anonymize_next/
 data/
 ├── kaggle/
 │ └── raw/
-├── past_matches_api
-├── next_matches_api
+├── past_matches_api/
+├── next_matches_api/
+├── anonymized_past/
+└── anonymized_next/
 ml/
-
+├──
+└──
 
 ## Arquitetura
 - Dagster: 
