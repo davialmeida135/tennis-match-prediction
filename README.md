@@ -23,6 +23,7 @@ http://tennis-data.co.uk/2025/2025.xlsx
 API pra pegar mais dados no futuro
 
 https://developer.sportradar.com/tennis/reference/overview
+https://sportdevs.com/dashboard
 
 ## Conceito inicial
 

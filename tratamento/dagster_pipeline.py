@@ -10,7 +10,7 @@ from dagster import (
     AssetCheckSpec,
     AssetCheckResult,
     Output,
-    AssetKey
+    AssetKey,
     )
 from tratamento.pandas_parquet import PandasParquetIOManager
 # Imports from your existing modules
@@ -175,6 +175,6 @@ defs = Definitions(
     assets=all_assets,
     jobs=[materialize_all_tennis_data_job],
     resources={
-        "io_manager": PandasParquetIOManager(base_dir=DAGSTER_MANAGED_OUTPUTS_FOLDER)
+        "io_manager": PandasParquetIOManager(base_dir=DAGSTER_MANAGED_OUTPUTS_FOLDER),
     }
 )
