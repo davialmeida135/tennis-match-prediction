@@ -93,6 +93,21 @@ dagster dev
 - Experimentos com redes neurais + MLFlow
 - Regularização L1 ou L2 com rede neural
 
+## Estrutura de arquivos
+ETL/
+├── kaggle/
+│ ├── matches_original.csv # Dump inicial dos dados 
+│ └── players_original.csv
+├── past_matches_api/
+├── next_matches_api/
+data/
+├── kaggle/
+│ └── raw/
+├── past_matches_api
+├── next_matches_api
+ml/
+
+
 ## Arquitetura
 - Dagster: 
   - Alimentar banco de dados
