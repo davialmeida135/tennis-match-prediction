@@ -1,5 +1,5 @@
 import pandas as pd
-from util import _get_previous_encounters, _get_previous_matches
+from tratamento.util import _get_previous_encounters, _get_previous_matches
 import math
 import polars as pl
 #from prefect import flow, task
@@ -181,7 +181,6 @@ def calcular_elo_superficies(df:pl.DataFrame)->pl.DataFrame:
         # Count matches *before* the current one
         (pl.col("player_id").cum_count().over("player_id")).alias("player_match_count")
     )
-    matches_long.write_csv("dados_tratados/matches_long.csv")
     elo_state = {}
     results_list = [] # List to store results including pre-match Elo
     for match_dict in matches_long.iter_rows(named=True):

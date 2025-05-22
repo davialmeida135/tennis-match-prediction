@@ -1,8 +1,8 @@
 # tennis-match-prediction
 
-Repositório para trabalho da disciplina de Introdução à Inteligência Artificial
+Sistema de machine learning para predição de vencedor de partidas de tênis
 
-Envolve tratamento de dados e aplicaão de modelos de aprendizado de máquina
+Envolve tratamento de dados e aplicação de modelos de aprendizado de máquina
 
 ## Datasets
 
@@ -23,6 +23,7 @@ http://tennis-data.co.uk/2025/2025.xlsx
 API pra pegar mais dados no futuro
 
 https://developer.sportradar.com/tennis/reference/overview
+https://sportdevs.com/dashboard
 
 ## Conceito inicial
 
@@ -32,6 +33,10 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 
 | Player1_info| Player2_info| Winner
     123             124         1
+
+## Como rodar
+
+dagster dev
 
 ## TODO
 ### Limpeza inicial
@@ -87,6 +92,40 @@ Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 
 - Random Forest/DT
 - Experimentos com redes neurais + MLFlow
 - Regularização L1 ou L2 com rede neural
+
+## Estrutura de arquivos
+ETL/
+├── kaggle/
+│ ├── matches_original.csv # Dump inicial dos dados 
+│ └── players_original.csv
+├── past_matches_api/
+├── next_matches_api/
+├── anonymize_past/
+└── anonymize_next/
+data/
+├── kaggle/
+│ └── raw/
+├── past_matches_api/
+├── next_matches_api/
+├── anonymized_past/
+└── anonymized_next/
+ml/
+├──
+└──
+
+## Arquitetura
+- Dagster: 
+  - Alimentar banco de dados
+  - Tratamento automático de dados
+  - Métricas sobre os conjuntos
+  - Divisão Treino/Validação/Teste
+  - Divisão entre real/predicted
+  - Avisos
+  - Versionamento de datasets?
+- WandB
+  - Treino de modelos
+  - Versionamento de modelos
+  - Salvar parâmetros e métricas de modelos
 
 ## Roadmap
 - EDA

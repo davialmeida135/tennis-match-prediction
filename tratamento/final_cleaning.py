@@ -83,9 +83,9 @@ def anonymize(df: pl.DataFrame) -> pl.DataFrame:
 
     # Define common columns (not swapped) and attribute stems for player-specific columns
     common_columns = [
-        'draw_size', 'tourney_level', 'tourney_date', 'match_num',
+        'draw_size', 'tourney_level', 'week', 'year', 'match_num',
         'best_of', 'round',
-        'surface_Hard', 'surface_Clay', 'surface_Grass' # Assuming these are already one-hot encoded
+        'surface_Hard', 'surface_Clay', 'surface_Grass',
     ]
     attribute_stems = [
         "hand", "ht", "age", "rank", "rank_points", "seed_value", "seeded",
