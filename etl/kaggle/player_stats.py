@@ -71,7 +71,6 @@ def calcular_elo(df: pd.DataFrame) -> pd.DataFrame:
         # Count matches *before* the current one
         (pl.col("player_id").cum_count().over("player_id")).alias("player_match_count")
     )
-    matches_long.write_csv("dados_tratados/matches_long.csv")
     # 4. Iterate once to calculate Elo updates (managing state)
     elo_state = {} # Dictionary: player_id -> current Elo rating
     results_list = [] # List to store results including pre-match Elo

@@ -32,10 +32,9 @@ from etl.kaggle.player_stats import (
 from etl.kaggle.fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
 
 # Define the base output folder
-BASE_OUTPUT_FOLDER = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "dados_tratados")
-DAGSTER_MANAGED_OUTPUTS_FOLDER = os.path.join(BASE_OUTPUT_FOLDER, "dagster_materialized_assets") # For I/O manager
+# TODO mudar isso para um arquivo de configuração
+BASE_OUTPUT_FOLDER = os.path.join(pathlib.Path(__file__).parent.parent.parent.absolute(), "data/kaggle/transformed")
 os.makedirs(BASE_OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(DAGSTER_MANAGED_OUTPUTS_FOLDER, exist_ok=True)
 
 # Dagster Type for Pandas DataFrame
 PandasDataFrame = DagsterType(
@@ -152,6 +151,9 @@ def final_anonymized_data(context, pre_anonymized_data: PandasDataFrame) -> Pand
     """Anonymizes the data. This is the final dataset."""
     context.log.info("Anonymizing data")
     df = anonymize(pre_anonymized_data.copy())
+    # Save the final anonymized dataset
+    final_path = os.path.join(BASE_OUTPUT_FOLDER, "final_anonymized_dagster_asset_version.csv")
+    df.to_csv(final_path, index=False)
     context.log.info("Anonymization complete. This is the final dataset.")
     return df
 
@@ -175,6 +177,6 @@ defs = Definitions(
     assets=all_assets,
     jobs=[materialize_all_tennis_data_job],
     resources={
-        "io_manager": PandasParquetIOManager(base_dir=DAGSTER_MANAGED_OUTPUTS_FOLDER),
+        "io_manager": PandasParquetIOManager(base_dir=BASE_OUTPUT_FOLDER),
     }
 )
