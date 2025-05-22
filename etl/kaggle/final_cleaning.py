@@ -68,7 +68,7 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def anonymize(df: pl.DataFrame) -> pl.DataFrame:
+def anonymize(df: pd.DataFrame) -> pd.DataFrame:
     """
     Randomly assigns winner/loser stats to player0/player1 and sets a target 'winner' column.
     Uses Polars vectorized operations for efficiency.
