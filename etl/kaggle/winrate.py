@@ -2,7 +2,7 @@ import pandas as pd
 import polars as pl
 from polars.exceptions import ColumnNotFoundError
 
-from tratamento.util import _get_previous_matches
+from etl.kaggle.util import _get_previous_matches
 
 def calcular_winrate_total(df:pl.DataFrame)->pd.DataFrame:
     """

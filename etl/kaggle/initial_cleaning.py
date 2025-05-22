@@ -15,7 +15,7 @@ def merge_datasets() -> pd.DataFrame:
         
     df = pd.concat(dfs)
 
-    df.to_csv("dados_tratados/all_atp_matches2.csv", index=False)
+    df.to_csv("dados_tratados/all_atp_matches.csv", index=False)
     
     return df
 

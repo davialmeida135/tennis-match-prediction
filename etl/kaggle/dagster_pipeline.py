@@ -12,11 +12,11 @@ from dagster import (
     Output,
     AssetKey,
     )
-from tratamento.pandas_parquet import PandasParquetIOManager
+from etl.kaggle.pandas_parquet import PandasParquetIOManager
 # Imports from your existing modules
-from tratamento.initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
-from tratamento.winrate import calcular_winrate_total, calcular_winrate_ultimas_n
-from tratamento.final_cleaning import (
+from etl.kaggle.initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
+from etl.kaggle.winrate import calcular_winrate_total, calcular_winrate_ultimas_n
+from etl.kaggle.final_cleaning import (
     anonymize,
     remove_stat_cols,
     transform_handedness,
@@ -25,11 +25,11 @@ from tratamento.final_cleaning import (
     encode_surface,
     transform_round
 )
-from tratamento.player_stats import (
+from etl.kaggle.player_stats import (
     calcular_h2h,
     calcular_elo
 )
-from tratamento.fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
+from etl.kaggle.fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
 
 # Define the base output folder
 BASE_OUTPUT_FOLDER = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "dados_tratados")
@@ -47,7 +47,7 @@ PandasDataFrame = DagsterType(
 @asset(
         config_schema={"csv_path": Field(
             str, 
-            default_value=str(pathlib.Path(__file__).parent.absolute() / ".." / "dataset" / "tennis_atp" / "atp_matches_2023.csv"), description="Path to the initial CSV data file.")},
+            default_value=str(pathlib.Path(__file__).parent.absolute() / ".." / ".." / "data" / "kaggle" / "raw" /"atp_matches_2023.csv"), description="Path to the initial CSV data file.")},
         check_specs=[
         AssetCheckSpec(name="raw_data_not_empty", asset =AssetKey("raw_tennis_data"), description="Check if the raw data DataFrame is not empty.")
     ],

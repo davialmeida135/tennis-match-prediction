@@ -1,5 +1,5 @@
 import pandas as pd
-from tratamento.util import _get_previous_encounters, _get_previous_matches
+from etl.kaggle.util import _get_previous_matches
 import math
 import polars as pl
 #from prefect import flow, task
@@ -419,7 +419,7 @@ def calcular_minutos_acumulados_torneio(df):
             rows_list.append(new_row)
 
     new_df = pd.DataFrame(rows_list)
-    new_df.to_csv("dados_tratados/atp_matches_2017_tempo_jogado.csv", index=False)
+    #new_df.to_csv("dados_tratados/atp_matches_2017_tempo_jogado.csv", index=False)
     return new_df
 
 def _calcular_carga_previa_jogadores(row, df):
