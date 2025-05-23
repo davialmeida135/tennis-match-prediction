@@ -24,7 +24,7 @@ API pra pegar mais dados no futuro
 
 https://developer.sportradar.com/tennis/reference/overview
 https://sportdevs.com/dashboard
-
+https://www.kaggle.com/code/dissfya/atp-tennis-daily-pull
 ## Conceito inicial
 
 https://www.tennisabstract.com/blog/2019/12/03/an-introduction-to-tennis-elo/
