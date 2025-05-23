@@ -183,3 +183,4 @@ dagster_home/.nux
 dagster_home/.telemetry
 dagster_home/logs
 !dagster_home/dagster.yaml
+etl/kaggle/data/explore.ipynb
