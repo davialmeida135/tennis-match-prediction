@@ -173,6 +173,7 @@ cython_debug/
 .pypirc
 # Dagster I/O manager storage for materialized assets
 *.csv
+*.parquet
 !data/kaggle/raw/all_atp_matches.csv
 !data/kaggle/raw/atp_matches_2023.csv
 
