@@ -116,14 +116,14 @@ def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
     # Calculate wins and matches in the rolling window *before* the current match
     # by shifting 'won' first, then applying rolling operations.
     matches_long = matches_long.with_columns([
-        pl.col("won").shift(1).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias(f"prev_n_wins"),
-        pl.col("won").shift(1).is_not_null().cast(pl.Int8).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias(f"prev_n_matches")
+        pl.col("won").shift(1).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias("prev_n_wins"),
+        pl.col("won").shift(1).is_not_null().cast(pl.Int8).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias("prev_n_matches")
     ])
     
     # Calculate win rate based on the stats from previous n matches
     matches_long = matches_long.with_columns(
-        pl.when(pl.col(f"prev_n_matches") > 0)
-        .then(pl.col(f"prev_n_wins") / pl.col(f"prev_n_matches"))
+        pl.when(pl.col("prev_n_matches") > 0)
+        .then(pl.col("prev_n_wins") / pl.col("prev_n_matches"))
         .otherwise(0.0)  # Default winrate is 0.0 if no qualifying previous n matches
         .alias(f"player_winrate_last_{n}_before")
     )
@@ -306,14 +306,14 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
     # Calculate wins and matches in the rolling window *before* the current match
     # by shifting 'won' first, then applying rolling operations.
     matches_long = matches_long.with_columns([
-        pl.col("won").shift(1).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias(f"prev_n_wins_surface"),
-        pl.col("won").shift(1).is_not_null().cast(pl.Int8).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias(f"prev_n_matches_surface")
+        pl.col("won").shift(1).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias("prev_n_wins_surface"),
+        pl.col("won").shift(1).is_not_null().cast(pl.Int8).rolling_sum(window_size=n, min_periods=1).over(grouping_cols).alias("prev_n_matches_surface")
     ])
 
     # Calculate win rate based on the stats from previous n matches on that surface
     matches_long = matches_long.with_columns(
-        pl.when(pl.col(f"prev_n_matches_surface") > 0)
-        .then(pl.col(f"prev_n_wins_surface") / pl.col(f"prev_n_matches_surface"))
+        pl.when(pl.col("prev_n_matches_surface") > 0)
+        .then(pl.col("prev_n_wins_surface") / pl.col("prev_n_matches_surface"))
         .otherwise(0.0)  # Default winrate is 0.0 if no qualifying previous matches
         .alias(f"player_winrate_surface_last_{n}_before")
     )
