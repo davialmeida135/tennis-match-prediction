@@ -59,9 +59,9 @@ def remove_stat_cols(df :pd.DataFrame) -> pd.DataFrame:
                      'l_SvGms',
                      'l_bpSaved',
                      'l_bpFaced',
-                     'score',
-                     'winner_ioc',
-                     'loser_ioc',
+                     #'score',
+                     #'winner_ioc',
+                     #'loser_ioc',
                      #'winner_id',
                      #'loser_id'
                      ])
@@ -84,13 +84,15 @@ def anonymize(df: pd.DataFrame) -> pd.DataFrame:
     # Define common columns (not swapped) and attribute stems for player-specific columns
     common_columns = [
         'draw_size', 'tourney_level', 'week', 'year', 'match_num',
-        'best_of', 'round',
+        'best_of', 'round','h2h','elo_diff',
         'surface_Hard', 'surface_Clay', 'surface_Grass',
     ]
     attribute_stems = [
         "hand", "ht", "age", "rank", "rank_points", "seed_value", "seeded",
         "unseeded", "qualifier", "lucky_loser", "special_exempt", "alternate",
-        "wildcard", "protected_ranking"
+        "wildcard", "protected_ranking", "winrate", "winrate_last_10","winrate_last_50",
+        "winrate_surface", "winrate_surface_last_10", "winrate_surface_last_50",
+        "elo",
     ]
 
     # Check for required input columns
@@ -144,7 +146,7 @@ def anonymize(df: pd.DataFrame) -> pd.DataFrame:
 
     # 4. Select and order final columns
     final_column_order = [
-        'draw_size', 'tourney_level', 'tourney_date', 'match_num',
+        'draw_size', 'tourney_level','week','year' ,'match_num',
         'player0_hand', 'player0_ht', 'player0_age', 'player0_rank', 'player0_rank_points',
         'player1_hand', 'player1_ht', 'player1_age', 'player1_rank', 'player1_rank_points',
         'best_of', 'round',
@@ -158,6 +160,14 @@ def anonymize(df: pd.DataFrame) -> pd.DataFrame:
         'player0_wildcard', 'player1_wildcard',
         'player0_protected_ranking', 'player1_protected_ranking',
         'surface_Hard', 'surface_Clay', 'surface_Grass',
+        'h2h', 'elo_diff',
+        'player0_winrate', 'player1_winrate',
+        'player0_winrate_last_10', 'player1_winrate_last_10',
+        'player0_winrate_last_50', 'player1_winrate_last_50',
+        'player0_winrate_surface', 'player1_winrate_surface',
+        'player0_winrate_surface_last_10', 'player1_winrate_surface_last_10',
+        'player0_winrate_surface_last_50', 'player1_winrate_surface_last_50',
+        'player0_elo', 'player1_elo',
         'winner'
     ]
     

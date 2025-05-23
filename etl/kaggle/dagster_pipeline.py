@@ -15,7 +15,7 @@ from dagster import (
 from .pandas_parquet import PandasParquetIOManager
 # Imports from your existing modules
 from .initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
-from .winrate import calcular_winrate_total, calcular_winrate_ultimas_n
+from .winrate import calcular_winrate_superficie, calcular_winrate_superficie_ultimas_n, calcular_winrate_total, calcular_winrate_ultimas_n
 from .final_cleaning import (
     anonymize,
     remove_stat_cols,
@@ -109,6 +109,9 @@ def winrate_featured_data(context, filled_missing_data: PandasDataFrame) -> Pand
     df = calcular_winrate_total(filled_missing_data.copy())
     df = calcular_winrate_ultimas_n(df, n=50)
     df = calcular_winrate_ultimas_n(df, n=10)
+    df = calcular_winrate_superficie(df)
+    df = calcular_winrate_superficie_ultimas_n(df, n=50)
+    df = calcular_winrate_superficie_ultimas_n(df, n=10)
 
     return df
 
