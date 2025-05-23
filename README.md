@@ -40,7 +40,6 @@ dagster dev
 
 ## TODO
 ### Limpeza inicial
-- Tirar colunas desnecessárias
 
 ### Cálculo de dados dos jogadores
 - Winrate em um torneio
@@ -48,19 +47,13 @@ dagster dev
 - Diferença de rank
 - Diferença de idade
 - Diferença de Altura
+- Partidas ganhas
 - Win streak (polars)
 - Win streak na superfície (polars)
 - Win streak no torneio (polars)
-- Winrate Total (polars)
-- Winrate nas ultimas 50 partidas (polars)
-- Winrate das ultimas 10 partidas (polars)
-- Winrate em uma superfície (polars)
-- Winrate superfície ultimas 50 Consertar isso (polars)
-- Winrate superfície ultimas 10 Consertar isso (polars)
 
 ### Limpeza final
 - Limpar colunas desnecessárias
-- Tirar player id, score, match_num, tourney_date
 - tirar partidas RET
 - Anonimizar os dados
 - Numerar tourney level
@@ -79,9 +72,15 @@ dagster dev
 - Diferença de ELO
 - Tempo jogado em um torneio
 - Helper functions de pegar todos os confrontos entre jogadores e todas as partidas de um jogador
-- Partidas ganhas
+- Winrate Total (polars)
+- Winrate nas ultimas 50 partidas (polars)
+- Winrate das ultimas 10 partidas (polars)
+- Winrate em uma superfície (polars)
+- Winrate superfície ultimas 50 Consertar isso (polars)
+- Winrate superfície ultimas 10 Consertar isso (polars)
 
 ### Limpeza final
+- Tirar player id, score, match_num, tourney_date
 - Refazer seeds (one-hot encoding nos entry_methods)
 - Surface one-hot encode
 - Numerar mão do forehand
