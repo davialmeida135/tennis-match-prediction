@@ -169,16 +169,17 @@ cython_debug/
 
 # Ruff stuff:
 .ruff_cache/
-# Dagster instance home (local development)
-dagster_home/
-.dagster_home/
-.tmp_dagster_home*/
-
 # PyPI configuration file
 .pypirc
-dataset/database.sqlite
 # Dagster I/O manager storage for materialized assets
 *.csv
-/.tmp_dagster_home_9m55pr2k
-/dados_tratados/dagster_materialized
-/dados_tratados/dagster_materialized_assets/
+!data/kaggle/raw/all_atp_matches.csv
+!data/kaggle/raw/atp_matches_2023.csv
+
+# Dagster instance home (local development)
+dagster_home/.logs_queue
+dagster_home/storage
+dagster_home/.nux
+dagster_home/.telemetry
+dagster_home/logs
+!dagster_home/dagster.yaml
