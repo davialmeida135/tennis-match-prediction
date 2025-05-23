@@ -12,11 +12,11 @@ from dagster import (
     Output,
     AssetKey,
     )
-from etl.kaggle.pandas_parquet import PandasParquetIOManager
+from .pandas_parquet import PandasParquetIOManager
 # Imports from your existing modules
-from etl.kaggle.initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
-from etl.kaggle.winrate import calcular_winrate_total, calcular_winrate_ultimas_n
-from etl.kaggle.final_cleaning import (
+from .initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
+from .winrate import calcular_winrate_total, calcular_winrate_ultimas_n
+from .final_cleaning import (
     anonymize,
     remove_stat_cols,
     transform_handedness,
@@ -25,11 +25,11 @@ from etl.kaggle.final_cleaning import (
     encode_surface,
     transform_round
 )
-from etl.kaggle.player_stats import (
+from .player_stats import (
     calcular_h2h,
     calcular_elo
 )
-from etl.kaggle.fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
+from .fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
 
 # Define the base output folder
 # TODO mudar isso para um arquivo de configuração
