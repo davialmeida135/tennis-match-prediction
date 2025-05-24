@@ -30,9 +30,9 @@ from .player_stats import (
     calcular_elo
 )
 from .fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
-
-# Define the base output folder
-# TODO mudar isso para um arquivo de configuração
+import wandb
+import dotenv
+dotenv.load_dotenv()
 BASE_OUTPUT_FOLDER = os.path.join(pathlib.Path(__file__).parent.parent.parent.absolute(), "data/kaggle/transformed")
 os.makedirs(BASE_OUTPUT_FOLDER, exist_ok=True)
 
@@ -147,6 +147,37 @@ def pre_anonymized_data(context, elo_featured_data: PandasDataFrame) -> PandasDa
     pre_anon_path = os.path.join(BASE_OUTPUT_FOLDER, "pre_anon_dagster_asset_version.csv")
     df.to_csv(pre_anon_path, index=False)
     context.log.info(f"Side-effect: Saved pre_anon_dagster_asset_version.csv to {pre_anon_path}")
+
+    # --- W&B Artifact Logging ---
+    try:
+        wandb_project = os.getenv("WANDB_PROJECT", "tennis-match-prediction") 
+        wandb_run_name = f"asset_materialization_{context.asset_key.to_user_string()}_{context.run_id[:8]}"
+
+        with wandb.init(project=wandb_project, name=wandb_run_name, job_type="preprocess_data", reinit=True) as run:
+            context.log.info(f"Logging W&B artifact for {context.asset_key.to_user_string()} in project '{wandb_project}'")
+            
+            artifact_name = "pre_anonymized_tennis_data"
+            artifact_type = "dataset" # Standard W&B artifact type for datasets
+            
+            artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+            artifact.add_file(pre_anon_path)
+            
+            # Add metadata to the artifact
+            # This metadata will be visible in the W&B UI
+            artifact.metadata["dagster_run_id"] = context.run_id
+            artifact.metadata["asset_key"] = str(context.asset_key)
+            source_asset_key = context.asset_key_for_input("elo_featured_data")
+            artifact.metadata["source_asset_keys"] = [str(source_asset_key)] if source_asset_key else []
+            artifact.metadata["num_rows"] = df.shape[0]
+            artifact.metadata["num_columns"] = df.shape[1]
+            artifact.metadata["columns"] = list(df.columns)
+            
+            run.log_artifact(artifact)
+            context.log.info(f"Successfully logged W&B artifact: {artifact_name})")
+
+    except Exception as e:
+        context.log.error(f"Failed to log W&B artifact for {context.asset_key.to_user_string()}: {e}")
+
     return df
 
 @asset
