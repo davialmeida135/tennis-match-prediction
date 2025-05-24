@@ -1,18 +1,18 @@
-from initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
-from winrate import calcular_winrate_total, calcular_winrate_superficie,calcular_winrate_superficie_ultimas_n,calcular_winrate_torneio,calcular_winrate_ultimas_n
-from final_cleaning import (anonymize,
+from .initial_cleaning import preprocess_dates, transform_seed_data, sort_by_date
+from .winrate import calcular_winrate_total, calcular_winrate_superficie,calcular_winrate_superficie_ultimas_n,calcular_winrate_torneio,calcular_winrate_ultimas_n
+from .final_cleaning import (anonymize,
                             remove_stat_cols, 
                             transform_handedness,
                             transform_tourney_level,
                             remove_wo,
                             encode_surface,
                             transform_round)
-from player_stats import (calcular_h2h, 
+from .player_stats import (calcular_h2h, 
                         calcular_elo, 
                         calcular_partidas_jogadas, 
                         calcular_partidas_jogadas_ultimo_mes, 
                         calcular_minutos_acumulados_torneio)
-from fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
+from .fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
 #from prefect import flow
 import pandas as pd
 import os
@@ -21,14 +21,14 @@ import pathlib
 class CompletePipeline():
     def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.output_folder = os.path.join(pathlib.Path(__file__).parent.parent.absolute(), "dados_tratados")
+        self.output_folder = os.path.join(pathlib.Path(__file__).absolute().parent,'data')
 
     #@flow
     def initial_clean_pipeline(self):
         self.df = preprocess_dates(self.df)
         self.df = sort_by_date(self.df)
         self.df = transform_seed_data(self.df)
-        #self.df.to_csv(os.path.join(self.output_folder, "initial_clean.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "1initial_clean.csv"), index=False)
         return self.df
     
     def fill_missing_pipeline(self):
@@ -36,7 +36,7 @@ class CompletePipeline():
         self.df = fill_null_height(self.df)
         self.df = fill_null_age(self.df)
         self.df = fill_null_rank(self.df)
-        #self.df.to_csv(os.path.join(self.output_folder, "not_null.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "2not_null.csv"), index=False)
         return self.df
     
     #@flow
@@ -44,17 +44,17 @@ class CompletePipeline():
         self.df = calcular_winrate_total(self.df)
         self.df = calcular_winrate_ultimas_n(self.df, n=50) 
         self.df = calcular_winrate_ultimas_n(self.df, n=10)    
-        # self.df = calcular_winrate_superficie(self.df)
-        # self.df = calcular_winrate_superficie_ultimas_n(self.df, n=50)
-        # self.df = calcular_winrate_superficie_ultimas_n(self.df, n=10)
+        self.df = calcular_winrate_superficie(self.df)
+        self.df = calcular_winrate_superficie_ultimas_n(self.df, n=50)
+        self.df = calcular_winrate_superficie_ultimas_n(self.df, n=10)
         # self.df = calcular_winrate_torneio(self.df)
-        #self.df.to_csv(os.path.join(self.output_folder, "winrate_stats.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "3winrate_stats.csv"), index=False)
         return self.df
 
 
     def encounter_stats_pipeline(self):
         self.df = calcular_h2h(self.df)
-        #self.df.to_csv(os.path.join(self.output_folder, "encounter_stats.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "4encounter_stats.csv"), index=False)
         return self.df
 
     #@flow
@@ -63,7 +63,7 @@ class CompletePipeline():
         #self.df = calcular_partidas_jogadas_ultimo_mes(self.df)
         #self.df = calcular_minutos_acumulados_torneio(self.df)
         self.df = calcular_elo(self.df)
-        #self.df.to_csv(os.path.join(self.output_folder, "player_stats.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "5player_stats.csv"), index=False)
         return self.df
     
     #@flow
@@ -74,9 +74,9 @@ class CompletePipeline():
         self.df = transform_tourney_level(self.df)
         self.df = transform_handedness(self.df)
         self.df = remove_stat_cols(self.df)
-        self.df.to_csv(os.path.join(self.output_folder, "pre_anon.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "6pre_anon.csv"), index=False)
         self.df = anonymize(self.df)
-        self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
+        self.df.to_csv(os.path.join(self.output_folder, "7final.csv"), index=False)
         return self.df
 
 
@@ -88,13 +88,13 @@ class CompletePipeline():
         self.encounter_stats_pipeline()
         self.player_stats_pipeline()
         self.final_clean_pipeline()
-        self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
+        #self.df.to_csv(os.path.join(self.output_folder, "final.csv"), index=False)
         return self.df
 
 
 if __name__ == "__main__":
     #pipeline = CompletePipeline(pd.read_csv("dados_tratados/all_atp_matches.csv"))
     self_path = pathlib.Path(__file__).parent.absolute()
-    csv_path = self_path/".."/"dataset"/"tennis_atp"/"atp_matches_2023.csv"
+    csv_path = self_path/".."/".."/"data"/"kaggle"/"raw"/"atp_matches_2023.csv"
     pipeline = CompletePipeline(pd.read_csv(csv_path))
     pipeline.run()

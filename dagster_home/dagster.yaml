@@ -1,0 +1,33 @@
+event_log_storage:
+ module: dagster_mysql.event_log
+ class: MySQLEventLogStorage
+ config:
+  mysql_db:
+   username: remote
+   password: DagsterMS143
+   hostname: 192.168.0.149
+   db_name: dagster
+   port: 3306
+
+run_storage:
+ module: dagster_mysql.run_storage
+ class: MySQLRunStorage
+ config:
+  mysql_db:
+   username: remote
+   password: DagsterMS143
+   hostname: 192.168.0.149
+   db_name: dagster
+   port: 3306
+
+
+schedule_storage:
+ module: dagster_mysql.schedule_storage
+ class: MySQLScheduleStorage
+ config:
+  mysql_db:
+   username: remote
+   password: DagsterMS143
+   hostname: 192.168.0.149
+   db_name: dagster
+   port: 3306
