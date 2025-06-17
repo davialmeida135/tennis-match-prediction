@@ -230,7 +230,7 @@ def pre_anonymized_data(context, elo_featured_data: PandasDataFrame) -> PandasDa
     if 'artifact' in locals() and artifact.version: # Add W&B info if available
         dagster_metadata["wandb_artifact_logged"] = f"{artifact.name}:{artifact.version}"
 
-    yield Output(df, metadata=dagster_metadata)
+    return df
 
 
 

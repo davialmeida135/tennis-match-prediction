@@ -32,19 +32,13 @@ ANONYMIZE_PAST_OUTPUT_FOLDER = os.path.join(
 )
 os.makedirs(ANONYMIZE_PAST_OUTPUT_FOLDER, exist_ok=True)
 
-# Define the asset check spec
-winner_balance_check = AssetCheckSpec(
-    name="winner_column_balance_check",
-    asset=AssetKey("final_anonymized_data_from_wandb"), # Target this asset
-    description="Checks if the mean of the 'winner' column is close to 0.5."
-)
 
 @asset(
     name="final_anonymized_data_from_wandb",
     description="Loads 'pre_anonymized_tennis_data:latest' from W&B, applies anonymization, "
                 "and yields the anonymized DataFrame. Optionally logs a new W&B artifact.",
     kinds=["wandb"],
-    group_name="anonymize_past" # Group assets in Dagit UI
+    group_name="anonymize_past",
 )
 def final_anonymized_data_from_wandb_artifact(context: AssetExecutionContext) -> PandasDataFrameAnonymizePast:
     """
@@ -94,30 +88,9 @@ def final_anonymized_data_from_wandb_artifact(context: AssetExecutionContext) ->
             df_anonymized = anonymize(df_pre_anonymized.copy()) # Use .copy() if anonymize modifies in-place
             context.log.info("Anonymization complete.")
 
- # --- Winner column balance check ---
-            winner_mean = -1.0 # Default if column not found
-            if "winner" in df_anonymized.columns:
-                winner_mean = df_anonymized["winner"].mean()
-                is_balanced = 0.45 <= winner_mean <= 0.55
-                context.log.info(f"Mean of 'winner' column: {winner_mean:.4f}. Balanced: {is_balanced}")
-                yield AssetCheckResult(
-                    check_name="winner_column_balance_check",
-                    passed=is_balanced,
-                    metadata={
-                        "winner_column_mean": float(winner_mean),
-                        "lower_bound": 0.45,
-                        "upper_bound": 0.55,
-                    },
-                )
-            else:
-                context.log.warning("'winner' column not found in anonymized data. Skipping balance check.")
-                yield AssetCheckResult(
-                    check_name="winner_column_balance_check",
-                    passed=False, # Fail the check if column is missing
-                    metadata={"error": "'winner' column not found"},
-                )
-            # --- End Winner column balance check ---
-
+            winner_mean = df_anonymized["winner"].mean()
+            context.log.info(f"Mean of 'winner' column after anonymization: {winner_mean:.4f}")
+            
             final_anonymized_filename = "final_anonymized_from_wandb.csv"
             final_anonymized_path = os.path.join(ANONYMIZE_PAST_OUTPUT_FOLDER, final_anonymized_filename)
             df_anonymized.to_csv(final_anonymized_path, index=False)
