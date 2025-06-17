@@ -141,3 +141,20 @@ ml/
 - Conexão com uma api para alimentação do dataset
 - Pipeline de retreino do modelo
 
+
+## Como Executar
+
+- Preencha um arquivo .env com os seguintes campos
+```
+DAGSTER_HOME = "D:/Github/tennis-match-prediction/dagster_home"
+WANDB_BASE_URL = url
+WANDB_API_KEY = yourkey
+```
+
+```
+dagster dev
+```
+Precisa dos seguintes serviços rodando
+- Dagster
+- Wandb
+- MySQL 

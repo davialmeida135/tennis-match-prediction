@@ -1,3 +1,6 @@
 load_from:
   - python_module:
       module_name: etl.kaggle.dagster_pipeline
+  - python_module:
+      module_name: etl.anonymize_past.dagster_pipeline
+    
