@@ -90,7 +90,7 @@ def final_anonymized_data_from_wandb_artifact(context: AssetExecutionContext) ->
 
             winner_mean = df_anonymized["winner"].mean()
             context.log.info(f"Mean of 'winner' column after anonymization: {winner_mean:.4f}")
-            
+
             final_anonymized_filename = "final_anonymized_from_wandb.csv"
             final_anonymized_path = os.path.join(ANONYMIZE_PAST_OUTPUT_FOLDER, final_anonymized_filename)
             df_anonymized.to_csv(final_anonymized_path, index=False)
@@ -99,6 +99,13 @@ def final_anonymized_data_from_wandb_artifact(context: AssetExecutionContext) ->
             new_artifact_name = "final_anonymized_tennis_data" 
             new_artifact_type = "processed_dataset"
             
+            # Log Metrics
+            run.log({
+                "num_rows": df_anonymized.shape[0],
+                "num_columns": df_anonymized.shape[1],
+                "null_value_count_total": int(df_anonymized.isnull().sum().sum()), 
+                "anonymized_winner_mean": float(winner_mean),
+            })
             logged_artifact = wandb.Artifact(name=new_artifact_name, type=new_artifact_type)
             logged_artifact.add_file(final_anonymized_path)
             logged_artifact.metadata["source_wandb_artifact_name"] = artifact.name 
