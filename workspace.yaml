@@ -1,6 +1,7 @@
 load_from:
   - python_module:
-      module_name: etl.kaggle.dagster_pipeline
+      module_name: pipelines.historical_matches.defs
   - python_module:
-      module_name: etl.anonymize_past.dagster_pipeline
-    
+      module_name: pipelines.anonymized_dataset.defs
+  - python_module:
+      module_name: pipelines.live_matches.defs

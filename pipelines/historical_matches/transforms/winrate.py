@@ -1,8 +1,15 @@
+﻿"""Rolling win-rate features (overall and per surface).
+
+Every feature is a lookback: the value attached to a match only uses matches the
+players played before it.
+"""
+
 import pandas as pd
 import polars as pl
 from polars.exceptions import ColumnNotFoundError
 
-from .util import _get_previous_matches
+from .history_utils import _get_previous_matches
+
 
 def calcular_winrate_total(df:pl.DataFrame)->pd.DataFrame:
     """
@@ -363,7 +370,6 @@ def calcular_winrate_torneio(df):
     for index, row in df.iterrows():
         winner_id = row['winner_id']
         loser_id = row['loser_id']
-        tourney_date = row['tourney_date']
         tourney_id = row['tourney_id']
         
         winner_matches,loser_matches = _get_previous_matches(df, row)
@@ -399,11 +405,3 @@ def calcular_todas_winrates(df):
     # df = calcular_winrate_torneio(df)
     
     return df
-
-
-if __name__ == "__main__":
-    # Test the functions
-    #df = pd.read_csv("../dataset/tennis_atp/atp_matches_2023.csv")
-    df = pl.read_csv("dados_tratados/all_atp_matches2.csv", schema_overrides={'loser_seed': str, 'winner_seed': str})
-    df_processed = calcular_winrate_ultimas_n(df, 2) # Erro aqui, não sei porque
-    df_processed.write_csv("dados_tratados/winrate_stats.csv")

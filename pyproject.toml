@@ -1,0 +1,101 @@
+[project]
+name = "tennis-match-prediction"
+version = "0.1.0"
+description = "Predicts the winner of an ATP tennis match, orchestrated with Dagster."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+
+dependencies = [
+    # Data processing
+    "pandas>=2.2",
+    "polars>=1.29",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "pyarrow>=14",
+    "requests>=2.31",
+    # Orchestration
+    "dagster>=1.10.15,<1.11",
+    "dagster-webserver>=1.10.15,<1.11",
+    # Dataset and experiment tracking
+    "wandb>=0.19",
+    # Configuration
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# Only needed when dagster_home/dagster.yaml points at MySQL storage instead of
+# the default SQLite files.
+mysql = ["dagster-mysql>=0.24"]
+# Notebooks and exploration tools under notebooks/.
+notebooks = [
+    "jupyterlab>=4",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "ipython>=8.20",
+    "missingno>=0.5",
+]
+
+[dependency-groups]
+dev = [
+    "pylint>=3.1",
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    # E712: `pl.col("won") == True` is explicit and reads fine in polars filters.
+    "E712",
+    # B007: loop variables kept for readability even when unused.
+    "B007",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Transform modules are legacy code being migrated, not a style exercise.
+"pipelines/historical_matches/transforms/*.py" = ["B904", "E501"]
+
+[tool.pylint.main]
+# Dagster assets and asset checks are decorated functions; the decorator owns
+# their signature, which pylint cannot see.
+disable = [
+    "missing-module-docstring",
+    "invalid-name",
+    "too-few-public-methods",
+    "duplicate-code",
+    "redefined-outer-name",
+    "assignment-from-no-return",
+    "import-outside-toplevel",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-positional-arguments",
+    # Dagster config base classes are deep hierarchies; profiling helpers
+    # legitimately branch a lot.
+    "too-many-ancestors",
+    "too-many-return-statements",
+    # `use_artifact(name, type)` mirrors the wandb API surface.
+    "redefined-builtin",
+    "fixme",
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint."messages control"]
+# Historical transforms are pre-Dagster code carried over from the original ETL
+# scripts. Several helpers there are unreachable and carry upstream FIXMEs; the
+# linting budget goes to the pipeline definition layer instead.
+ignore-paths = ["pipelines/historical_matches/transforms/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

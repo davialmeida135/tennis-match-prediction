@@ -1,8 +1,15 @@
-import pandas as pd
-from .util import _get_previous_matches
+﻿"""Head-to-head history and Elo ratings.
+
+Both features are computed chronologically: every row only sees matches that
+already happened at that point of the season.
+"""
+
 import math
+
+import pandas as pd
 import polars as pl
-#from prefect import flow, task
+
+from .history_utils import _get_previous_matches
 
 
 def _calculate_elo_update(player_elo, opponent_elo, player_won, player_match_count, tourney_level):
@@ -342,11 +349,6 @@ def calcular_partidas_jogadas(df:pd.DataFrame)->pd.DataFrame:
     df['loser_matches_played'] = 0
 
     for index, row in df.iterrows():
-        
-        # Get previous matches for winner
-        winner_id = row['winner_id']
-        loser_id = row['loser_id']
-
         winner_matches, loser_matches = _get_previous_matches(df, row)
         if len(winner_matches) > 0:
             df.loc[index, 'winner_matches_played'] = len(winner_matches)
@@ -463,29 +465,3 @@ def _calcular_carga_previa_jogadores(row, df):
 
     #print(row[['player1_tournament_minutes','player2_tournament_minutes', 'winner_name', 'loser_name']])
     return row 
-
-def main():
-    #df_processed = calcular_round_semana_passada(df)
-    # df = pd.read_csv("dados_tratados/all_atp_matches2.csv", parse_dates=['tourney_date'])
-    # #df = df[df['tourney_date'] >= '1990-01-01']
-    # df_processed = calcular_elo(df)
-    # df_processed.to_csv("dados_tratados/teste_stats.csv", index=False)
-    df_pl = pl.read_csv("dados_tratados/all_atp_matches2.csv", 
-                        try_parse_dates=True,
-                        schema_overrides={"winner_seed": pl.Utf8, 
-                                        "loser_seed": pl.Utf8} ) # Read directly
-    
-    # Ensure necessary columns exist before calling
-    required_cols = ["tourney_date", "match_num", "tourney_level", "winner_id", "loser_id", "winner_name", "loser_name"]
-    if not all(col in df_pl.columns for col in required_cols):
-         print(f"Error: Missing one or more required columns: {required_cols}")
-         return 
-
-    #df_processed = calcular_elo(df_pl) # Call the Polars version
-    df_processed = calcular_elo_superficies(df_pl) # Call the Polars version
-    df_processed.write_csv("dados_tratados/teste_surf_stats_polars.csv") # Save the result
-
-
-
-if __name__ == "__main__":
-    main()

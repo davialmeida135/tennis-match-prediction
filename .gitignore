@@ -95,10 +95,9 @@ ipython_config.py
 #Pipfile.lock
 
 # UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#uv.lock
+#   uv.lock is committed: this is an application, not a library, so the exact
+#   resolved dependency set is what makes a run reproducible.
+#   Note that .venv and .python-version are intentionally NOT ignored.
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -171,18 +170,25 @@ cython_debug/
 .ruff_cache/
 # PyPI configuration file
 .pypirc
-# Dagster I/O manager storage for materialized assets
+# Pipeline outputs: materialized snapshots, curated datasets and API pulls.
 *.csv
 *.parquet
-!data/kaggle/raw/all_atp_matches.csv
-!data/kaggle/raw/atp_matches_2023.csv
+*.json.gz
+
+# Raw inputs are small enough to be versioned, so keep them explicit.
+!data/raw/historical_matches/all_atp_matches.csv
+!data/raw/historical_matches/atp_matches_2023.csv
 
 # Dagster instance home (local development)
+.tmp_dagster_home_*
 dagster_home/.logs_queue
 dagster_home/storage
+dagster_home/history
+dagster_home/schedules
 dagster_home/.nux
 dagster_home/.telemetry
 dagster_home/logs
 !dagster_home/dagster.yaml
-etl/kaggle/data/explore.ipynb
+!dagster_home/dagster.mysql.yaml.example
+
 /wandb
