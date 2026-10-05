@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import pathlib
+import numpy as np
 from dagster import (
     asset, 
     Definitions,
@@ -30,9 +31,9 @@ from .player_stats import (
     calcular_elo
 )
 from .fill_missing import fill_null_surface, fill_null_age, fill_null_height, fill_null_rank
-
-# Define the base output folder
-# TODO mudar isso para um arquivo de configuração
+import wandb
+import dotenv
+dotenv.load_dotenv()
 BASE_OUTPUT_FOLDER = os.path.join(pathlib.Path(__file__).parent.parent.parent.absolute(), "data/kaggle/transformed")
 os.makedirs(BASE_OUTPUT_FOLDER, exist_ok=True)
 
@@ -50,7 +51,9 @@ PandasDataFrame = DagsterType(
         check_specs=[
         AssetCheckSpec(name="raw_data_not_empty", asset =AssetKey("raw_tennis_data"), description="Check if the raw data DataFrame is not empty.")
     ],
-    metadata={"source_system": "ATP Tour CSV Files", "data_category": "raw"})
+    metadata={"source_system": "ATP Tour CSV Files", "data_category": "raw"},
+    group_name="tennis_data_pipeline",
+    kinds=["csv"])
 def raw_tennis_data(context) -> PandasDataFrame:
     """Loads the initial tennis data from a CSV file."""
     csv_path = context.op_config["csv_path"]
@@ -83,7 +86,12 @@ def raw_tennis_data(context) -> PandasDataFrame:
         }
     )
 
-@asset
+@asset(
+    name="initial_cleaned_data",
+    description="Processes dates, sorts matches, and transforms seed data.",
+    group_name="tennis_data_pipeline",
+    kinds=["pandas"],
+)
 def initial_cleaned_data(context, raw_tennis_data: PandasDataFrame) -> PandasDataFrame:
     """Applies initial cleaning steps to the raw tennis data."""
     context.log.info("Running initial cleaning")
@@ -92,7 +100,12 @@ def initial_cleaned_data(context, raw_tennis_data: PandasDataFrame) -> PandasDat
     df = transform_seed_data(df)
     return df
 
-@asset
+@asset(
+    name="filled_missing_data",
+    description="Fills missing values in the cleaned data.",
+    group_name="tennis_data_pipeline",
+    kinds=["pandas"],
+)
 def filled_missing_data(context, initial_cleaned_data: PandasDataFrame) -> PandasDataFrame:
     """Fills missing values in the cleaned data."""
     context.log.info("Filling missing values")
@@ -102,7 +115,12 @@ def filled_missing_data(context, initial_cleaned_data: PandasDataFrame) -> Panda
     df = fill_null_rank(df)
     return df
 
-@asset
+@asset(
+    name="winrate_featured_data",
+    description="Calculates winrate statistics and adds them as features.",
+    group_name="tennis_data_pipeline",
+    kinds=["polars"],
+)
 def winrate_featured_data(context, filled_missing_data: PandasDataFrame) -> PandasDataFrame:
     """Calculates winrate statistics and adds them as features."""
     context.log.info("Calculating winrate statistics")
@@ -115,21 +133,36 @@ def winrate_featured_data(context, filled_missing_data: PandasDataFrame) -> Pand
 
     return df
 
-@asset
+@asset(
+    name="h2h_featured_data",
+    description="Calculates head-to-head (H2H) statistics.",
+    group_name="tennis_data_pipeline",
+    kinds=["polars"],
+)
 def h2h_featured_data(context, winrate_featured_data: PandasDataFrame) -> PandasDataFrame:
     """Calculates head-to-head (H2H) statistics."""
     context.log.info("Calculating H2H statistics")
     df = calcular_h2h(winrate_featured_data.copy())
     return df
 
-@asset
+@asset(
+    name="elo_featured_data",
+    description="Calculates Elo ratings for players.",
+    group_name="tennis_data_pipeline",
+    kinds=["polars"],
+)
 def elo_featured_data(context, h2h_featured_data: PandasDataFrame) -> PandasDataFrame:
     """Calculates Elo ratings for players."""
     context.log.info("Calculating Elo ratings")
     df = calcular_elo(h2h_featured_data.copy())
     return df
 
-@asset
+@asset(
+    name="pre_anonymized_data",
+    description="Applies final cleaning steps before anonymization.",
+    group_name="tennis_data_pipeline",
+    kinds=["polars", "wandb"],
+)
 def pre_anonymized_data(context, elo_featured_data: PandasDataFrame) -> PandasDataFrame:
     """Applies final cleaning steps before anonymization. 
        This asset represents the 'pre_anon_dagster.csv' state."""
@@ -147,9 +180,60 @@ def pre_anonymized_data(context, elo_featured_data: PandasDataFrame) -> PandasDa
     pre_anon_path = os.path.join(BASE_OUTPUT_FOLDER, "pre_anon_dagster_asset_version.csv")
     df.to_csv(pre_anon_path, index=False)
     context.log.info(f"Side-effect: Saved pre_anon_dagster_asset_version.csv to {pre_anon_path}")
+
+    # --- W&B Artifact Logging ---
+    try:
+        wandb_project = os.getenv("WANDB_PROJECT", "tennis-match-prediction") 
+        wandb_run_name = f"asset_materialization_{context.asset_key.to_user_string()}_{context.run_id[:8]}"
+
+        with wandb.init(project=wandb_project, name=wandb_run_name, job_type="preprocess_data", reinit=True) as run:
+            context.log.info(f"Logging W&B artifact for {context.asset_key.to_user_string()} in project '{wandb_project}'")
+            
+            artifact_name = "pre_anonymized_tennis_data"
+            artifact_type = "dataset"
+            
+            artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+            artifact.add_file(pre_anon_path)
+            
+            artifact.metadata["dagster_run_id"] = context.run_id
+            artifact.metadata["asset_key"] = str(context.asset_key)
+            source_asset_key = context.asset_key_for_input("elo_featured_data")
+            artifact.metadata["source_asset_keys"] = [str(source_asset_key)] if source_asset_key else []
+            artifact.metadata["num_rows"] = df.shape[0]
+            artifact.metadata["num_columns"] = df.shape[1]
+            artifact.metadata["columns"] = list(df.columns)
+            artifact.metadata["data_types"] = df.dtypes.astype(str).to_dict() # More W&B friendly
+            artifact.metadata["null_values_per_column"] = df.isnull().sum().to_dict()
+            # Describe only numeric columns to avoid errors with object/string types
+            numeric_df_desc = df.select_dtypes(include=np.number).describe().transpose().to_dict()
+            artifact.metadata["numeric_column_descriptions"] = numeric_df_desc
+            artifact.metadata["data_preview"] = df.head().to_dict(orient='records')
+            
+            run.log_artifact(artifact)
+            artifact.wait()
+            context.log.info(f"Successfully logged W&B artifact: {artifact_name} (version: {artifact.version})")
+
+
+    except Exception as e:
+        context.log.error(f"Failed to log W&B artifact for {context.asset_key.to_user_string()}: {e}")
+    # Yield Output with enhanced Dagster metadata
+    dagster_metadata = {
+        "num_rows": df.shape[0],
+        "num_columns": df.shape[1],
+        "columns": list(df.columns),
+        "data_types": df.dtypes.astype(str).to_dict(),
+        "null_values_per_column": df.isnull().sum().to_dict(),
+        "numeric_column_descriptions": numeric_df_desc,
+        "data_preview_head": df.head().to_dict(orient='records'),
+        "local_save_path": pre_anon_path,
+    }
+    if 'artifact' in locals() and artifact.version: # Add W&B info if available
+        dagster_metadata["wandb_artifact_logged"] = f"{artifact.name}:{artifact.version}"
+
     return df
 
-@asset
+
+
 def final_anonymized_data(context, pre_anonymized_data: PandasDataFrame) -> PandasDataFrame:
     """Anonymizes the data. This is the final dataset."""
     context.log.info("Anonymizing data")
@@ -169,7 +253,6 @@ all_assets = [
     h2h_featured_data,
     elo_featured_data,
     pre_anonymized_data,
-    final_anonymized_data,
 ]
 # Define a job that targets all assets in the `all_assets` list
 materialize_all_tennis_data_job = define_asset_job(
