@@ -17,8 +17,6 @@ dependencies = [
     # Orchestration
     "dagster>=1.10.15,<1.11",
     "dagster-webserver>=1.10.15,<1.11",
-    # Dataset and experiment tracking
-    "wandb>=0.19",
     # Configuration
     "python-dotenv>=1.0",
 ]
@@ -83,8 +81,6 @@ disable = [
     # legitimately branch a lot.
     "too-many-ancestors",
     "too-many-return-statements",
-    # `use_artifact(name, type)` mirrors the wandb API surface.
-    "redefined-builtin",
     "fixme",
 ]
 

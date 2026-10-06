@@ -9,7 +9,14 @@ from dagster import AssetCheckResult, MetadataValue, asset_check
 
 from ..shared.metadata import columns_present, columns_without_nulls
 from ..shared.types import PandasDataFrame
+from .anonymization import (
+    FINAL_COLUMN_ORDER,
+    MATCH_COLUMNS,
+    PLAYER_ATTRIBUTE_STEMS,
+    TARGET_COLUMN,
+)
 from .assets import (
+    anonymized_matches,
     curated_atp_matches,
     elo_featured_atp_matches,
     h2h_featured_atp_matches,
@@ -62,6 +69,9 @@ WINRATE_COLUMNS = [
 ]
 
 ELO_COLUMNS = ["winner_elo", "loser_elo", "elo_diff"]
+
+# player0/player1 are shuffled at random, so the target must land near 50/50.
+TARGET_BALANCE_TOLERANCE = 0.05
 
 
 @asset_check(
@@ -193,11 +203,6 @@ def curated_matches_have_no_walkovers(curated_atp_matches: PandasDataFrame) -> A
     blocking=True,
 )
 def curated_matches_feed_anonymization(curated_atp_matches: PandasDataFrame) -> AssetCheckResult:
-    # Imported here, not at module level: anonymization belongs to the
-    # anonymized_dataset pipeline, and importing it at the top would couple the
-    # two code locations.
-    from ..anonymized_dataset.anonymization import MATCH_COLUMNS, PLAYER_ATTRIBUTE_STEMS
-
     required = [
         *MATCH_COLUMNS,
         *(f"{side}_{stem}" for stem in PLAYER_ATTRIBUTE_STEMS for side in ("winner", "loser")),
@@ -208,5 +213,89 @@ def curated_matches_feed_anonymization(curated_atp_matches: PandasDataFrame) -> 
         metadata={
             "missing_columns": MetadataValue.json(missing),
             "columns_checked": MetadataValue.int(len(required)),
+        },
+    )
+
+
+@asset_check(
+    asset=anonymized_matches,
+    name="target_is_binary",
+    description=f"`{TARGET_COLUMN}` only contains 0/1, so it can be used directly as the target.",
+    blocking=True,
+)
+def target_is_binary(anonymized_matches: PandasDataFrame) -> AssetCheckResult:
+    values = sorted(anonymized_matches[TARGET_COLUMN].dropna().unique().tolist())
+    unexpected = [value for value in values if value not in (0, 1)]
+    return AssetCheckResult(
+        passed=not unexpected,
+        metadata={
+            "values": MetadataValue.json(values),
+            "unexpected": MetadataValue.json(unexpected),
+        },
+    )
+
+
+@asset_check(
+    asset=anonymized_matches,
+    name="target_is_balanced",
+    description=(
+        "player0/player1 are shuffled at random, so the target must be ~50/50. A skewed mean "
+        "means the anonymization step leaked the winner."
+    ),
+    blocking=True,
+)
+def target_is_balanced(anonymized_matches: PandasDataFrame) -> AssetCheckResult:
+    target_mean = float(anonymized_matches[TARGET_COLUMN].mean())
+    return AssetCheckResult(
+        passed=abs(target_mean - 0.5) <= TARGET_BALANCE_TOLERANCE,
+        metadata={
+            "target_mean": MetadataValue.float(target_mean),
+            "tolerance": MetadataValue.float(TARGET_BALANCE_TOLERANCE),
+        },
+    )
+
+
+@asset_check(
+    asset=anonymized_matches,
+    name="no_player_identity_left",
+    description=(
+        "No winner_*/loser_* column survives anonymization, otherwise the model could read the "
+        f"outcome straight from the column names. The `{TARGET_COLUMN}` target itself is "
+        "expected and excluded."
+    ),
+    blocking=True,
+)
+def no_player_identity_left(anonymized_matches: PandasDataFrame) -> AssetCheckResult:
+    leaked = [
+        column
+        for column in anonymized_matches.columns
+        if column != TARGET_COLUMN
+        and column.startswith(("winner_", "loser_", "winner", "loser"))
+    ]
+    return AssetCheckResult(
+        passed=not leaked,
+        metadata={
+            "leaked_columns": MetadataValue.json(leaked),
+            "excluded_target": MetadataValue.text(TARGET_COLUMN),
+        },
+    )
+
+
+@asset_check(
+    asset=anonymized_matches,
+    name="schema_matches_expectation",
+    description="Column set and order of the anonymized training dataset.",
+    blocking=True,
+)
+def schema_matches_expectation(anonymized_matches: PandasDataFrame) -> AssetCheckResult:
+    actual = list(anonymized_matches.columns)
+    missing = [column for column in FINAL_COLUMN_ORDER if column not in actual]
+    return AssetCheckResult(
+        passed=not missing,
+        metadata={
+            "missing_columns": MetadataValue.json(missing),
+            "extra_columns": MetadataValue.json(
+                [column for column in actual if column not in FINAL_COLUMN_ORDER]
+            ),
         },
     )

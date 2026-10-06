@@ -2,6 +2,4 @@ load_from:
   - python_module:
       module_name: pipelines.historical_matches.defs
   - python_module:
-      module_name: pipelines.anonymized_dataset.defs
-  - python_module:
       module_name: pipelines.live_matches.defs

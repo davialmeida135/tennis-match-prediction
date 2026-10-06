@@ -1,4 +1,4 @@
-"""Assets that turn the raw ATP match history into a publishable training dataset.
+"""Assets that turn the raw ATP match history into the training dataset.
 
     raw_atp_matches                     read the Kaggle CSV
       -> normalized_atp_matches         dates, chronological order, seed parsing
@@ -7,11 +7,18 @@
       -> h2h_featured_atp_matches       head-to-head history
       -> elo_featured_atp_matches       Elo ratings
       -> curated_atp_matches            categorical encodings, leaky stats removed
-      -> published_pre_anonymized_dataset   CSV copy + W&B artifact (no table output)
+      -> pre_anonymized_matches         data/curated/pre_anonymized_matches.csv
+      -> anonymized_matches             data/curated/anonymized_matches.csv
 
 Every transform is a separate asset: each step is materialised (and therefore
 observable, comparable and re-runnable) on its own, and the feature engineering
 code stays free of Dagster and IO concerns.
+
+Groups follow the stages of the pipeline, so the asset catalog can be filtered
+one layer at a time: `raw`, `normalize`, `impute`, `features`, `curate` and
+`publish`. The last group holds the two assets that write files under
+data/curated; anonymization is deliberately not a group of its own, it is the
+tail of the same chain.
 """
 
 from pathlib import Path
@@ -20,19 +27,18 @@ import pandas as pd
 from dagster import (
     AssetExecutionContext,
     AutomationCondition,
-    MaterializeResult,
     MetadataValue,
     asset,
 )
 
 from ..shared.metadata import dataframe_metadata
-from ..shared.paths import curated_dataset_path, staging_snapshot_path
-from ..shared.types import PandasDataFrame
-from ..shared.wandb_artifacts import (
-    PRE_ANONYMIZED_ARTIFACT,
-    PRE_ANONYMIZED_ARTIFACT_TYPE,
-    WandbArtifactsResource,
+from ..shared.paths import (
+    ANONYMIZED_CSV_NAME,
+    PRE_ANONYMIZED_CSV_NAME,
+    write_curated_csv,
 )
+from ..shared.types import PandasDataFrame
+from .anonymization import TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
 from .transforms.finalization import (
     encode_surface,
@@ -57,8 +63,6 @@ from .transforms.winrate import (
     calcular_winrate_ultimas_n,
 )
 
-GROUP = "historical_matches"
-
 # Run a step as soon as its input is updated (declarative automation: enable the
 # `default_automation_condition_sensor` to let Dagster launch these runs).
 # The root asset stays manual on purpose: rebuilding every feature is expensive,
@@ -69,7 +73,7 @@ DOMAIN_TAGS = {"domain": "tennis", "source": "kaggle"}
 
 
 @asset(
-    group_name=GROUP,
+    group_name="raw",
     kinds={"csv", "pandas"},
     tags={**DOMAIN_TAGS, "layer": "raw"},
     description="ATP match results exactly as published on Kaggle (one row per finished match).",
@@ -95,7 +99,7 @@ def raw_atp_matches(
 
 
 @asset(
-    group_name=GROUP,
+    group_name="normalize",
     kinds={"pandas"},
     tags={**DOMAIN_TAGS, "layer": "normalize"},
     description="Tourney dates parsed, matches sorted chronologically, seeds expanded into flags.",
@@ -109,7 +113,7 @@ def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
 
 
 @asset(
-    group_name=GROUP,
+    group_name="impute",
     kinds={"pandas"},
     tags={**DOMAIN_TAGS, "layer": "impute"},
     description=(
@@ -126,7 +130,7 @@ def imputed_atp_matches(normalized_atp_matches: PandasDataFrame) -> PandasDataFr
 
 
 @asset(
-    group_name=GROUP,
+    group_name="features",
     kinds={"pandas", "polars"},
     tags={**DOMAIN_TAGS, "layer": "features"},
     description="Win rates over the last 10/50 matches, overall and per surface.",
@@ -143,7 +147,7 @@ def winrate_featured_atp_matches(imputed_atp_matches: PandasDataFrame) -> Pandas
 
 
 @asset(
-    group_name=GROUP,
+    group_name="features",
     kinds={"pandas", "polars"},
     tags={**DOMAIN_TAGS, "layer": "features"},
     description="Number of previous meetings between the two players.",
@@ -155,7 +159,7 @@ def h2h_featured_atp_matches(winrate_featured_atp_matches: PandasDataFrame) -> P
 
 
 @asset(
-    group_name=GROUP,
+    group_name="features",
     kinds={"pandas", "polars"},
     tags={**DOMAIN_TAGS, "layer": "features"},
     description="Elo rating per player plus the pre-match rating difference.",
@@ -167,18 +171,18 @@ def elo_featured_atp_matches(h2h_featured_atp_matches: PandasDataFrame) -> Panda
 
 
 @asset(
-    group_name=GROUP,
+    group_name="curate",
     kinds={"pandas"},
     tags={**DOMAIN_TAGS, "layer": "curate"},
     description=(
         "Walkovers removed, surface one-hot encoded, round/tourney level/handedness coded "
-        "and per-match statistics dropped. This is the dataset handed over to the "
-        "anonymized_dataset pipeline."
+        "and per-match statistics dropped. Still names the winner and the loser, so it is "
+        "the input of the anonymization step."
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def curated_atp_matches(elo_featured_atp_matches: PandasDataFrame) -> PandasDataFrame:
-    """Produce the pre-anonymization dataset, ready to be published."""
+    """Produce the pre-anonymization dataset."""
     frame = remove_wo(elo_featured_atp_matches)
     frame = encode_surface(frame)
     frame = transform_round(frame)
@@ -188,45 +192,61 @@ def curated_atp_matches(elo_featured_atp_matches: PandasDataFrame) -> PandasData
 
 
 @asset(
-    group_name=GROUP,
-    kinds={"python", "wandb"},
-    tags={"domain": "tennis", "source": "wandb", "layer": "publish"},
-    deps=[curated_atp_matches],
+    group_name="publish",
+    kinds={"csv", "pandas"},
+    tags={**DOMAIN_TAGS, "layer": "publish"},
     description=(
-        "Writes the curated dataset to data/curated and uploads it to W&B as a new version of "
-        f"the '{PRE_ANONYMIZED_ARTIFACT}' artifact. Only the previous step's snapshot is read, "
-        "so this asset publishes without re-running the feature engineering."
+        "Writes the curated dataset to data/curated/pre_anonymized_matches.csv. This is the "
+        "readable version of the dataset, still identifying players by name."
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def published_pre_anonymized_dataset(
-    context: AssetExecutionContext, wandb_artifacts: WandbArtifactsResource
-) -> MaterializeResult:
-    """Publish a versioned copy of the curated dataset on W&B."""
-    snapshot = staging_snapshot_path("curated_atp_matches")
-    csv_path = curated_dataset_path()
-    frame = pd.read_parquet(snapshot)
+def pre_anonymized_matches(
+    context: AssetExecutionContext, curated_atp_matches: PandasDataFrame
+) -> PandasDataFrame:
+    """Save the curated dataset as the pre-anonymization CSV."""
+    csv_path = write_curated_csv(curated_atp_matches, PRE_ANONYMIZED_CSV_NAME)
+    context.log.info(f"Wrote {len(curated_atp_matches)} rows to {csv_path}")
+    context.add_output_metadata(
+        {
+            "csv_path": MetadataValue.path(str(csv_path)),
+            **dataframe_metadata(curated_atp_matches),
+        }
+    )
+    return curated_atp_matches
 
-    with wandb_artifacts.run(
-        run_name=f"publish_curated_{context.run_id[:8]}", job_type="publish_dataset"
-    ) as wandb_run:
-        artifact_reference = wandb_artifacts.publish_dataframe(
-            wandb_run,
-            artifact_name=PRE_ANONYMIZED_ARTIFACT,
-            artifact_type=PRE_ANONYMIZED_ARTIFACT_TYPE,
-            frame=frame,
-            csv_path=csv_path,
-            extra_metadata={
-                "dagster_run_id": context.run_id,
-                "source_asset_key": curated_atp_matches.key.to_user_string(),
-            },
+
+@asset(
+    group_name="publish",
+    kinds={"csv", "pandas", "polars"},
+    tags={**DOMAIN_TAGS, "layer": "publish"},
+    description=(
+        "Last step of the pipeline: shuffles winner/loser into player0/player1, adds the "
+        f"binary `{TARGET_COLUMN}` target and writes the result to "
+        f"data/curated/{ANONYMIZED_CSV_NAME}. This is the dataset a model is trained on."
+    ),
+    automation_condition=WHEN_INPUT_CHANGES,
+)
+def anonymized_matches(
+    context: AssetExecutionContext, pre_anonymized_matches: PandasDataFrame
+) -> PandasDataFrame:
+    """Hide which player won and save the training dataset."""
+    frame = anonymize(pre_anonymized_matches)
+    csv_path = write_curated_csv(frame, ANONYMIZED_CSV_NAME)
+
+    target_mean = float(frame[TARGET_COLUMN].mean())
+    if not 0.4 <= target_mean <= 0.6:
+        context.log.warning(
+            f"Target '{TARGET_COLUMN}' mean is {target_mean:.4f}, "
+            "expected ~0.5 for a balanced dataset."
         )
 
-    return MaterializeResult(
-        metadata={
-            "rows_published": MetadataValue.int(len(frame)),
+    context.log.info(f"Wrote {len(frame)} rows to {csv_path}")
+    context.add_output_metadata(
+        {
             "csv_path": MetadataValue.path(str(csv_path)),
-            "wandb_artifact": MetadataValue.text(artifact_reference or "skipped (W&B disabled)"),
+            "target_mean": MetadataValue.float(target_mean),
             **dataframe_metadata(frame),
         }
     )
+    return frame

@@ -8,7 +8,8 @@ predictable and there is a single place to change it.
         historical_matches/   input CSVs downloaded from Kaggle (tracked in git)
         live_matches/         JSON/CSV payloads pulled from the SportDevs API
       staging/                one parquet snapshot per Dagster asset (IO manager)
-      curated/                publishable datasets (CSV copies uploaded to W&B)
+      curated/                the datasets handed to the ML step:
+                              pre_anonymized_matches.csv and anonymized_matches.csv
 
 Override the root with the TENNIS_DATA_DIR environment variable (see .env.example).
 """
@@ -16,6 +17,7 @@ Override the root with the TENNIS_DATA_DIR environment variable (see .env.exampl
 import os
 from pathlib import Path
 
+import pandas as pd
 from dotenv import load_dotenv
 
 # `dagster dev` does not read .env by itself, so load it once, here, before any
@@ -36,8 +38,11 @@ CURATED_DIR = DATA_DIR / "curated"
 # Default input of the historical pipeline (the smaller, faster dataset).
 DEFAULT_HISTORICAL_MATCHES_CSV = HISTORICAL_MATCHES_RAW_DIR / "atp_matches_2023.csv"
 
-# Name of the CSV written inside data/curated before a dataset is published.
-CURATED_CSV_NAME = "pre_anonymized_matches.csv"
+# The two datasets written under data/curated, in the order the pipeline builds
+# them: the curated dataset still names the winner and loser, the anonymized one
+# is what a model is trained on.
+PRE_ANONYMIZED_CSV_NAME = "pre_anonymized_matches.csv"
+ANONYMIZED_CSV_NAME = "anonymized_matches.csv"
 
 
 def ensure_dir(path: Path) -> Path:
@@ -51,6 +56,14 @@ def staging_snapshot_path(asset_name: str) -> Path:
     return STAGING_DIR / f"{asset_name}.parquet"
 
 
-def curated_dataset_path(file_name: str = CURATED_CSV_NAME) -> Path:
-    """CSV copy of a dataset that is ready to be published / shared."""
+def curated_dataset_path(file_name: str = PRE_ANONYMIZED_CSV_NAME) -> Path:
+    """CSV path of a dataset in data/curated, ready to be read by the ML step."""
     return CURATED_DIR / file_name
+
+
+def write_curated_csv(frame: pd.DataFrame, file_name: str) -> Path:
+    """Write `frame` under data/curated as `file_name` and return the path."""
+    path = curated_dataset_path(file_name)
+    ensure_dir(path.parent)
+    frame.to_csv(path, index=False)
+    return path

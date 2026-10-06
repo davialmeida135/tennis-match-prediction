@@ -5,7 +5,7 @@
 - [ ] Definir forma de buscar partidas futuras para prever
 - [ ] Validar pipeline end-to-end com dados históricos + novos
 - [ ] Predict com apenas nome dos jogadores, data e superfície como entrada; buscar/calcular os demais dados automaticamente
-- [ ] Transferir Wandb -> MLFlow
+- [ ] Transferir Wandb -> MLFlow (Wandb ja foi removido; MLFlow ainda nao)
 - [ ] Revisar Dagster: boas práticas, artefatos e dependências
 
 # Ordem recomendada

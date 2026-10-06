@@ -52,9 +52,6 @@ uv sync --extra mysql      # dagster-mysql
 uv run jupyter lab         # notebooks extra
 ```
 
-To run without Weights & Biases, set `TENNIS_WANDB_ENABLED=false` in `.env`.
-Publishing assets still write their local CSV and skip the upload.
-
 ### Raw input
 
 The historical pipeline expects `data/raw/historical_matches/atp_matches_2023.csv`.
@@ -63,50 +60,61 @@ your own copy.
 
 ## Architecture
 
-Three Dagster code locations, one per pipeline. Each is a package with its own
+Two Dagster code locations, one per pipeline. Each is a package with its own
 `defs.py`, so it can be moved to its own deployment later without code changes.
 
 ```
 pipelines/
-├── historical_matches/     Kaggle CSV -> features -> curated dataset -> W&B
-├── anonymized_dataset/     W&B artifact -> anonymous player0/player1 -> W&B
+├── historical_matches/     Kaggle CSV -> features -> anonymized dataset -> data/curated
 ├── live_matches/           SportDevs API -> daily raw snapshot
-└── shared/                 paths, types, IO manager, metadata, W&B resource
+└── shared/                 paths, types, IO manager, metadata
 ```
 
 ### historical_matches
 
-Group `historical_matches`, eight assets, materialized left to right:
+Nine assets, materialized left to right, split into six groups that follow the
+stages of the pipeline:
 
-| Asset | What it does |
-| --- | --- |
-| `raw_atp_matches` | Reads the Kaggle CSV. Root of the pipeline, manual trigger. |
-| `normalized_atp_matches` | Parses dates, sorts chronologically, expands seeds into flags. |
-| `imputed_atp_matches` | Fills missing surface, height, age and ranking. |
-| `winrate_featured_atp_matches` | Win rates overall and per surface, last 10 and 50 matches. |
-| `h2h_featured_atp_matches` | Previous meetings between the two players. |
-| `elo_featured_atp_matches` | Elo per player plus the pre-match difference. |
-| `curated_atp_matches` | Drops walkovers, one-hot encodes surface, codes round/level/hand, removes leaky box scores. |
-| `published_pre_anonymized_dataset` | Publishes the curated dataset as W&B artifact `pre_anonymized_tennis_data`. |
+```
+raw -> normalize -> impute -> features -> curate -> publish
+```
 
-Each step is a plain function in `transforms/`, so it can be unit tested or run
-in a notebook without Dagster. Asset checks in `checks.py` guard the invariants:
-chronological order, imputed columns free of nulls, win rates inside `[0, 1]`,
-walkovers removed, and the exact schema the anonymization step selects.
+| Group | Asset | What it does |
+| --- | --- | --- |
+| `raw` | `raw_atp_matches` | Reads the Kaggle CSV. Root of the pipeline, manual trigger. |
+| `normalize` | `normalized_atp_matches` | Parses dates, sorts chronologically, expands seeds into flags. |
+| `impute` | `imputed_atp_matches` | Fills missing surface, height, age and ranking. |
+| `features` | `winrate_featured_atp_matches` | Win rates overall and per surface, last 10 and 50 matches. |
+| `features` | `h2h_featured_atp_matches` | Previous meetings between the two players. |
+| `features` | `elo_featured_atp_matches` | Elo per player plus the pre-match difference. |
+| `curate` | `curated_atp_matches` | Drops walkovers, one-hot encodes surface, codes round/level/hand, removes leaky box scores. |
+| `publish` | `pre_anonymized_matches` | Writes `data/curated/pre_anonymized_matches.csv`. |
+| `publish` | `anonymized_matches` | Shuffles winner/loser into `player0`/`player1`, writes `data/curated/anonymized_matches.csv`. |
 
-### anonymized_dataset
+Groups make the asset catalog filterable one stage at a time. Anonymization is
+deliberately not a group of its own: it is the tail of the same chain, so
+everything from CSV to training set is one linear materialization.
 
-Group `anonymized_dataset`, one asset: `anonymized_atp_matches`.
+Each step is a plain function in `transforms/` (plus `anonymization.py` for the
+last one), so it can be unit tested or run in a notebook without Dagster. Asset
+checks in `checks.py` guard the invariants: chronological order, imputed columns
+free of nulls, win rates inside `[0, 1]`, walkovers removed, the exact schema the
+anonymization step selects, and — on the output — a binary target, a balanced
+target (mean within 0.05 of 0.5) and no surviving `winner_*` / `loser_*` column.
 
-It downloads `pre_anonymized_tennis_data:latest` from W&B, shuffles winner and
-loser into `player0` and `player1` per match, adds the binary `winner` target and
-publishes `final_anonymized_tennis_data`. The shuffling is the point: without it
-the model could learn who a specific player is. Checks verify the target is
-binary, balanced (mean within 0.05 of 0.5) and that no `winner_*` / `loser_*`
-column survives.
+### Outputs
 
-Reading from W&B instead of a local file is what keeps the exact dataset version a
-model was trained on traceable.
+Both datasets are written to disk, so the ML step reads a plain CSV and nothing
+else:
+
+| File | Shape | Purpose |
+| --- | --- | --- |
+| `data/curated/pre_anonymized_matches.csv` | one row per match, players by name | the readable, auditable dataset |
+| `data/curated/anonymized_matches.csv` | `player0_*` / `player1_*` plus `winner` | the dataset a model is trained on |
+
+The anonymization shuffling is the point: without it the model could learn who a
+specific player is. Both files come out of the same run, so the training set is
+always traceable back to the readable dataset next to it.
 
 ### live_matches
 
@@ -125,7 +133,7 @@ data/
 │   ├── historical_matches/   committed Kaggle CSVs (inputs)
 │   └── live_matches/         daily API pulls (ignored)
 ├── staging/                  <asset_name>.parquet snapshots (ignored)
-└── curated/                  published CSVs (ignored)
+└── curated/                  pre_anonymized_matches.csv, anonymized_matches.csv (ignored)
 ```
 
 `pipelines/shared/paths.py` owns every path and calls `load_dotenv()` once, so
@@ -148,30 +156,27 @@ Environment variables are documented in `.env.example`. The ones that matter:
 | `DAGSTER_HOME` | `dagster_home/` | Dagster instance directory |
 | `TENNIS_DATA_DIR` | `./data` | Root of the data tree |
 | `TENNIS_RAW_MATCHES_CSV` | `data/raw/historical_matches/atp_matches_2023.csv` | Raw input |
-| `TENNIS_WANDB_ENABLED` | `true` | Set `false` to skip all W&B calls |
-| `WANDB_PROJECT` / `WANDB_ENTITY` / `WANDB_API_KEY` | - | W&B destination |
 | `SPORTDEVS_API_KEY` | empty | Required by `live_matches_snapshot` |
 
 ## Automation
 
 Assets carry an `AutomationCondition`. The historical chain uses
-`AutomationCondition.eager()`, so materializing `raw_atp_matches` cascades through
-feature engineering and publishing. The root stays manual because rebuilding every
-feature is expensive and should be an explicit decision.
+`AutomationCondition.eager()`, so materializing `raw_atp_matches` cascades all the
+way through feature engineering, curation and anonymization down to the two CSVs
+in `data/curated/`. The root stays manual because rebuilding every feature is
+expensive and should be an explicit decision.
 
 Declarative automation also needs the default automation condition sensor
-enabled in the Dagster UI (it ships disabled). `anonymized_atp_matches` runs on a
-daily cron instead, since its input is a W&B artifact rather than an upstream asset.
+enabled in the Dagster UI (it ships disabled).
 
 ## Project structure
 
 ```
 pipelines/                Dagster code locations (one package per pipeline)
-  shared/                 paths, PandasDataFrame type, IO manager, metadata, W&B resource
+  shared/                 paths, PandasDataFrame type, IO manager, metadata
   historical_matches/
-    assets.py checks.py config.py defs.py
+    assets.py checks.py anonymization.py config.py defs.py
     transforms/           pure functions: normalization, imputation, winrate, player_stats, finalization
-  anonymized_dataset/     assets.py checks.py anonymization.py defs.py
   live_matches/           assets.py checks.py client.py config.py defs.py
 notebooks/                exploration, one notebook per data source
 data/                     raw inputs, staging snapshots, curated datasets
@@ -191,7 +196,7 @@ workspace.yaml            code locations
 
 - Baseline: Elo difference, to beat before trusting anything else
 - Random Forest / decision tree as a first real model
-- Neural network experiments with regularisation, tracked on W&B
+- Neural network experiments with regularisation
 - Feature importance pass to prune the feature set
 
 ## Roadmap
