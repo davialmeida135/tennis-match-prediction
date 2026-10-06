@@ -16,6 +16,7 @@ from .assets import (
     normalized_atp_matches,
     pre_anonymized_matches,
     raw_atp_matches,
+    temporal_training_matches,
     winrate_featured_atp_matches,
 )
 from .checks import (
@@ -38,6 +39,7 @@ from .config import RawMatchesCsv
 ASSETS = [
     raw_atp_matches,
     normalized_atp_matches,
+    temporal_training_matches,
     imputed_atp_matches,
     winrate_featured_atp_matches,
     h2h_featured_atp_matches,

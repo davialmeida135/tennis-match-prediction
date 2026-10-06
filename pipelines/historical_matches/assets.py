@@ -34,12 +34,15 @@ from dagster import (
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
     ANONYMIZED_CSV_NAME,
+    FEATURE_STATE_PATH,
     PRE_ANONYMIZED_CSV_NAME,
+    TEMPORAL_FEATURES_CSV_NAME,
     write_curated_csv,
 )
 from ..shared.types import PandasDataFrame
 from .anonymization import TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
+from .feature_state import build_training_frame
 from .transforms.finalization import (
     encode_surface,
     remove_stat_cols,
@@ -69,7 +72,7 @@ from .transforms.winrate import (
 # so somebody has to ask for it.
 WHEN_INPUT_CHANGES = AutomationCondition.eager()
 
-DOMAIN_TAGS = {"domain": "tennis", "source": "kaggle"}
+DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
 
 
 @asset(
@@ -85,9 +88,8 @@ def raw_atp_matches(
     csv_path = Path(raw_matches_csv.csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(
-            f"Raw ATP match CSV not found at {csv_path}. Download it from "
-            "https://www.kaggle.com/datasets/dissfya/atp-tennis-2000-2023daily-pull into "
-            "data/raw/historical_matches or point TENNIS_RAW_MATCHES_CSV somewhere else."
+            f"Raw ATP match CSV not found at {csv_path}. Run `uv run python -m "
+            "ml.refresh_history` or point TENNIS_RAW_MATCHES_CSV somewhere else."
         )
 
     context.log.info(f"Reading raw matches from {csv_path}")
@@ -110,6 +112,33 @@ def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
     frame = preprocess_dates(raw_atp_matches)
     frame = sort_by_date(frame)
     return transform_seed_data(frame)
+
+
+@asset(
+    group_name="features",
+    kinds={"pandas", "csv", "json"},
+    tags={"domain": "tennis", "layer": "features", "implementation": "temporal"},
+    description=(
+        "Leakage-free, player1-minus-player0 pre-match features plus the durable state checkpoint "
+        "used by incremental updates and future predictions."
+    ),
+    automation_condition=WHEN_INPUT_CHANGES,
+)
+def temporal_training_matches(
+    context: AssetExecutionContext, normalized_atp_matches: PandasDataFrame
+) -> PandasDataFrame:
+    """Build the training table and checkpoint from chronological completed results."""
+    frame, state = build_training_frame(normalized_atp_matches)
+    csv_path = write_curated_csv(frame, TEMPORAL_FEATURES_CSV_NAME)
+    state.save(FEATURE_STATE_PATH)
+    context.add_output_metadata(
+        {
+            "csv_path": MetadataValue.path(str(csv_path)),
+            "state_path": MetadataValue.path(str(FEATURE_STATE_PATH)),
+            **dataframe_metadata(frame),
+        }
+    )
+    return frame
 
 
 @asset(

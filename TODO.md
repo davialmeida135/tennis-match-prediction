@@ -1,7 +1,8 @@
 # Prioridade
 
-- [ ] Ajustar ingestão de dados novos de https://stats.tennismylife.org/tennis-match-database
-- [ ] Definir features para modelo de ML
+- [ ] Ajustar ingestão(download) de dados novos de https://stats.tennismylife.org/tennis-match-database: Modelo base é o de 2026.csv. Podemos particionar por ano.
+- [ ] Como calcular features de dados novos usando como base dados antigos pré calculados?
+- [ ] Definir features para modelo de ML: Usar modelos @dataclass ou pydantic
 - [ ] Definir forma de buscar partidas futuras para prever
 - [ ] Validar pipeline end-to-end com dados históricos + novos
 - [ ] Predict com apenas nome dos jogadores, data e superfície como entrada; buscar/calcular os demais dados automaticamente

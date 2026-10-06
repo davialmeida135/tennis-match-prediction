@@ -6,7 +6,6 @@ predictable and there is a single place to change it.
     data/
       raw/
         historical_matches/   input CSVs downloaded from Kaggle (tracked in git)
-        live_matches/         JSON/CSV payloads pulled from the SportDevs API
       staging/                one parquet snapshot per Dagster asset (IO manager)
       curated/                the datasets handed to the ML step:
                               pre_anonymized_matches.csv and anonymized_matches.csv
@@ -30,19 +29,22 @@ DATA_DIR = Path(os.getenv("TENNIS_DATA_DIR") or PROJECT_ROOT / "data")
 
 RAW_DIR = DATA_DIR / "raw"
 HISTORICAL_MATCHES_RAW_DIR = RAW_DIR / "historical_matches"
-LIVE_MATCHES_RAW_DIR = RAW_DIR / "live_matches"
 
 STAGING_DIR = DATA_DIR / "staging"
 CURATED_DIR = DATA_DIR / "curated"
 
-# Default input of the historical pipeline (the smaller, faster dataset).
-DEFAULT_HISTORICAL_MATCHES_CSV = HISTORICAL_MATCHES_RAW_DIR / "atp_matches_2023.csv"
+# Annual source files and durable state produced by the incremental feature engine.
+DEFAULT_HISTORICAL_MATCHES_CSV = HISTORICAL_MATCHES_RAW_DIR / "all_atp_matches.csv"
+FEATURE_STATE_DIR = DATA_DIR / "state"
+FEATURE_STATE_PATH = FEATURE_STATE_DIR / "feature_state.json"
+MODELS_DIR = DATA_DIR / "models"
 
 # The two datasets written under data/curated, in the order the pipeline builds
 # them: the curated dataset still names the winner and loser, the anonymized one
 # is what a model is trained on.
 PRE_ANONYMIZED_CSV_NAME = "pre_anonymized_matches.csv"
 ANONYMIZED_CSV_NAME = "anonymized_matches.csv"
+TEMPORAL_FEATURES_CSV_NAME = "temporal_features.csv"
 
 
 def ensure_dir(path: Path) -> Path:

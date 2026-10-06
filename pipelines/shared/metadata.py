@@ -46,9 +46,7 @@ def dataframe_profile(frame: pd.DataFrame, *, preview_rows: int = PREVIEW_ROWS) 
         "dtypes": {str(column): str(dtype) for column, dtype in frame.dtypes.items()},
         "null_count": int(frame.isna().sum().sum()),
         "nulls_by_column": {
-            str(column): int(count)
-            for column, count in frame.isna().sum().items()
-            if count
+            str(column): int(count) for column, count in frame.isna().sum().items() if count
         },
         "preview": jsonable(frame.head(preview_rows).fillna("").to_dict(orient="records")),
     }

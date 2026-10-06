@@ -11,7 +11,7 @@ player-vs-player feature set described in
 
 | Source | Coverage | Used for |
 | --- | --- | --- |
-| [Kaggle: ATP daily pull](https://www.kaggle.com/datasets/dissfya/atp-tennis-2000-2023daily-pull) | 2000 to date | historical training data (`raw_atp_matches`) |
+| [TennisMyLife](https://stats.tennismylife.org/tennis-match-database) | annual ATP files | historical training data (`raw_atp_matches`) |
 | [Kaggle: atpdata](https://www.kaggle.com/datasets/sijovm/atpdata) | up to 2022 | alternative raw input |
 | [Kaggle: tennis](https://www.kaggle.com/datasets/guillemservera/tennis) | 1968 to 2024 | alternative raw input |
 | [tennis-data.co.uk](http://tennis-data.co.uk/2025/2025.xlsx) | yearly spreadsheets | alternative raw input |
@@ -54,9 +54,23 @@ uv run jupyter lab         # notebooks extra
 
 ### Raw input
 
-The historical pipeline expects `data/raw/historical_matches/atp_matches_2023.csv`.
-Download it from Kaggle into that folder, or point `TENNIS_RAW_MATCHES_CSV` at
-your own copy.
+Refresh the annual ATP source files and rebuild the consolidated input with:
+
+```bash
+uv run python -m ml.refresh_history  # all available ATP seasons
+uv run python -m ml.refresh_history 2024 2025 2026  # selected seasons
+```
+
+The command writes one file per season plus a manifest with content hashes under
+`data/raw/historical_matches/`, then produces `all_atp_matches.csv` with duplicate
+matches removed. Source corrections are detected by their hash.
+
+Train a model and calculate the durable feature state with:
+
+```bash
+uv run python -m ml.train data/raw/historical_matches/all_atp_matches.csv
+uv run python -m ml.predict "Carlos Alcaraz" "Jannik Sinner" 2026-10-01 Hard
+```
 
 ## Architecture
 

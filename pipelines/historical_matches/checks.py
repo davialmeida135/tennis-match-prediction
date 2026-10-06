@@ -269,8 +269,7 @@ def no_player_identity_left(anonymized_matches: PandasDataFrame) -> AssetCheckRe
     leaked = [
         column
         for column in anonymized_matches.columns
-        if column != TARGET_COLUMN
-        and column.startswith(("winner_", "loser_", "winner", "loser"))
+        if column != TARGET_COLUMN and column.startswith(("winner_", "loser_", "winner", "loser"))
     ]
     return AssetCheckResult(
         passed=not leaked,

@@ -62,7 +62,9 @@ def transform_round(df: pd.DataFrame) -> pd.DataFrame:
 def transform_tourney_level(df: pd.DataFrame) -> pd.DataFrame:
     """Map the tournament level to an ordered code (ATP=0 .. finals=4)."""
     result = df.copy()
-    result["tourney_level"] = result["tourney_level"].map(TOURNEY_LEVEL_CODES).fillna(0).astype("int64")
+    result["tourney_level"] = (
+        result["tourney_level"].map(TOURNEY_LEVEL_CODES).fillna(0).astype("int64")
+    )
     return result
 
 

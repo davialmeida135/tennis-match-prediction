@@ -1,5 +1,3 @@
 load_from:
   - python_module:
       module_name: pipelines.historical_matches.defs
-  - python_module:
-      module_name: pipelines.live_matches.defs

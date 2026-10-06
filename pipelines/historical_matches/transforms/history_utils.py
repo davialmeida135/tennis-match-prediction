@@ -37,10 +37,8 @@ def _get_previous_encounters(
 ) -> pl.DataFrame:
     """Every earlier match between the two players, oldest first."""
     encounters = frame.filter(
-        
-            ((pl.col("winner_id") == player1_id) & (pl.col("loser_id") == player2_id))
-            | ((pl.col("winner_id") == player2_id) & (pl.col("loser_id") == player1_id))
-        
+        ((pl.col("winner_id") == player1_id) & (pl.col("loser_id") == player2_id))
+        | ((pl.col("winner_id") == player2_id) & (pl.col("loser_id") == player1_id))
     )
     encounters = _before_current_match(encounters, date, match_num)
     return encounters.sort("tourney_date", "match_num")
