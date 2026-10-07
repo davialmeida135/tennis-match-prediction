@@ -47,7 +47,7 @@ Read these files in this order:
 6. `ml/train.py` — read the published training dataset, split chronologically (70%/15%/15%), train, and save.
 7. `ml/predict.py` â€” load the model and player-history asset to predict a future match.
 
-The model consumes the 14 difference features listed in `FEATURE_COLUMNS`.
+The model defaults to the 14 features in `TRAINING_FEATURE_COLUMNS` in `ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
 Training randomly assigns the winner to player0 or player1 and gives the features
 that same orientation. `winner=1` means player1 won.
 
@@ -107,7 +107,13 @@ training-row construction does not depend on CSV publication.
 
 This workflow is the single source of features for training and prediction.
 `ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
-CSV path) and selects the 14 `FEATURE_COLUMNS`, target and chronological date.
+CSV path) and validates the generated schema before selecting the configured
+training features. Override the defaults for one run with
+`uv run python -m ml.train --features overall_elo_diff surface_elo_diff`.
+The Python API accepts `train(..., feature_columns=("overall_elo_diff",))`.
+Empty, duplicate, or unknown feature selections are rejected. Ordered feature
+names are saved in the model and JSON metadata and logged in MLflow alongside
+the feature count. Prediction uses the saved model's feature selection.
 It rejects raw history and unordered training rows instead of rebuilding features.
 `ml.predict` reads `data/staging/player_history.parquet`, produced together with
 `player_comparison_atp_matches` in one chronological pass. Prediction uses the

@@ -13,6 +13,7 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from ml.config import TRAINING_FEATURE_COLUMNS
 from pipelines.shared.contracts import FEATURE_COLUMNS, TRAINING_MATCHES
 from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
 
@@ -20,8 +21,17 @@ from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV
 def train(
     training_matches_path: Path,
     model_path: Path,
+    *,
+    feature_columns: tuple[str, ...] = TRAINING_FEATURE_COLUMNS,
 ) -> dict[str, float]:
     """Train from the Dagster-produced dataset using chronological splits."""
+    if not feature_columns:
+        raise ValueError("Select at least one training feature")
+    if len(set(feature_columns)) != len(feature_columns):
+        raise ValueError("Training features must not contain duplicates")
+    unknown = set(feature_columns).difference(FEATURE_COLUMNS)
+    if unknown:
+        raise ValueError(f"Unknown training features: {sorted(unknown)}")
     matches = pd.read_csv(training_matches_path, low_memory=False)
     missing = set(TRAINING_MATCHES.required).difference(matches.columns)
     if missing:
@@ -39,16 +49,18 @@ def train(
     validation = frame.iloc[train_end:validation_end]
     testing = frame.iloc[validation_end:]
     model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1_000, random_state=42))
-    model.fit(training.loc[:, FEATURE_COLUMNS], training["winner"])
-    metrics = _metrics(model, validation, "validation") | _metrics(model, testing, "test")
+    model.fit(training.loc[:, list(feature_columns)], training["winner"])
+    metrics = _metrics(model, validation, "validation", feature_columns) | _metrics(
+        model, testing, "test", feature_columns
+    )
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with model_path.open("wb") as file:
-        pickle.dump({"model": model, "feature_columns": FEATURE_COLUMNS}, file)
+        pickle.dump({"model": model, "feature_columns": feature_columns}, file)
     metadata_path = model_path.with_suffix(".json")
     metadata_path.write_text(
         json.dumps(
             {
-                "feature_columns": FEATURE_COLUMNS,
+                "feature_columns": feature_columns,
                 "training_matches_path": str(training_matches_path),
                 "rows": len(frame),
                 "metrics": metrics,
@@ -58,15 +70,17 @@ def train(
         ),
         encoding="utf-8",
     )
-    _log_mlflow(model_path, metrics)
+    _log_mlflow(model_path, metrics, feature_columns)
     return metrics
 
 
-def _metrics(model: object, frame: pd.DataFrame, prefix: str) -> dict[str, float]:
+def _metrics(
+    model: object, frame: pd.DataFrame, prefix: str, feature_columns: tuple[str, ...]
+) -> dict[str, float]:
     """Evaluate a fitted scikit-learn classifier on one chronological split."""
     if not hasattr(model, "predict_proba"):
         raise TypeError("Model must provide predict_proba")
-    probabilities = model.predict_proba(frame.loc[:, FEATURE_COLUMNS])[:, 1]
+    probabilities = model.predict_proba(frame.loc[:, list(feature_columns)])[:, 1]
     return {
         f"{prefix}_accuracy": float(accuracy_score(frame["winner"], probabilities >= 0.5)),
         f"{prefix}_brier": float(brier_score_loss(frame["winner"], probabilities)),
@@ -74,7 +88,9 @@ def _metrics(model: object, frame: pd.DataFrame, prefix: str) -> dict[str, float
     }
 
 
-def _log_mlflow(model_path: Path, metrics: dict[str, float]) -> None:
+def _log_mlflow(
+    model_path: Path, metrics: dict[str, float], feature_columns: tuple[str, ...]
+) -> None:
     """Log locally when MLflow is installed; training remains usable without a server."""
     try:
         import mlflow
@@ -82,7 +98,13 @@ def _log_mlflow(model_path: Path, metrics: dict[str, float]) -> None:
         return
     mlflow.set_experiment("tennis-match-prediction")
     with mlflow.start_run():
-        mlflow.log_params({"model": "logistic_regression", "feature_count": len(FEATURE_COLUMNS)})
+        mlflow.log_params(
+            {
+                "model": "logistic_regression",
+                "feature_count": len(feature_columns),
+                "feature_columns": json.dumps(feature_columns),
+            }
+        )
         mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(model_path))
         mlflow.log_artifact(str(model_path.with_suffix(".json")))
@@ -95,8 +117,18 @@ def main() -> None:
         "training_matches", type=Path, nargs="?", default=CURATED_DIR / TRAINING_MATCHES_CSV_NAME
     )
     parser.add_argument("--model-path", type=Path, default=MODELS_DIR / "match_winner.pkl")
+    parser.add_argument(
+        "--features",
+        nargs="+",
+        default=TRAINING_FEATURE_COLUMNS,
+        help="Ordered feature names to train on (defaults to ml/config.py)",
+    )
     arguments = parser.parse_args()
-    metrics = train(arguments.training_matches, arguments.model_path)
+    metrics = train(
+        arguments.training_matches,
+        arguments.model_path,
+        feature_columns=tuple(arguments.features),
+    )
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
