@@ -1,11 +1,11 @@
 import pandas as pd
 
-from pipelines.historical_matches.anonymization import (
+from pipelines.historical_matches.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     MATCH_COLUMNS,
     PLAYER_ATTRIBUTE_STEMS,
     SIGNED_MATCH_COLUMNS,
-    anonymize,
+    build_training_rows,
 )
 from pipelines.shared.contracts import FEATURE_COLUMNS
 
@@ -17,7 +17,7 @@ def test_temporal_features_are_in_final_dataset_and_follow_random_player_order()
         {f"{side}_{stem}": 1 for side in ("winner", "loser") for stem in PLAYER_ATTRIBUTE_STEMS}
     )
 
-    result = anonymize(pd.DataFrame([row, row]), random_seed=1)
+    result = build_training_rows(pd.DataFrame([row, row]), random_seed=1)
 
     assert list(result.columns) == FINAL_COLUMN_ORDER
     assert set(FEATURE_COLUMNS).issubset(result.columns)

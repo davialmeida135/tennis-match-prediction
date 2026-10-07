@@ -1,6 +1,6 @@
 import pandas as pd
 
-from pipelines.historical_matches.transforms.finalization import (
+from pipelines.historical_matches.transforms.curation import (
     SURFACE_COLUMNS,
     encode_surface,
 )

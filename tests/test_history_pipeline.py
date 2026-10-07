@@ -5,7 +5,6 @@ import pytest
 from dagster import DagsterInstance, Definitions, materialize
 
 from pipelines.historical_matches import assets
-from pipelines.historical_matches.anonymization import FINAL_COLUMN_ORDER
 from pipelines.historical_matches.config import RawMatchesCsv
 from pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
 from pipelines.historical_matches.feature_state import FeatureState, build_training_frame
@@ -21,6 +20,7 @@ from pipelines.historical_matches.transforms.imputation import (
     fill_null_height,
     fill_null_rank,
 )
+from pipelines.historical_matches.transforms.training_rows import FINAL_COLUMN_ORDER
 from pipelines.historical_matches.transforms.winrate import calcular_winrate_total
 from pipelines.shared import paths
 from pipelines.shared.contracts import FEATURE_COLUMNS

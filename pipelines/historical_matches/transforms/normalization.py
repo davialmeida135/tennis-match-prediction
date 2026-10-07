@@ -1,4 +1,4 @@
-"""First normalization pass: dates, chronological ordering and seed parsing."""
+"""Normalize match records: walkover filtering, dates, ordering and seed parsing."""
 
 import pandas as pd
 
@@ -29,6 +29,11 @@ LOSER_ENTRY_METHODS = {
 ENTRY_METHOD_FLAGS = tuple(
     dict.fromkeys(list(WINNER_ENTRY_METHODS.values()) + list(LOSER_ENTRY_METHODS.values()))
 )
+
+
+def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop walkovers: no real game was played, so they carry no signal."""
+    return df[df["score"] != "W/O"]
 
 
 def remove_matches_without_player_ids(df: pd.DataFrame) -> pd.DataFrame:

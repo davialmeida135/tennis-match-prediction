@@ -1,7 +1,7 @@
-"""Turn a winner/loser shaped dataset into an anonymous player0/player1 dataset.
+"""Build player0/player1 training rows from winner/loser match records.
 
-The model must never be able to learn "player X always wins", so for every match
-the two players are shuffled at random:
+Random player positions prevent the input column roles from revealing the
+winner. Player names and IDs are omitted from the output:
 
 * player0 / player1 receive the winner/loser attributes in random order
 * `winner` becomes the binary target: 1 when player1 won the match, 0 otherwise
@@ -118,7 +118,7 @@ FINAL_COLUMN_ORDER = [
 ]
 
 
-def anonymize(df: pd.DataFrame, *, random_seed: int | None = None) -> pd.DataFrame:
+def build_training_rows(df: pd.DataFrame, *, random_seed: int | None = None) -> pd.DataFrame:
     """Shuffle winner/loser into player0/player1 and add the binary target column.
 
     Args:
@@ -161,8 +161,8 @@ def anonymize(df: pd.DataFrame, *, random_seed: int | None = None) -> pd.DataFra
     ]
     expressions.append(pl.when(player1_is_winner).then(1).otherwise(0).alias(TARGET_COLUMN))
 
-    anonymized = frame.with_columns(expressions).select(FINAL_COLUMN_ORDER)
-    return anonymized.to_pandas()
+    training_rows = frame.with_columns(expressions).select(FINAL_COLUMN_ORDER)
+    return training_rows.to_pandas()
 
 
 def _required_input_columns() -> list[str]:

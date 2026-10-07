@@ -11,12 +11,6 @@ from dagster import AssetCheckResult, MetadataValue, asset_check
 from pipelines.shared.contracts import NORMALIZED_REQUIRED_COLUMNS
 
 from ..shared.metadata import columns_present, columns_without_nulls
-from .anonymization import (
-    FINAL_COLUMN_ORDER,
-    MATCH_COLUMNS,
-    PLAYER_ATTRIBUTE_STEMS,
-    TARGET_COLUMN,
-)
 from .assets import (
     curated_atp_matches,
     elo_featured_atp_matches,
@@ -28,8 +22,14 @@ from .assets import (
     winrate_featured_atp_matches,
 )
 from .transforms.history import order_history
+from .transforms.training_rows import (
+    FINAL_COLUMN_ORDER,
+    MATCH_COLUMNS,
+    PLAYER_ATTRIBUTE_STEMS,
+    TARGET_COLUMN,
+)
 
-# Columns that must always survive the pipeline: the anonymization step selects
+# Columns that must always survive the pipeline: the training-row construction step selects
 # exactly this schema and fails loudly when something is missing.
 REQUIRED_COLUMNS = list(NORMALIZED_REQUIRED_COLUMNS)
 
@@ -246,7 +246,7 @@ def target_is_binary(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
     name="target_is_balanced",
     description=(
         "player0/player1 are shuffled at random, so the target must be ~50/50. A skewed mean "
-        "means the anonymization step leaked the winner."
+        "means the training-row construction step leaked the winner."
     ),
     blocking=True,
 )
@@ -265,7 +265,7 @@ def target_is_balanced(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
     asset=training_atp_matches,
     name="no_player_identity_left",
     description=(
-        "No winner_*/loser_* column survives anonymization, otherwise the model could read the "
+        "No winner_*/loser_* column survives training-row construction; the model could read the "
         f"outcome straight from the column names. The `{TARGET_COLUMN}` target itself is "
         "expected and excluded."
     ),
@@ -289,7 +289,7 @@ def no_player_identity_left(training_atp_matches: pd.DataFrame) -> AssetCheckRes
 @asset_check(
     asset=training_atp_matches,
     name="schema_matches_expectation",
-    description="Column set and order of the anonymized training dataset.",
+    description="Column set and order of the player-oriented training dataset.",
     blocking=True,
 )
 def schema_matches_expectation(training_atp_matches: pd.DataFrame) -> AssetCheckResult:

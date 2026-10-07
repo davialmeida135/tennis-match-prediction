@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
 
-from pipelines.historical_matches.anonymization import FINAL_COLUMN_ORDER, anonymize
 from pipelines.historical_matches.assets import (
     curated_atp_matches,
     elo_featured_atp_matches,
@@ -11,6 +10,10 @@ from pipelines.historical_matches.assets import (
     winrate_featured_atp_matches,
 )
 from pipelines.historical_matches.feature_state import attach_temporal_features
+from pipelines.historical_matches.transforms.training_rows import (
+    FINAL_COLUMN_ORDER,
+    build_training_rows,
+)
 
 
 def _matches() -> pd.DataFrame:
@@ -98,7 +101,7 @@ def test_duplicate_keys_and_walkovers_preserve_source_alignment() -> None:
     assert sum(player.wins for player in state.players.values()) == 2
 
 
-def test_feature_chain_preserves_matches_through_anonymization() -> None:
+def test_feature_chain_preserves_matches_through_training_rows() -> None:
     raw = pd.concat([_matches(), _matches().iloc[[0]]], ignore_index=True)
     raw.loc[2, "tourney_id"] = "other-tournament"
     raw.loc[1, "match_num"] = float("nan")
@@ -120,7 +123,7 @@ def test_feature_chain_preserves_matches_through_anonymization() -> None:
     elo = elo_featured_atp_matches(h2h)
     imputed = imputed_atp_matches(elo)
     curated = curated_atp_matches(imputed)
-    final = anonymize(curated, random_seed=42)
+    final = build_training_rows(curated, random_seed=42)
 
     assert all(len(frame) == len(raw) for frame in (featured, imputed, winrates, h2h, elo, final))
     assert list(final.columns) == FINAL_COLUMN_ORDER

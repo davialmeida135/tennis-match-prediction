@@ -92,11 +92,13 @@ training-row construction does not depend on CSV publication.
 - `transforms/elo.py` contains the rating update formula used by both historical
   Elo columns and `FeatureState`; both players update from their prior ratings.
 - `transforms/head_to_head.py` calculates the prior head-to-head win difference.
+- `transforms/curation.py` encodes categoricals and removes outcome statistics for
+  `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
 - `transforms/imputation.py` fills height/age from the pooled mean of earlier
   observed values, rank from the worst earlier rank, and points from the lowest
   earlier points. Both player sides share these references. Initial defaults are
   height 180 cm, age 25, rank 2000 and points 0; future rows never affect past fills.
-- `anonymization.py` assigns winner/loser attributes to player0/player1 and
+- `transforms/training_rows.py` assigns winner/loser attributes to player0/player1 and
   orients signed features with the target. The asset uses random seed 42.
 - `checks.py` checks intermediate and final datasets.
 - `defs.py` registers the assets, checks, and job.
@@ -121,7 +123,7 @@ automation condition sensor in Dagster. The root asset is triggered manually.
 | --- | --- |
 | `data/raw/historical_matches/` | Annual CSVs, source manifest, and `all_atp_matches.csv` |
 | `data/staging/` | One Parquet snapshot per Dagster asset |
-| `data/curated/` | Temporal features, pre-anonymized and anonymized CSV exports |
+| `data/curated/` | Player comparison, curated and training CSV exports |
 | `data/state/feature_state.json` | Player history and cutoff used for prediction |
 | `data/models/` | Trained model and metric metadata |
 | `dagster_home/` | Local Dagster configuration and SQLite storage |

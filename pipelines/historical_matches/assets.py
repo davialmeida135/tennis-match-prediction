@@ -29,18 +29,16 @@ from ..shared.paths import (
     TRAINING_MATCHES_CSV_NAME,
     write_curated_csv,
 )
-from .anonymization import FINAL_COLUMN_ORDER, TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
 from .feature_state import attach_temporal_features
-from .transforms.elo import calcular_elo
-from .transforms.finalization import (
+from .transforms.curation import (
     encode_surface,
     remove_stat_cols,
-    remove_wo,
     transform_handedness,
     transform_round,
     transform_tourney_level,
 )
+from .transforms.elo import calcular_elo
 from .transforms.head_to_head import calcular_h2h
 from .transforms.imputation import (
     fill_null_age,
@@ -51,9 +49,11 @@ from .transforms.imputation import (
 from .transforms.normalization import (
     preprocess_dates,
     remove_matches_without_player_ids,
+    remove_wo,
     sort_by_date,
     transform_seed_data,
 )
+from .transforms.training_rows import FINAL_COLUMN_ORDER, TARGET_COLUMN, build_training_rows
 from .transforms.winrate import (
     calcular_winrate_superficie,
     calcular_winrate_superficie_ultimas_n,
@@ -76,9 +76,7 @@ DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
     tags={**DOMAIN_TAGS, "layer": "raw"},
     description="Consolidated ATP source rows, including rows excluded during normalization.",
 )
-def raw_atp_matches(
-    context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv
-) -> pd.DataFrame:
+def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv) -> pd.DataFrame:
     """Read the raw match history CSV. Root of the pipeline: materialized by hand."""
     csv_path = Path(raw_matches_csv.csv_path)
     if not csv_path.exists():
@@ -94,8 +92,7 @@ def raw_atp_matches(
     frame = pd.read_csv(
         csv_path,
         dtype={
-            column: "string"
-            for column in ("winner_seed", "loser_seed", "winner_id", "loser_id")
+            column: "string" for column in ("winner_seed", "loser_seed", "winner_id", "loser_id")
         },
     )
     context.add_output_metadata(
@@ -256,9 +253,9 @@ def training_atp_matches(
     context: AssetExecutionContext, curated_atp_matches: pd.DataFrame
 ) -> pd.DataFrame:
     """Assign player positions reproducibly and construct the binary training target."""
-    frame = anonymize(curated_atp_matches, random_seed=42)
+    frame = build_training_rows(curated_atp_matches, random_seed=42)
     DataFrameContract(
-        name="anonymized training matches",
+        name="player-oriented training matches",
         required=tuple(FINAL_COLUMN_ORDER),
         numeric=FEATURE_COLUMNS,
         target=TARGET_COLUMN,
@@ -343,9 +340,7 @@ def player_comparison_atp_matches_csv(
     """Publish the keyed pre-match player comparisons for inspection."""
     columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS]
     frame = player_comparison_atp_matches[columns].copy()
-    frame["match_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime(
-        "%Y-%m-%d"
-    )
+    frame["match_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime("%Y-%m-%d")
     csv_path = write_curated_csv(frame, PLAYER_COMPARISON_CSV_NAME)
     context.add_output_metadata(
         {"csv_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}

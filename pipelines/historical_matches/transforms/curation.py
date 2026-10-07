@@ -1,11 +1,11 @@
-"""Last pass before anonymization: encode categoricals, drop leaky statistics."""
+"""Curate match records by encoding categoricals and dropping outcome statistics."""
 
 import pandas as pd
 
 ROUND_CODES = {"F": 0, "SF": 1, "QF": 2, "R16": 3, "R32": 4, "R64": 5, "R128": 6, "RR": 3}
 TOURNEY_LEVEL_CODES = {"D": 0, "A": 1, "M": 2, "G": 3, "F": 4}
 
-# Fixed one-hot schema for the surface, kept in sync with `transforms.anonymization`.
+# Fixed one-hot schema for the surface, kept in sync with `transforms.training_rows`.
 SURFACES = ["Hard", "Clay", "Grass"]
 SURFACE_COLUMNS = [f"surface_{surface}" for surface in SURFACES]
 
@@ -31,11 +31,6 @@ PER_MATCH_STAT_COLUMNS = [
     "l_bpSaved",
     "l_bpFaced",
 ]
-
-
-def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop walkovers: no real game was played, so they carry no signal."""
-    return df[df["score"] != "W/O"]
 
 
 def encode_surface(df: pd.DataFrame) -> pd.DataFrame:
