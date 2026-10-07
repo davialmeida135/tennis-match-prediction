@@ -42,7 +42,7 @@ from ..shared.paths import (
 from ..shared.types import PandasDataFrame
 from .anonymization import TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
-from .feature_state import build_training_frame
+from .feature_state import build_temporal_match_features
 from .transforms.finalization import (
     encode_surface,
     remove_stat_cols,
@@ -57,7 +57,12 @@ from .transforms.imputation import (
     fill_null_rank,
     fill_null_surface,
 )
-from .transforms.normalization import preprocess_dates, sort_by_date, transform_seed_data
+from .transforms.normalization import (
+    preprocess_dates,
+    remove_matches_without_player_ids,
+    sort_by_date,
+    transform_seed_data,
+)
 from .transforms.player_stats import calcular_elo, calcular_h2h
 from .transforms.winrate import (
     calcular_winrate_superficie,
@@ -93,7 +98,10 @@ def raw_atp_matches(
         )
 
     context.log.info(f"Reading raw matches from {csv_path}")
-    frame = pd.read_csv(csv_path)
+    # Seed columns combine integers (e.g. 6), CSV floats (6.0) and source codes
+    # across seasons. Keeping their raw representation textual makes the Arrow
+    # snapshot deterministic; transform_seed_data parses them downstream.
+    frame = pd.read_csv(csv_path, dtype={"winner_seed": "string", "loser_seed": "string"})
     context.add_output_metadata(
         {"source_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}
     )
@@ -109,7 +117,8 @@ def raw_atp_matches(
 )
 def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
     """Make the dataset chronological and split the seed columns into numeric + flags."""
-    frame = preprocess_dates(raw_atp_matches)
+    frame = remove_matches_without_player_ids(raw_atp_matches)
+    frame = preprocess_dates(frame)
     frame = sort_by_date(frame)
     return transform_seed_data(frame)
 
@@ -127,8 +136,8 @@ def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
 def temporal_training_matches(
     context: AssetExecutionContext, normalized_atp_matches: PandasDataFrame
 ) -> PandasDataFrame:
-    """Build the training table and checkpoint from chronological completed results."""
-    frame, state = build_training_frame(normalized_atp_matches)
+    """Build keyed winner-minus-loser features and checkpoint from completed results."""
+    frame, state = build_temporal_match_features(normalized_atp_matches)
     csv_path = write_curated_csv(frame, TEMPORAL_FEATURES_CSV_NAME)
     state.save(FEATURE_STATE_PATH)
     context.add_output_metadata(
@@ -210,9 +219,37 @@ def elo_featured_atp_matches(h2h_featured_atp_matches: PandasDataFrame) -> Panda
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def curated_atp_matches(elo_featured_atp_matches: PandasDataFrame) -> PandasDataFrame:
+def curated_atp_matches(
+    elo_featured_atp_matches: PandasDataFrame,
+    temporal_training_matches: PandasDataFrame,
+) -> PandasDataFrame:
     """Produce the pre-anonymization dataset."""
     frame = remove_wo(elo_featured_atp_matches)
+    match_keys = ["tourney_id", "match_num", "winner_id", "loser_id"]
+    required_temporal_columns = {*match_keys, "match_date"}
+    missing = required_temporal_columns.difference(temporal_training_matches.columns)
+    if missing:
+        raise ValueError(
+            f"temporal_training_matches is missing required columns: {sorted(missing)}. "
+            "Its snapshot may use the old training schema. Materialize "
+            "temporal_training_matches from normalized_atp_matches with the current code, "
+            "then retry curated_atp_matches."
+        )
+    left = frame.copy()
+    right = temporal_training_matches.drop(columns="match_date")
+    for key in match_keys:
+        if key == "match_num":
+            left[key] = pd.to_numeric(left[key], errors="raise").astype("Int64")
+            right[key] = pd.to_numeric(right[key], errors="raise").astype("Int64")
+        else:
+            left[key] = left[key].astype("string")
+            right[key] = right[key].astype("string")
+    frame = left.merge(right, on=match_keys, how="left", validate="one_to_one")
+    temporal_columns = list(
+        temporal_training_matches.columns.difference(match_keys + ["match_date"])
+    )
+    if frame[temporal_columns].isna().any().any():
+        raise ValueError("Temporal features did not match every curated result")
     frame = encode_surface(frame)
     frame = transform_round(frame)
     frame = transform_tourney_level(frame)

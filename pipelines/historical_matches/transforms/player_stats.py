@@ -328,6 +328,19 @@ def calcular_h2h(df: pl.DataFrame) -> pd.DataFrame:
         loser_id = row_dict["loser_id"]
         current_original_order = row_dict["original_order"]
 
+        # Direct callers may pass unnormalized source data. Rows without two
+        # player IDs cannot participate in a head-to-head history.
+        if (
+            winner_id is None
+            or loser_id is None
+            or pd.isna(winner_id)
+            or pd.isna(loser_id)
+            or str(winner_id).strip() == ""
+            or str(loser_id).strip() == ""
+        ):
+            h2h_results.append({"original_order": current_original_order, "h2h": 0})
+            continue
+
         # Key for state dictionary (order-independent: p1_id is always the smaller ID)
         p1_id_key = min(winner_id, loser_id)
         p2_id_key = max(winner_id, loser_id)

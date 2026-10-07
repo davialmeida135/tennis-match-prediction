@@ -79,35 +79,37 @@ Two Dagster code locations, one per pipeline. Each is a package with its own
 
 ```
 pipelines/
-├── historical_matches/     Kaggle CSV -> features -> anonymized dataset -> data/curated
+├── historical_matches/     TennisMyLife CSVs -> features -> anonymized dataset -> data/curated
 ├── live_matches/           SportDevs API -> daily raw snapshot
 └── shared/                 paths, types, IO manager, metadata
 ```
 
 ### historical_matches
 
-Nine assets, materialized left to right, split into six groups that follow the
+Assets are materialized left to right, split into six groups that follow the
 stages of the pipeline:
 
 ```
-raw -> normalize -> impute -> features -> curate -> publish
+raw -> normalize -> temporal features
+                    └-> impute -> win rates -> h2h -> Elo -> curate -> publish
 ```
 
 | Group | Asset | What it does |
 | --- | --- | --- |
-| `raw` | `raw_atp_matches` | Reads the Kaggle CSV. Root of the pipeline, manual trigger. |
+| `raw` | `raw_atp_matches` | Reads the consolidated TennisMyLife CSV. Root of the pipeline, manual trigger. |
 | `normalize` | `normalized_atp_matches` | Parses dates, sorts chronologically, expands seeds into flags. |
 | `impute` | `imputed_atp_matches` | Fills missing surface, height, age and ranking. |
 | `features` | `winrate_featured_atp_matches` | Win rates overall and per surface, last 10 and 50 matches. |
 | `features` | `h2h_featured_atp_matches` | Previous meetings between the two players. |
 | `features` | `elo_featured_atp_matches` | Elo per player plus the pre-match difference. |
+| `features` | `temporal_training_matches` | Keyed pre-match Elo, form, ranking, H2H, workload and serve features; also persists state. |
 | `curate` | `curated_atp_matches` | Drops walkovers, one-hot encodes surface, codes round/level/hand, removes leaky box scores. |
 | `publish` | `pre_anonymized_matches` | Writes `data/curated/pre_anonymized_matches.csv`. |
-| `publish` | `anonymized_matches` | Shuffles winner/loser into `player0`/`player1`, writes `data/curated/anonymized_matches.csv`. |
+| `publish` | `anonymized_matches` | Shuffles winner/loser into `player0`/`player1`, reorients signed features consistently, writes `data/curated/anonymized_matches.csv`. |
 
-Groups make the asset catalog filterable one stage at a time. Anonymization is
-deliberately not a group of its own: it is the tail of the same chain, so
-everything from CSV to training set is one linear materialization.
+Groups make the asset catalog filterable one stage at a time. The temporal
+feature branch and legacy feature branch join at curation; both feed the same
+pre-anonymized and anonymized outputs.
 
 Each step is a plain function in `transforms/` (plus `anonymization.py` for the
 last one), so it can be unit tested or run in a notebook without Dagster. Asset

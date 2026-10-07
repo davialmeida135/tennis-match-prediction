@@ -46,7 +46,10 @@ def encode_surface(df: pd.DataFrame) -> pd.DataFrame:
     dataset (a single week without any grass match, for instance) still produces
     the same three columns and downstream expectations never break.
     """
-    encoder = OneHotEncoder(sparse_output=False, categories=[SURFACES])
+    # Historical ATP data includes carpet matches. They remain represented as
+    # all-zero surface indicators because the model schema intentionally only
+    # contains Hard, Clay, and Grass, while future/unseen surfaces must not fail.
+    encoder = OneHotEncoder(sparse_output=False, categories=[SURFACES], handle_unknown="ignore")
     encoded = encoder.fit_transform(df[["surface"]])
     encoded_frame = pd.DataFrame(encoded, columns=SURFACE_COLUMNS, index=df.index)
     return df.join(encoded_frame)

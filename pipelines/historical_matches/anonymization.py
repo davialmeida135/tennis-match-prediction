@@ -11,7 +11,10 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
+from pipelines.historical_matches.feature_state import FEATURE_COLUMNS
+
 TARGET_COLUMN = "winner"
+SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *FEATURE_COLUMNS]
 
 # Match level columns: identical no matter which player is player0 or player1.
 MATCH_COLUMNS = [
@@ -27,6 +30,7 @@ MATCH_COLUMNS = [
     "surface_Hard",
     "surface_Clay",
     "surface_Grass",
+    *FEATURE_COLUMNS,
 ]
 
 # Every `winner_<stem>` / `loser_<stem>` pair becomes `player0_<stem>` / `player1_<stem>`.
@@ -95,6 +99,7 @@ FINAL_COLUMN_ORDER = [
     "surface_Grass",
     "h2h",
     "elo_diff",
+    *FEATURE_COLUMNS,
     "player0_winrate",
     "player1_winrate",
     "player0_winrate_last_10",
@@ -147,6 +152,12 @@ def anonymize(df: pd.DataFrame, *, random_seed: int | None = None) -> pd.DataFra
         .otherwise(pl.col(f"loser_{stem}"))
         .alias(f"player1_{stem}")
         for stem in PLAYER_ATTRIBUTE_STEMS
+    ]
+    # These features are stored from winner-minus-loser perspective. Reorient
+    # them to player1-minus-player0 using the same random swap as the target.
+    expressions += [
+        pl.when(player1_is_winner).then(pl.col(column)).otherwise(-pl.col(column)).alias(column)
+        for column in SIGNED_MATCH_COLUMNS
     ]
     expressions.append(pl.when(player1_is_winner).then(1).otherwise(0).alias(TARGET_COLUMN))
 

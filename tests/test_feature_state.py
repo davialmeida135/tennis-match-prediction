@@ -72,6 +72,22 @@ def test_checkpoint_continues_incremental_calculation(tmp_path) -> None:
     assert actual == expected
 
 
+def test_pandas_timestamps_are_saved_as_calendar_dates() -> None:
+    state = FeatureState()
+    first = pd.Series(_match(1, "a", "Alice", "b", "Bob"))
+    first["tourney_date"] = pd.Timestamp("2016-01-04T00:00:00")
+    state.apply_result(first)
+    second = pd.Series(_match(2, "b", "Bob", "a", "Alice"))
+    second["tourney_date"] = pd.Timestamp("2016-01-05T00:00:00")
+
+    state.apply_result(second)
+
+    assert state.last_result_date == date(2016, 1, 5)
+    assert all(
+        "T" not in item.played_on for player in state.players.values() for item in player.history
+    )
+
+
 def test_future_prediction_cannot_use_same_day_results() -> None:
     state = FeatureState()
     state.apply_result(pd.Series(_match(1, "a", "Alice", "b", "Bob")))

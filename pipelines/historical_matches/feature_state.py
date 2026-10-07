@@ -44,7 +44,7 @@ class PlayedMatch:
 
 
 @dataclass
-class PlayerState:
+class PlayerState:  # pylint: disable=too-many-instance-attributes
     """All pre-match information accumulated for a player."""
 
     name: str
@@ -215,6 +215,28 @@ def build_training_frame(
     matches: pd.DataFrame, *, random_seed: int = 42
 ) -> tuple[pd.DataFrame, FeatureState]:
     """Build a balanced, pre-match feature frame and its resulting state checkpoint."""
+    temporal_features, state = build_temporal_match_features(matches)
+    generator = np.random.default_rng(random_seed)
+    rows: list[dict[str, float | int | str]] = []
+    for _, match in temporal_features.iterrows():
+        winner_is_player1 = bool(generator.integers(0, 2))
+        differences = match.loc[list(FEATURE_COLUMNS)]
+        values = differences if winner_is_player1 else -differences
+        rows.append(
+            {
+                **values.to_dict(),
+                "winner": int(winner_is_player1),
+                "match_date": match["match_date"],
+            }
+        )
+    frame = pd.DataFrame(rows, columns=[*FEATURE_COLUMNS, "winner", "match_date"])
+    return frame, state
+
+
+def build_temporal_match_features(
+    matches: pd.DataFrame,
+) -> tuple[pd.DataFrame, FeatureState]:
+    """Build winner-minus-loser temporal features keyed to their source match."""
     required = {
         "tourney_date",
         "tourney_id",
@@ -229,7 +251,6 @@ def build_training_frame(
         raise ValueError(f"Missing historical match columns: {sorted(missing)}")
     state = FeatureState()
     rows: list[dict[str, float | int | str]] = []
-    generator = np.random.default_rng(random_seed)
     # TennisMyLife combines legacy ISO dates with newer YYYYMMDD values. Sorting their
     # raw strings would put the two formats in separate blocks and leak future results.
     ordered = matches.assign(
@@ -239,20 +260,18 @@ def build_training_frame(
         if str(match.get("score", "")) == "W/O":
             continue
         winner_minus_loser = state.apply_result(match)
-        winner_is_player1 = bool(generator.integers(0, 2))
-        values = (
-            winner_minus_loser
-            if winner_is_player1
-            else {key: -value for key, value in winner_minus_loser.items()}
-        )
         rows.append(
             {
-                **values,
-                "winner": int(winner_is_player1),
+                "tourney_id": str(match["tourney_id"]),
+                "match_num": int(match["match_num"]),
+                "winner_id": str(match["winner_id"]),
+                "loser_id": str(match["loser_id"]),
+                **winner_minus_loser,
                 "match_date": _match_date(match).isoformat(),
             }
         )
-    return pd.DataFrame(rows, columns=[*FEATURE_COLUMNS, "winner", "match_date"]), state
+    columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS, "match_date"]
+    return pd.DataFrame(rows, columns=columns), state
 
 
 def _elo_delta(rating: float, opponent_rating: float, result: float, matches: int) -> float:
@@ -268,14 +287,14 @@ def _match_date(match: pd.Series) -> date:
 def _parse_match_date(value: object) -> date:
     """Parse the two date encodings used by the source without relying on string order."""
     if isinstance(value, date):
-        return value
+        return value.date() if isinstance(value, pd.Timestamp) else value
     text = str(value)
     date_format = "%Y%m%d" if text.isdigit() else "ISO8601"
     return pd.to_datetime(text, format=date_format).date()
 
 
 def _recent(player: PlayerState, match_date: date) -> list[PlayedMatch]:
-    return [item for item in player.history if date.fromisoformat(item.played_on) < match_date]
+    return [item for item in player.history if _parse_match_date(item.played_on) < match_date]
 
 
 def _on_surface(matches: list[PlayedMatch], surface: str) -> list[PlayedMatch]:
@@ -288,12 +307,12 @@ def _win_rate(matches: list[PlayedMatch]) -> float:
 
 def _minutes_since(matches: list[PlayedMatch], match_date: date, days: int) -> float:
     cutoff = match_date - timedelta(days=days)
-    return sum(item.minutes for item in matches if date.fromisoformat(item.played_on) >= cutoff)
+    return sum(item.minutes for item in matches if _parse_match_date(item.played_on) >= cutoff)
 
 
 def _matches_since(matches: list[PlayedMatch], match_date: date, days: int) -> int:
     cutoff = match_date - timedelta(days=days)
-    return sum(date.fromisoformat(item.played_on) >= cutoff for item in matches)
+    return sum(_parse_match_date(item.played_on) >= cutoff for item in matches)
 
 
 def _number(value: object) -> float:
