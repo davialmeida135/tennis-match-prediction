@@ -15,7 +15,11 @@ from dagster import (
     asset,
 )
 
-from pipelines.shared.contracts import FEATURE_COLUMNS, NORMALIZED_MATCHES, DataFrameContract
+from pipelines.shared.contracts import (
+    FEATURE_COLUMNS,
+    NORMALIZED_MATCHES,
+    DataFrameContract,
+)
 
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
@@ -72,7 +76,9 @@ DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
     tags={**DOMAIN_TAGS, "layer": "raw"},
     description="Consolidated ATP source rows, including rows excluded during normalization.",
 )
-def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv) -> pd.DataFrame:
+def raw_atp_matches(
+    context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv
+) -> pd.DataFrame:
     """Read the raw match history CSV. Root of the pipeline: materialized by hand."""
     csv_path = Path(raw_matches_csv.csv_path)
     if not csv_path.exists():
@@ -88,7 +94,8 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
     frame = pd.read_csv(
         csv_path,
         dtype={
-            column: "string" for column in ("winner_seed", "loser_seed", "winner_id", "loser_id")
+            column: "string"
+            for column in ("winner_seed", "loser_seed", "winner_id", "loser_id")
         },
     )
     context.add_output_metadata(
@@ -150,7 +157,9 @@ def player_comparison_atp_matches(
     description="Win rates over the last 10/50 matches, overall and per surface.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def winrate_featured_atp_matches(player_comparison_atp_matches: pd.DataFrame) -> pd.DataFrame:
+def winrate_featured_atp_matches(
+    player_comparison_atp_matches: pd.DataFrame,
+) -> pd.DataFrame:
     """Attach rolling win-rate features computed only from earlier matches."""
     frame = calcular_winrate_total(player_comparison_atp_matches)
     frame = calcular_winrate_ultimas_n(frame, n=50)
@@ -167,7 +176,9 @@ def winrate_featured_atp_matches(player_comparison_atp_matches: pd.DataFrame) ->
     description="Pre-match head-to-head win difference between the two players.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def h2h_featured_atp_matches(winrate_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
+def h2h_featured_atp_matches(
+    winrate_featured_atp_matches: pd.DataFrame,
+) -> pd.DataFrame:
     """Attach the head-to-head history of each matchup."""
     return calcular_h2h(winrate_featured_atp_matches)
 
@@ -232,31 +243,6 @@ def curated_atp_matches(
 
 
 @asset(
-    group_name="publish",
-    kinds={"csv", "pandas"},
-    tags={**DOMAIN_TAGS, "layer": "publish"},
-    description=(
-        "Writes the curated dataset to data/curated/curated_atp_matches.csv. This is the "
-        "readable version of the dataset, still identifying players by name."
-    ),
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def curated_atp_matches_csv(
-    context: AssetExecutionContext, curated_atp_matches: pd.DataFrame
-) -> pd.DataFrame:
-    """Publish the readable curated dataset independently of training construction."""
-    csv_path = write_curated_csv(curated_atp_matches, CURATED_MATCHES_CSV_NAME)
-    context.log.info(f"Wrote {len(curated_atp_matches)} rows to {csv_path}")
-    context.add_output_metadata(
-        {
-            "csv_path": MetadataValue.path(str(csv_path)),
-            **dataframe_metadata(curated_atp_matches),
-        }
-    )
-    return curated_atp_matches
-
-
-@asset(
     group_name="training",
     kinds={"pandas", "polars"},
     tags={**DOMAIN_TAGS, "layer": "training"},
@@ -295,6 +281,36 @@ def training_atp_matches(
     return frame
 
 
+###############
+# Publish CSV #
+###############
+
+
+@asset(
+    group_name="publish",
+    kinds={"csv", "pandas"},
+    tags={**DOMAIN_TAGS, "layer": "publish"},
+    description=(
+        "Writes the curated dataset to data/curated/curated_atp_matches.csv. This is the "
+        "readable version of the dataset, still identifying players by name."
+    ),
+    automation_condition=WHEN_INPUT_CHANGES,
+)
+def curated_atp_matches_csv(
+    context: AssetExecutionContext, curated_atp_matches: pd.DataFrame
+) -> pd.DataFrame:
+    """Publish the readable curated dataset independently of training construction."""
+    csv_path = write_curated_csv(curated_atp_matches, CURATED_MATCHES_CSV_NAME)
+    context.log.info(f"Wrote {len(curated_atp_matches)} rows to {csv_path}")
+    context.add_output_metadata(
+        {
+            "csv_path": MetadataValue.path(str(csv_path)),
+            **dataframe_metadata(curated_atp_matches),
+        }
+    )
+    return curated_atp_matches
+
+
 @asset(
     group_name="publish",
     kinds={"csv", "pandas"},
@@ -307,7 +323,10 @@ def training_atp_matches_csv(
     """Publish training rows to data/curated/training_atp_matches.csv."""
     csv_path = write_curated_csv(training_atp_matches, TRAINING_MATCHES_CSV_NAME)
     context.add_output_metadata(
-        {"csv_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(training_atp_matches)}
+        {
+            "csv_path": MetadataValue.path(str(csv_path)),
+            **dataframe_metadata(training_atp_matches),
+        }
     )
     return training_atp_matches
 
@@ -324,7 +343,9 @@ def player_comparison_atp_matches_csv(
     """Publish the keyed pre-match player comparisons for inspection."""
     columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS]
     frame = player_comparison_atp_matches[columns].copy()
-    frame["match_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime("%Y-%m-%d")
+    frame["match_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime(
+        "%Y-%m-%d"
+    )
     csv_path = write_curated_csv(frame, PLAYER_COMPARISON_CSV_NAME)
     context.add_output_metadata(
         {"csv_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}
