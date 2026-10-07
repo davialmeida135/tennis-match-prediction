@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from .history import order_history, parse_match_date
+
 WINNER_ENTRY_METHODS = {
     "S": "winner_seeded",
     "US": "winner_unseeded",
@@ -44,7 +46,7 @@ def remove_matches_without_player_ids(df: pd.DataFrame) -> pd.DataFrame:
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert the integer `tourney_date` (YYYYMMDD) into a datetime plus week/year."""
     result = df.copy()
-    result["tourney_date"] = pd.to_datetime(result["tourney_date"].astype(str), format="%Y%m%d")
+    result["tourney_date"] = pd.to_datetime(result["tourney_date"].map(parse_match_date))
     result["week"] = result["tourney_date"].dt.isocalendar().week.astype("int64")
     result["year"] = result["tourney_date"].dt.isocalendar().year.astype("int64")
     return result
@@ -52,7 +54,7 @@ def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
 
 def sort_by_date(df: pd.DataFrame) -> pd.DataFrame:
     """Sort chronologically; every lookback feature depends on this ordering."""
-    return df.sort_values(by=["tourney_date", "tourney_id", "match_num"]).reset_index(drop=True)
+    return order_history(df).reset_index(drop=True)
 
 
 def transform_seed_data(df: pd.DataFrame) -> pd.DataFrame:

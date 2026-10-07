@@ -1,9 +1,11 @@
 import pandas as pd
 
+from pipelines.historical_matches.transforms.elo import calcular_elo
+from pipelines.historical_matches.transforms.head_to_head import calcular_h2h
+from pipelines.historical_matches.transforms.history import prepare_history
 from pipelines.historical_matches.transforms.normalization import (
     remove_matches_without_player_ids,
 )
-from pipelines.historical_matches.transforms.player_stats import calcular_elo, calcular_h2h
 
 
 def test_normalization_drops_matches_without_both_player_ids() -> None:
@@ -52,5 +54,5 @@ def test_elo_keeps_rows_with_colliding_or_missing_match_keys() -> None:
 
     featured = calcular_elo(matches)
 
-    pd.testing.assert_frame_equal(featured[matches.columns], matches)
+    pd.testing.assert_frame_equal(featured[matches.columns], prepare_history(matches))
     assert featured[["winner_elo", "loser_elo", "elo_diff"]].notna().all().all()

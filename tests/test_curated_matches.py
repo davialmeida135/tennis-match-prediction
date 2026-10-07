@@ -38,7 +38,7 @@ def test_old_temporal_snapshot_reports_how_to_rebuild() -> None:
         {"overall_elo_diff": [0.0], "winner": [1], "match_date": ["2026-01-01"]}
     )
 
-    with pytest.raises(ValueError, match="Materialize temporal_training_matches"):
+    with pytest.raises(ValueError, match="Materialize player_comparison_atp_matches"):
         curated_atp_matches(_matches().assign(**old_snapshot.iloc[0].to_dict()))
 
 
@@ -115,11 +115,11 @@ def test_feature_chain_preserves_matches_through_anonymization() -> None:
             raw[f"{side}_{column}"] = value
     normalized = normalized_atp_matches(raw)
     featured, _, _ = attach_temporal_features(normalized)
-    imputed = imputed_atp_matches(featured)
-    winrates = winrate_featured_atp_matches(imputed)
+    winrates = winrate_featured_atp_matches(featured)
     h2h = h2h_featured_atp_matches(winrates)
     elo = elo_featured_atp_matches(h2h)
-    curated = curated_atp_matches(elo)
+    imputed = imputed_atp_matches(elo)
+    curated = curated_atp_matches(imputed)
     final = anonymize(curated, random_seed=42)
 
     assert all(len(frame) == len(raw) for frame in (featured, imputed, winrates, h2h, elo, final))

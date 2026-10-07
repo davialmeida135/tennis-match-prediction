@@ -6,9 +6,9 @@ import pytest
 
 from pipelines.historical_matches.feature_state import (
     FeatureState,
-    _parse_match_date,
     build_training_frame,
 )
+from pipelines.historical_matches.transforms.history import parse_match_date
 from pipelines.shared.contracts import FutureMatchRequest
 
 
@@ -59,6 +59,19 @@ def test_feature_is_captured_before_its_result() -> None:
 
     assert features["overall_elo_diff"] < 0
     assert features["h2h_log_odds"] < 0
+
+
+def test_future_and_historical_features_agree_before_result_update() -> None:
+    state = FeatureState()
+    state.apply_result(pd.Series(_match(1, "a", "Alice", "b", "Bob")))
+    request = FutureMatchRequest(
+        player0_name="Alice", player1_name="Bob", match_date="2026-01-02", surface="Hard"
+    )
+    expected = state.features_for(request)
+    match = pd.Series(_match(2, "b", "Bob", "a", "Alice"))
+    match["tourney_date"] = 20260102
+
+    assert state.apply_result(match) == expected
 
 
 def test_checkpoint_continues_incremental_calculation(tmp_path) -> None:
@@ -173,10 +186,10 @@ def test_mixed_source_date_formats_are_sorted_chronologically() -> None:
     ],
 )
 def test_match_date_formats_preserve_calendar_date(value: object) -> None:
-    assert _parse_match_date(value) == date(2024, 2, 29)
+    assert parse_match_date(value) == date(2024, 2, 29)
 
 
 @pytest.mark.parametrize("value", ["2023-02-29", "20230229", "20241301", "2024-00-01"])
 def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
     with pytest.raises(ValueError):
-        _parse_match_date(value)
+        parse_match_date(value)

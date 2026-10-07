@@ -7,6 +7,8 @@ players played before it.
 import pandas as pd
 import polars as pl
 
+from .history import prepare_history
+
 
 def calcular_winrate_total(df: pl.DataFrame) -> pd.DataFrame:
     """
@@ -21,7 +23,7 @@ def calcular_winrate_total(df: pl.DataFrame) -> pd.DataFrame:
     if not all(col in df.columns for col in required_cols):
         raise ValueError(f"DataFrame missing one or more required columns: {required_cols}")
 
-    df_sorted = df.with_row_index("original_order")
+    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
 
     # Uma linha para cada jogador, com o resultado da partida
     # Se o jogador ganhou, won = 1, se perdeu, won = 0
@@ -101,9 +103,7 @@ def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-        "original_order"
-    )
+    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
 
     # --- Melt to Long Format ---
     winners = df_sorted.select(
@@ -135,14 +135,14 @@ def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
         [
             pl.col("won")
             .shift(1)
-            .rolling_sum(window_size=n, min_periods=1)
+            .rolling_sum(window_size=n, min_samples=1)
             .over(grouping_cols)
             .alias("prev_n_wins"),
             pl.col("won")
             .shift(1)
             .is_not_null()
             .cast(pl.Int8)
-            .rolling_sum(window_size=n, min_periods=1)
+            .rolling_sum(window_size=n, min_samples=1)
             .over(grouping_cols)
             .alias("prev_n_matches"),
         ]
@@ -203,9 +203,7 @@ def calcular_winrate_superficie(df: pl.DataFrame) -> pd.DataFrame:
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-        "original_order"
-    )
+    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
 
     # --- Melt to Long Format ---
     # One row per player per match, including the surface
@@ -312,9 +310,7 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-        "original_order"
-    )
+    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
 
     # --- Melt to Long Format ---
     # One row per player per match, including the surface
@@ -349,14 +345,14 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
         [
             pl.col("won")
             .shift(1)
-            .rolling_sum(window_size=n, min_periods=1)
+            .rolling_sum(window_size=n, min_samples=1)
             .over(grouping_cols)
             .alias("prev_n_wins_surface"),
             pl.col("won")
             .shift(1)
             .is_not_null()
             .cast(pl.Int8)
-            .rolling_sum(window_size=n, min_periods=1)
+            .rolling_sum(window_size=n, min_samples=1)
             .over(grouping_cols)
             .alias("prev_n_matches_surface"),
         ]

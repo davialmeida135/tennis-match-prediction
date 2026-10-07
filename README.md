@@ -41,9 +41,10 @@ Read these files in this order:
 1. `ml/refresh_history.py` — command to download data.
 2. `pipelines/historical_matches/tennis_my_life.py` — download, deduplicate, and consolidate seasons.
 3. `pipelines/shared/contracts.py` — Pydantic models, feature names, and DataFrame validation.
-4. `pipelines/historical_matches/feature_state.py` — calculate features before applying each result; save/load player history.
-5. `ml/train.py` — build features, split chronologically (70%/15%/15%), train, and save.
-6. `ml/predict.py` — load the model and state to predict a future match.
+4. `pipelines/historical_matches/transforms/player_comparison.py` — pure formulas for the 14 model features.
+5. `pipelines/historical_matches/feature_state.py` — maintain chronological player history, call the shared formulas before applying results, and save/load checkpoints.
+6. `ml/train.py` — build features, split chronologically (70%/15%/15%), train, and save.
+7. `ml/predict.py` — load the model and state to predict a future match.
 
 The model consumes the 14 difference features listed in `FEATURE_COLUMNS`.
 Training randomly assigns the winner to player0 or player1 and gives the features
@@ -69,21 +70,47 @@ The source CSV must already exist; download it with `ml.refresh_history` first.
 The assets in `pipelines/historical_matches/assets.py` run in this order:
 
 ```text
-raw matches -> normalize -> temporal features -> impute
--> win rates -> head-to-head -> Elo -> curate -> publish -> anonymize
+raw_atp_matches
+  -> normalized_atp_matches (filter walkovers/missing IDs, clean surface, parse/order dates)
+  -> player_comparison_atp_matches (14 pre-match comparisons + checkpoint)
+  -> winrate_featured_atp_matches
+  -> h2h_featured_atp_matches
+  -> elo_featured_atp_matches
+  -> imputed_atp_matches (earlier observations only)
+  -> curated_atp_matches (encode context, drop per-match statistics)
+  -> training_atp_matches (assign player positions, construct target)
+  -> training_atp_matches_csv
 ```
 
-- `transforms/` contains the normalization, imputation, feature, and encoding functions.
-- `anonymization.py` converts winner/loser columns into player0/player1 columns.
-- `checks.py` reports dataset quality in Dagster.
+`curated_atp_matches_csv` publishes the readable curated dataset directly from
+`curated_atp_matches`. `player_comparison_atp_matches_csv` publishes the comparison
+columns directly from `player_comparison_atp_matches`. These exports are branches;
+training-row construction does not depend on CSV publication.
+
+- `transforms/history.py` supplies shared date parsing, stable ordering by date,
+  tournament and match number (missing numbers last), and played-match filtering.
+- `transforms/elo.py` contains the rating update formula used by both historical
+  Elo columns and `FeatureState`; both players update from their prior ratings.
+- `transforms/head_to_head.py` calculates the prior head-to-head win difference.
+- `transforms/imputation.py` fills height/age from the pooled mean of earlier
+  observed values, rank from the worst earlier rank, and points from the lowest
+  earlier points. Both player sides share these references. Initial defaults are
+  height 180 cm, age 25, rank 2000 and points 0; future rows never affect past fills.
+- `anonymization.py` assigns winner/loser attributes to player0/player1 and
+  orients signed features with the target. The asset uses random seed 42.
+- `checks.py` checks intermediate and final datasets.
 - `defs.py` registers the assets, checks, and job.
-- `shared/parquet_io.py` saves intermediate DataFrames so individual steps can be rerun.
+- `shared/parquet_io.py` persists DataFrames so individual steps can be rerun.
 
 This workflow exports a wider dataset for inspection and experiments. The current
-`ml.train` command reads raw history and uses `feature_state.py` directly; it does
-not train on `anonymized_matches.csv`. Both paths use the same temporal feature
-engine. The additional win-rate, head-to-head, and Elo transforms are still used
-by the Dagster exports.
+`ml.train` command reads raw history and uses `feature_state.py`; it does not train
+on `training_atp_matches.csv`. Both paths share date parsing, history ordering,
+surface cleanup, walkover filtering and comparison formulas. The wider export
+also contains individual win rates, head-to-head history and Elo ratings.
+
+Asset and CSV names changed during this refactor. Re-materialize the full
+`materialize_historical_dataset` job to rebuild snapshots under the new names;
+old snapshots and CSV files are not migrated or deleted automatically.
 
 To run downstream assets automatically after inputs change, enable the default
 automation condition sensor in Dagster. The root asset is triggered manually.

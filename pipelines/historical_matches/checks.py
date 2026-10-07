@@ -18,15 +18,16 @@ from .anonymization import (
     TARGET_COLUMN,
 )
 from .assets import (
-    anonymized_matches,
     curated_atp_matches,
     elo_featured_atp_matches,
     h2h_featured_atp_matches,
     imputed_atp_matches,
     normalized_atp_matches,
     raw_atp_matches,
+    training_atp_matches,
     winrate_featured_atp_matches,
 )
+from .transforms.history import order_history
 
 # Columns that must always survive the pipeline: the anonymization step selects
 # exactly this schema and fails loudly when something is missing.
@@ -102,7 +103,7 @@ def normalized_matches_are_chronological(
     normalized_atp_matches: pd.DataFrame,
 ) -> AssetCheckResult:
     dates = normalized_atp_matches["tourney_date"]
-    is_sorted = bool(dates.is_monotonic_increasing)
+    is_sorted = normalized_atp_matches.index.equals(order_history(normalized_atp_matches).index)
     return AssetCheckResult(
         passed=is_sorted,
         metadata={
@@ -113,9 +114,20 @@ def normalized_matches_are_chronological(
 
 
 @asset_check(
+    asset=normalized_atp_matches,
+    name="no_walkovers",
+    description="Unplayed walkovers are excluded before any history calculations.",
+    blocking=True,
+)
+def normalized_matches_have_no_walkovers(normalized_atp_matches: pd.DataFrame) -> AssetCheckResult:
+    remaining = int(normalized_atp_matches["score"].eq("W/O").sum())
+    return AssetCheckResult(passed=remaining == 0, metadata={"walkovers": remaining})
+
+
+@asset_check(
     asset=imputed_atp_matches,
     name="imputed_columns_have_no_nulls",
-    description="Imputation filled every height, age, ranking and surface value.",
+    description="Earlier observations or initial defaults filled missing player attributes.",
 )
 def imputed_matches_have_no_nulls(imputed_atp_matches: pd.DataFrame) -> AssetCheckResult:
     passed, metadata = columns_without_nulls(imputed_atp_matches, IMPUTED_COLUMNS)
@@ -157,7 +169,7 @@ def winrate_features_are_probabilities(
 @asset_check(
     asset=h2h_featured_atp_matches,
     name="feature_columns_present",
-    description="Win-rate and head-to-head features are available before the dataset is curated.",
+    description="Win-rate features and the pre-match head-to-head win difference are present.",
 )
 def h2h_features_present(h2h_featured_atp_matches: pd.DataFrame) -> AssetCheckResult:
     expected = [*WINRATE_COLUMNS, "h2h"]
@@ -192,11 +204,11 @@ def curated_matches_have_no_walkovers(curated_atp_matches: pd.DataFrame) -> Asse
 
 @asset_check(
     asset=curated_atp_matches,
-    name="anonymization_input_columns_present",
-    description="Everything the anonymization step selects still exists in the curated dataset.",
+    name="training_input_columns_present",
+    description="Every column needed to construct training rows exists in the curated dataset.",
     blocking=True,
 )
-def curated_matches_feed_anonymization(curated_atp_matches: pd.DataFrame) -> AssetCheckResult:
+def curated_matches_feed_training(curated_atp_matches: pd.DataFrame) -> AssetCheckResult:
     required = [
         *MATCH_COLUMNS,
         *(f"{side}_{stem}" for stem in PLAYER_ATTRIBUTE_STEMS for side in ("winner", "loser")),
@@ -212,16 +224,16 @@ def curated_matches_feed_anonymization(curated_atp_matches: pd.DataFrame) -> Ass
 
 
 @asset_check(
-    asset=anonymized_matches,
+    asset=training_atp_matches,
     name="target_is_binary",
     description=f"`{TARGET_COLUMN}` only contains 0/1, so it can be used directly as the target.",
     blocking=True,
 )
-def target_is_binary(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
-    values = sorted(anonymized_matches[TARGET_COLUMN].dropna().unique().tolist())
+def target_is_binary(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
+    values = sorted(training_atp_matches[TARGET_COLUMN].dropna().unique().tolist())
     unexpected = [value for value in values if value not in (0, 1)]
     return AssetCheckResult(
-        passed=not unexpected and not anonymized_matches[TARGET_COLUMN].isna().any(),
+        passed=not unexpected and not training_atp_matches[TARGET_COLUMN].isna().any(),
         metadata={
             "values": MetadataValue.json(values),
             "unexpected": MetadataValue.json(unexpected),
@@ -230,7 +242,7 @@ def target_is_binary(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
 
 
 @asset_check(
-    asset=anonymized_matches,
+    asset=training_atp_matches,
     name="target_is_balanced",
     description=(
         "player0/player1 are shuffled at random, so the target must be ~50/50. A skewed mean "
@@ -238,8 +250,8 @@ def target_is_binary(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
     ),
     blocking=True,
 )
-def target_is_balanced(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
-    target_mean = float(anonymized_matches[TARGET_COLUMN].mean())
+def target_is_balanced(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
+    target_mean = float(training_atp_matches[TARGET_COLUMN].mean())
     return AssetCheckResult(
         passed=abs(target_mean - 0.5) <= TARGET_BALANCE_TOLERANCE,
         metadata={
@@ -250,7 +262,7 @@ def target_is_balanced(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
 
 
 @asset_check(
-    asset=anonymized_matches,
+    asset=training_atp_matches,
     name="no_player_identity_left",
     description=(
         "No winner_*/loser_* column survives anonymization, otherwise the model could read the "
@@ -259,10 +271,10 @@ def target_is_balanced(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
     ),
     blocking=True,
 )
-def no_player_identity_left(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
+def no_player_identity_left(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
     leaked = [
         column
-        for column in anonymized_matches.columns
+        for column in training_atp_matches.columns
         if column != TARGET_COLUMN and column.startswith(("winner_", "loser_", "winner", "loser"))
     ]
     return AssetCheckResult(
@@ -275,13 +287,13 @@ def no_player_identity_left(anonymized_matches: pd.DataFrame) -> AssetCheckResul
 
 
 @asset_check(
-    asset=anonymized_matches,
+    asset=training_atp_matches,
     name="schema_matches_expectation",
     description="Column set and order of the anonymized training dataset.",
     blocking=True,
 )
-def schema_matches_expectation(anonymized_matches: pd.DataFrame) -> AssetCheckResult:
-    actual = list(anonymized_matches.columns)
+def schema_matches_expectation(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
+    actual = list(training_atp_matches.columns)
     missing = [column for column in FINAL_COLUMN_ORDER if column not in actual]
     return AssetCheckResult(
         passed=not missing,

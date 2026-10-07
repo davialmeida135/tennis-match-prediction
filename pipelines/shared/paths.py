@@ -8,7 +8,7 @@ predictable and there is a single place to change it.
         historical_matches/   annual TennisMyLife CSVs and consolidated input
       staging/                one parquet snapshot per Dagster asset (IO manager)
       curated/                the datasets handed to the ML step:
-                              pre_anonymized_matches.csv and anonymized_matches.csv
+                              curated_atp_matches.csv and training_atp_matches.csv
 
 Override the root with the TENNIS_DATA_DIR environment variable (see .env.example).
 """
@@ -39,12 +39,10 @@ FEATURE_STATE_DIR = DATA_DIR / "state"
 FEATURE_STATE_PATH = FEATURE_STATE_DIR / "feature_state.json"
 MODELS_DIR = DATA_DIR / "models"
 
-# The two datasets written under data/curated, in the order the pipeline builds
-# them: the curated dataset still names the winner and loser, the anonymized one
-# is what a model is trained on.
-PRE_ANONYMIZED_CSV_NAME = "pre_anonymized_matches.csv"
-ANONYMIZED_CSV_NAME = "anonymized_matches.csv"
-TEMPORAL_FEATURES_CSV_NAME = "temporal_features.csv"
+# Published comparison, readable curated and player-oriented training datasets.
+CURATED_MATCHES_CSV_NAME = "curated_atp_matches.csv"
+TRAINING_MATCHES_CSV_NAME = "training_atp_matches.csv"
+PLAYER_COMPARISON_CSV_NAME = "player_comparison_atp_matches.csv"
 
 
 def write_curated_csv(frame: pd.DataFrame, file_name: str) -> Path:
