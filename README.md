@@ -90,8 +90,7 @@ Assets are materialized left to right, split into six groups that follow the
 stages of the pipeline:
 
 ```
-raw -> normalize -> temporal features
-                    └-> impute -> win rates -> h2h -> Elo -> curate -> publish
+raw -> normalize -> temporal features -> impute -> win rates -> h2h -> Elo -> curate -> publish
 ```
 
 | Group | Asset | What it does |
@@ -107,9 +106,13 @@ raw -> normalize -> temporal features
 | `publish` | `pre_anonymized_matches` | Writes `data/curated/pre_anonymized_matches.csv`. |
 | `publish` | `anonymized_matches` | Shuffles winner/loser into `player0`/`player1`, reorients signed features consistently, writes `data/curated/anonymized_matches.csv`. |
 
-Groups make the asset catalog filterable one stage at a time. The temporal
-feature branch and legacy feature branch join at curation; both feed the same
-pre-anonymized and anonymized outputs.
+Groups make the asset catalog filterable one stage at a time. Features stay
+attached to their source rows throughout this single chain; curation does not
+join independently materialized datasets. The temporal CSV and state checkpoint
+are still exported alongside the pre-anonymized and anonymized outputs.
+
+After upgrading from the branched pipeline, materialize `temporal_training_matches`
+and all its downstream assets together once to replace the old snapshots.
 
 Each step is a plain function in `transforms/` (plus `anonymization.py` for the
 last one), so it can be unit tested or run in a notebook without Dagster. Asset

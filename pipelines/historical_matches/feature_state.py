@@ -237,6 +237,24 @@ def build_temporal_match_features(
     matches: pd.DataFrame,
 ) -> tuple[pd.DataFrame, FeatureState]:
     """Build winner-minus-loser temporal features keyed to their source match."""
+    frame, state = _temporal_features_by_row(matches)
+    return frame.reset_index(drop=True), state
+
+
+def attach_temporal_features(
+    matches: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, FeatureState]:
+    """Keep features on their source rows; also return the export and checkpoint."""
+    source = matches.reset_index(drop=True)
+    features, state = _temporal_features_by_row(source)
+    featured = source.join(features[list(FEATURE_COLUMNS)])
+    return featured, features.reset_index(drop=True), state
+
+
+def _temporal_features_by_row(
+    matches: pd.DataFrame,
+) -> tuple[pd.DataFrame, FeatureState]:
+    """Use source row positions for alignment, independent of match identifiers."""
     required = {
         "tourney_date",
         "tourney_id",
@@ -250,20 +268,23 @@ def build_temporal_match_features(
     if missing:
         raise ValueError(f"Missing historical match columns: {sorted(missing)}")
     state = FeatureState()
-    rows: list[dict[str, float | int | str]] = []
+    source_rows: list[int] = []
+    rows: list[dict[str, float | int | str | None]] = []
     # TennisMyLife combines legacy ISO dates with newer YYYYMMDD values. Sorting their
     # raw strings would put the two formats in separate blocks and leak future results.
-    ordered = matches.assign(
-        _feature_date=matches["tourney_date"].map(_parse_match_date)
+    ordered = matches.reset_index(drop=True)
+    ordered = ordered.assign(
+        _feature_date=ordered["tourney_date"].map(_parse_match_date)
     ).sort_values(["_feature_date", "tourney_id", "match_num"])
-    for _, match in ordered.iterrows():
+    for source_row, match in ordered.iterrows():
         if str(match.get("score", "")) == "W/O":
             continue
         winner_minus_loser = state.apply_result(match)
+        source_rows.append(source_row)
         rows.append(
             {
                 "tourney_id": str(match["tourney_id"]),
-                "match_num": int(match["match_num"]),
+                "match_num": int(match["match_num"]) if pd.notna(match["match_num"]) else None,
                 "winner_id": str(match["winner_id"]),
                 "loser_id": str(match["loser_id"]),
                 **winner_minus_loser,
@@ -271,7 +292,10 @@ def build_temporal_match_features(
             }
         )
     columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS, "match_date"]
-    return pd.DataFrame(rows, columns=columns), state
+    frame = pd.DataFrame(rows, columns=columns, index=source_rows)
+    # Preserve missing source match numbers in the standalone temporal export.
+    frame["match_num"] = frame["match_num"].astype("Int64")
+    return frame, state
 
 
 def _elo_delta(rating: float, opponent_rating: float, result: float, matches: int) -> float:
@@ -289,6 +313,12 @@ def _parse_match_date(value: object) -> date:
     if isinstance(value, date):
         return value.date() if isinstance(value, pd.Timestamp) else value
     text = str(value)
+    # Rolling windows repeatedly read checkpoint dates. Avoid constructing pandas
+    # datetime arrays/indexes for each of those scalar ISO calendar dates.
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return date.fromisoformat(text)
+    if len(text) == 8 and text.isdigit():
+        return date(int(text[:4]), int(text[4:6]), int(text[6:]))
     date_format = "%Y%m%d" if text.isdigit() else "ISO8601"
     return pd.to_datetime(text, format=date_format).date()
 

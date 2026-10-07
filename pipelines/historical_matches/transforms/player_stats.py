@@ -50,17 +50,7 @@ def calcular_elo(df: pd.DataFrame) -> pd.DataFrame:
         df = pl.from_pandas(df)  # Convert if input is pandas
 
     # 1. Prepare data: Select necessary columns, sort, add unique order
-    df_sorted = df.select(
-        [
-            "tourney_date",
-            "match_num",
-            "tourney_level",  # Ensure these columns exist
-            "winner_id",
-            "loser_id",
-            "winner_name",
-            "loser_name",  # Ensure these columns exist
-        ]
-    ).with_row_index("original_order")
+    df_sorted = df.with_row_index("original_order")
 
     # 2. Melt to long format (one row per player per match)
     winners = df_sorted.select(
@@ -149,19 +139,6 @@ def calcular_elo(df: pd.DataFrame) -> pd.DataFrame:
     final_df = final_df.with_columns(
         (pl.col("winner_elo") - pl.col("loser_elo")).alias("elo_diff")
     ).drop("original_order")  # Remove the temporary ordering column
-
-    # Join back any columns from the original df that were dropped
-    # Assuming 'tourney_date', 'match_num', 'winner_id', 'loser_id' are keys
-    original_cols_to_keep = [col for col in df.columns if col not in final_df.columns] + [
-        "tourney_date",
-        "match_num",
-        "winner_id",
-        "loser_id",
-    ]
-    if original_cols_to_keep:
-        final_df = df.select(original_cols_to_keep).join(
-            final_df, on=["tourney_date", "match_num", "winner_id", "loser_id"], how="left"
-        )
 
     return final_df.to_pandas()
 

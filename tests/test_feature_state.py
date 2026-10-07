@@ -3,7 +3,11 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from pipelines.historical_matches.feature_state import FeatureState, build_training_frame
+from pipelines.historical_matches.feature_state import (
+    FeatureState,
+    _parse_match_date,
+    build_training_frame,
+)
 from pipelines.shared.contracts import FutureMatchRequest
 
 
@@ -126,3 +130,24 @@ def test_mixed_source_date_formats_are_sorted_chronologically() -> None:
 
     assert list(frame["match_date"]) == ["2025-12-29", "2026-01-02"]
     assert state.last_result_date == date(2026, 1, 2)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-02-29",
+        "20240229",
+        20240229,
+        date(2024, 2, 29),
+        pd.Timestamp("2024-02-29T12:00:00"),
+        "2024-02-29T12:00:00",
+    ],
+)
+def test_match_date_formats_preserve_calendar_date(value: object) -> None:
+    assert _parse_match_date(value) == date(2024, 2, 29)
+
+
+@pytest.mark.parametrize("value", ["2023-02-29", "20230229", "20241301", "2024-00-01"])
+def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
+    with pytest.raises(ValueError):
+        _parse_match_date(value)
