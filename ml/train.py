@@ -13,8 +13,8 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from ml.config import TRAINING_FEATURE_COLUMNS
-from pipelines.shared.contracts import FEATURE_COLUMNS, TRAINING_MATCHES
+from ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
+from pipelines.shared.contracts import FEATURE_COLUMNS
 from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
 
 
@@ -32,15 +32,18 @@ def train(
     unknown = set(feature_columns).difference(FEATURE_COLUMNS)
     if unknown:
         raise ValueError(f"Unknown training features: {sorted(unknown)}")
+    contract = TRAINING_MATCHES.model_copy(
+        update={"required": (*feature_columns, "winner", "match_date"), "numeric": feature_columns}
+    )
     matches = pd.read_csv(training_matches_path, low_memory=False)
-    missing = set(TRAINING_MATCHES.required).difference(matches.columns)
+    missing = set(contract.required).difference(matches.columns)
     if missing:
         raise ValueError(
             "Expected Dagster training rows. Materialize materialize_historical_dataset first. "
             f"Missing columns: {sorted(missing)}"
         )
-    frame = matches.loc[:, [*FEATURE_COLUMNS, "winner", "match_date"]]
-    TRAINING_MATCHES.validate_frame(frame)
+    frame = matches.loc[:, list(contract.required)]
+    contract.validate_frame(frame)
     if len(frame) < 30:
         raise ValueError("At least 30 completed matches are required to train a model")
     train_end = int(len(frame) * 0.7)

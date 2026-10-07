@@ -210,12 +210,3 @@ FEATURE_COLUMNS = (
     "double_fault_rate_diff",
     "service_points_won_diff",
 )
-
-TRAINING_MATCHES = DataFrameContract(
-    name="temporal training matches",
-    required=(*FEATURE_COLUMNS, "winner", "match_date"),
-    numeric=FEATURE_COLUMNS,
-    date_column="match_date",
-    target="winner",
-    exact_columns=True,
-)

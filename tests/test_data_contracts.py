@@ -6,17 +6,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
 from pipelines.shared.contracts import (
-    FEATURE_COLUMNS,
     NORMALIZED_MATCHES,
-    TRAINING_MATCHES,
     PlayerHistory,
 )
 
 
 @pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, "1"])
 def test_training_rejects_invalid_features(bad_value):
-    frame = pd.DataFrame({column: [bad_value] for column in FEATURE_COLUMNS})
+    frame = pd.DataFrame({column: [bad_value] for column in TRAINING_FEATURE_COLUMNS})
     frame["winner"] = 1
     frame["match_date"] = "2026-01-01"
     with pytest.raises(ValueError, match="contract failed"):
@@ -25,7 +24,7 @@ def test_training_rejects_invalid_features(bad_value):
 
 @pytest.mark.parametrize("target", [None, 2, "1"])
 def test_training_rejects_invalid_target(target):
-    frame = pd.DataFrame({column: [0.0] for column in FEATURE_COLUMNS})
+    frame = pd.DataFrame({column: [0.0] for column in TRAINING_FEATURE_COLUMNS})
     frame["winner"] = target
     frame["match_date"] = "2026-01-01"
     with pytest.raises(ValueError, match="binary target"):

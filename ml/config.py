@@ -1,5 +1,7 @@
 """Configurable model inputs, independent of the generated dataset schema."""
 
+from pipelines.shared.contracts import DataFrameContract
+
 # Remove or reorder entries to configure the default training experiment.
 TRAINING_FEATURE_COLUMNS: tuple[str, ...] = (
     "overall_elo_diff",
@@ -16,4 +18,13 @@ TRAINING_FEATURE_COLUMNS: tuple[str, ...] = (
     "ace_rate_diff",
     "double_fault_rate_diff",
     "service_points_won_diff",
+)
+
+TRAINING_MATCHES = DataFrameContract(
+    name="temporal training matches",
+    required=(*TRAINING_FEATURE_COLUMNS, "winner", "match_date"),
+    numeric=TRAINING_FEATURE_COLUMNS,
+    date_column="match_date",
+    target="winner",
+    exact_columns=True,
 )

@@ -107,8 +107,8 @@ training-row construction does not depend on CSV publication.
 
 This workflow is the single source of features for training and prediction.
 `ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
-CSV path) and validates the generated schema before selecting the configured
-training features. Override the defaults for one run with
+CSV path) and requires only the configured training features, target and
+chronological date. Override the defaults for one run with
 `uv run python -m ml.train --features overall_elo_diff surface_elo_diff`.
 The Python API accepts `train(..., feature_columns=("overall_elo_diff",))`.
 Empty, duplicate, or unknown feature selections are rejected. Ordered feature
