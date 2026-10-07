@@ -2,7 +2,7 @@
 
 Predict an ATP match from two player names, a date, and a surface. Historical
 results come from TennisMyLife; training uses a chronological split and logistic
-regression. A saved feature state supplies each player's pre-match history.
+regression. A Dagster player-history asset supplies each player's pre-match history.
 
 ## Start here
 
@@ -12,10 +12,11 @@ Use Python 3.12 and `uv`:
 uv sync
 Copy-Item .env.example .env
 uv run python -m ml.refresh_history
-uv run python -m ml.train data/raw/historical_matches/all_atp_matches.csv
+uv run dagster asset materialize -m pipelines.historical_matches.defs --select "*"
+uv run python -m ml.train
 ```
 
-Then predict a match on a date **after the last result in the saved state**:
+Then predict a match on a date **after the last result in the player-history asset**:
 
 ```powershell
 uv run python -m ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard
@@ -32,7 +33,7 @@ uv run python -m ml.refresh_history 2025 2026
 ```
 
 This updates annual files, then consolidates all locally available seasons.
-Training rebuilds the feature state from that history.
+Re-materialize the Dagster dataset after refreshing history, then retrain.
 
 ## How the code fits together
 
@@ -42,17 +43,17 @@ Read these files in this order:
 2. `pipelines/historical_matches/tennis_my_life.py` — download, deduplicate, and consolidate seasons.
 3. `pipelines/shared/contracts.py` — Pydantic models, feature names, and DataFrame validation.
 4. `pipelines/historical_matches/transforms/player_comparison.py` — pure formulas for the 14 model features.
-5. `pipelines/historical_matches/feature_state.py` — maintain chronological player history, call the shared formulas before applying results, and save/load checkpoints.
-6. `ml/train.py` — build features, split chronologically (70%/15%/15%), train, and save.
-7. `ml/predict.py` — load the model and state to predict a future match.
+5. `pipelines/historical_matches/transforms/player_history.py` � build match comparisons and player history in one chronological pass.
+6. `ml/train.py` � read the published training dataset, split chronologically (70%/15%/15%), train, and save.
+7. `ml/predict.py` — load the model and player-history asset to predict a future match.
 
 The model consumes the 14 difference features listed in `FEATURE_COLUMNS`.
 Training randomly assigns the winner to player0 or player1 and gives the features
 that same orientation. `winner=1` means player1 won.
 
 All data models live in `contracts.py` and inherit from `ContractModel`.
-`PlayerState` and `PlayedMatch` are used both in memory and in version-one JSON
-checkpoints. DataFrame contracts check columns, dates, finite features, and
+`PlayerState`, `PlayedMatch` and `PlayerHistory` validate the prediction history
+persisted by Dagster. DataFrame contracts check columns, dates, finite features, and
 binary targets with vectorized operations.
 
 ## Dagster dataset workflow
@@ -72,7 +73,7 @@ The assets in `pipelines/historical_matches/assets.py` run in this order:
 ```text
 raw_atp_matches
   -> normalized_atp_matches (filter walkovers/missing IDs, clean surface, parse/order dates)
-  -> player_comparison_atp_matches (14 pre-match comparisons + checkpoint)
+  -> player_comparison_atp_matches (14 pre-match comparisons + player_history asset)
   -> winrate_featured_atp_matches
   -> h2h_featured_atp_matches
   -> elo_featured_atp_matches
@@ -90,7 +91,7 @@ training-row construction does not depend on CSV publication.
 - `transforms/history.py` supplies shared date parsing, stable ordering by date,
   tournament and match number (missing numbers last), and played-match filtering.
 - `transforms/elo.py` contains the rating update formula used by both historical
-  Elo columns and `FeatureState`; both players update from their prior ratings.
+  Elo columns and the player-history transform; both players update from their prior ratings.
 - `transforms/head_to_head.py` calculates the prior head-to-head win difference.
 - `transforms/curation.py` encodes categoricals and removes outcome statistics for
   `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
@@ -104,11 +105,16 @@ training-row construction does not depend on CSV publication.
 - `defs.py` registers the assets, checks, and job.
 - `shared/parquet_io.py` persists DataFrames so individual steps can be rerun.
 
-This workflow exports a wider dataset for inspection and experiments. The current
-`ml.train` command reads raw history and uses `feature_state.py`; it does not train
-on `training_atp_matches.csv`. Both paths share date parsing, history ordering,
-surface cleanup, walkover filtering and comparison formulas. The wider export
-also contains individual win rates, head-to-head history and Elo ratings.
+This workflow is the single source of features for training and prediction.
+`ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
+CSV path) and selects the 14 `FEATURE_COLUMNS`, target and chronological date.
+It rejects raw history and unordered training rows instead of rebuilding features.
+`ml.predict` reads `data/staging/player_history.parquet`, produced together with
+`player_comparison_atp_matches` in one chronological pass. Prediction uses the
+same comparison formulas and requires a date after the asset's history cutoff.
+The history asset contains a validated JSON payload inside Parquet, persisted by
+the existing Dagster IO manager; there is no separate checkpoint writer or engine.
+The wider exported columns remain available for inspection and experiments.
 
 Asset and CSV names changed during this refactor. Re-materialize the full
 `materialize_historical_dataset` job to rebuild snapshots under the new names;
@@ -124,12 +130,13 @@ automation condition sensor in Dagster. The root asset is triggered manually.
 | `data/raw/historical_matches/` | Annual CSVs, source manifest, and `all_atp_matches.csv` |
 | `data/staging/` | One Parquet snapshot per Dagster asset |
 | `data/curated/` | Player comparison, curated and training CSV exports |
-| `data/state/feature_state.json` | Player history and cutoff used for prediction |
+| `data/staging/player_history.parquet` | Dagster player-history asset and cutoff used for prediction |
 | `data/models/` | Trained model and metric metadata |
 | `dagster_home/` | Local Dagster configuration and SQLite storage |
 
 `TENNIS_DATA_DIR` changes the data root. `TENNIS_RAW_MATCHES_CSV` overrides the
-Dagster source CSV. The CLI training command takes its source path explicitly.
+Dagster source CSV. The training CLI defaults to the published training CSV. Use `--history-path`
+on the prediction CLI to select a player-history snapshot.
 Defaults and environment loading are in `pipelines/shared/paths.py`.
 
 The optional MySQL configuration is in `dagster_home/dagster.mysql.yaml.example`;

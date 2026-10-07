@@ -10,9 +10,11 @@ from pathlib import Path
 import pandas as pd
 from dagster import (
     AssetExecutionContext,
+    AssetOut,
     AutomationCondition,
     MetadataValue,
     asset,
+    multi_asset,
 )
 
 from pipelines.shared.contracts import (
@@ -24,13 +26,11 @@ from pipelines.shared.contracts import (
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
     CURATED_MATCHES_CSV_NAME,
-    FEATURE_STATE_PATH,
     PLAYER_COMPARISON_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,
     write_curated_csv,
 )
 from .config import RawMatchesCsv
-from .feature_state import attach_temporal_features
 from .transforms.curation import (
     encode_surface,
     remove_stat_cols,
@@ -53,6 +53,7 @@ from .transforms.normalization import (
     sort_by_date,
     transform_seed_data,
 )
+from .transforms.player_history import attach_temporal_features
 from .transforms.training_rows import FINAL_COLUMN_ORDER, TARGET_COLUMN, build_training_rows
 from .transforms.winrate import (
     calcular_winrate_superficie,
@@ -122,29 +123,20 @@ def normalized_atp_matches(raw_atp_matches: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-@asset(
+@multi_asset(
+    outs={
+        "player_comparison_atp_matches": AssetOut(automation_condition=WHEN_INPUT_CHANGES),
+        "player_history": AssetOut(automation_condition=WHEN_INPUT_CHANGES),
+    },
     group_name="features",
-    kinds={"pandas", "json"},
-    tags={"domain": "tennis", "layer": "features", "implementation": "temporal"},
-    description=(
-        "Source matches with winner-minus-loser pre-match features and a durable state checkpoint "
-        "used by incremental updates and future predictions."
-    ),
-    automation_condition=WHEN_INPUT_CHANGES,
 )
 def player_comparison_atp_matches(
-    context: AssetExecutionContext, normalized_atp_matches: pd.DataFrame
-) -> pd.DataFrame:
-    """Build keyed winner-minus-loser features and checkpoint from completed results."""
-    frame, _, state = attach_temporal_features(normalized_atp_matches)
-    state.save(FEATURE_STATE_PATH)
-    context.add_output_metadata(
-        {
-            "state_path": MetadataValue.path(str(FEATURE_STATE_PATH)),
-            **dataframe_metadata(frame),
-        }
-    )
-    return frame
+    normalized_atp_matches: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Produce pre-match comparisons and prediction history in one chronological pass."""
+    frame, _, history = attach_temporal_features(normalized_atp_matches)
+    snapshot = pd.DataFrame({"history": [history.model_dump_json()]})
+    return frame, snapshot
 
 
 @asset(
@@ -188,7 +180,7 @@ def h2h_featured_atp_matches(
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def elo_featured_atp_matches(h2h_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
-    """Attach pre-match Elo ratings using the checkpoint engine's update formula."""
+    """Attach pre-match Elo ratings using the player-history transform's update formula."""
     return calcular_elo(h2h_featured_atp_matches)
 
 
@@ -260,6 +252,7 @@ def training_atp_matches(
         numeric=FEATURE_COLUMNS,
         target=TARGET_COLUMN,
         exact_columns=True,
+        date_column="match_date",
     ).validate_frame(frame)
 
     target_mean = float(frame[TARGET_COLUMN].mean())

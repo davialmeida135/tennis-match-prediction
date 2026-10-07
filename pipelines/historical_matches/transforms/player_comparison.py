@@ -1,7 +1,6 @@
 """Pure pre-match feature formulas shared by historical processing and prediction.
 
-Inputs are player snapshots and match context. History updates and checkpoint IO
-belong to FeatureState; these functions never change the supplied snapshots.
+Inputs are player snapshots and match context. History updates belong to the player-history transform; these functions never change the supplied snapshots.
 """
 
 import math

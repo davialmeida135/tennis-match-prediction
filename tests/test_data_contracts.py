@@ -1,4 +1,4 @@
-"""Boundary regressions for frames and durable checkpoints."""
+"""Boundary regressions for frames and persisted player history."""
 
 import json
 
@@ -6,8 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pipelines.historical_matches.feature_state import FeatureState
-from pipelines.shared.contracts import FEATURE_COLUMNS, NORMALIZED_MATCHES, TRAINING_MATCHES
+from pipelines.shared.contracts import (
+    FEATURE_COLUMNS,
+    NORMALIZED_MATCHES,
+    TRAINING_MATCHES,
+    PlayerHistory,
+)
 
 
 @pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, "1"])
@@ -38,12 +42,11 @@ def test_normalized_dates_and_ids_are_validated_without_coercion():
     assert frame.loc[1, "winner_id"] == " "
 
 
-def test_checkpoint_rejects_extra_fields(tmp_path):
-    path = tmp_path / "checkpoint.json"
+def test_player_history_rejects_extra_fields(tmp_path):
+    path = tmp_path / "history.json"
     path.write_text(
         json.dumps(
             {
-                "version": 1,
                 "last_result_date": None,
                 "players": {},
                 "unexpected": True,
@@ -52,12 +55,12 @@ def test_checkpoint_rejects_extra_fields(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="unexpected"):
-        FeatureState.load(path)
+        PlayerHistory.model_validate_json(path.read_text())
 
 
-def test_empty_checkpoint_round_trip(tmp_path):
-    path = tmp_path / "checkpoint.json"
-    FeatureState().save(path)
-    loaded = FeatureState.load(path)
+def test_empty_player_history_round_trip(tmp_path):
+    path = tmp_path / "history.json"
+    path.write_text(PlayerHistory(last_result_date=None, players={}).model_dump_json())
+    loaded = PlayerHistory.model_validate_json(path.read_text())
     assert loaded.players == {}
     assert loaded.last_result_date is None

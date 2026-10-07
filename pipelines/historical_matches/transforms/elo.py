@@ -1,4 +1,4 @@
-"""Pre-match Elo ratings and the update formula shared with player checkpoints."""
+"""Pre-match Elo ratings and the update formula shared with player history."""
 
 import pandas as pd
 import polars as pl

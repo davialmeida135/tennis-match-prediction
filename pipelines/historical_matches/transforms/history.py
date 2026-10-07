@@ -34,7 +34,7 @@ def parse_match_date(value: object) -> date:
     if isinstance(value, date):
         return value.date() if isinstance(value, pd.Timestamp) else value
     text = str(value)
-    # Rolling windows repeatedly read checkpoint dates. Avoid constructing pandas
+    # Rolling windows repeatedly read historical dates. Avoid constructing pandas
     # datetime arrays/indexes for each of those scalar ISO calendar dates.
     if len(text) == 10 and text[4] == "-" and text[7] == "-":
         return date.fromisoformat(text)

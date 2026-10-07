@@ -33,10 +33,9 @@ HISTORICAL_MATCHES_RAW_DIR = RAW_DIR / "historical_matches"
 STAGING_DIR = DATA_DIR / "staging"
 CURATED_DIR = DATA_DIR / "curated"
 
-# Annual source files and durable state produced by the incremental feature engine.
+# Source history and Dagster-produced prediction history.
 DEFAULT_HISTORICAL_MATCHES_CSV = HISTORICAL_MATCHES_RAW_DIR / "all_atp_matches.csv"
-FEATURE_STATE_DIR = DATA_DIR / "state"
-FEATURE_STATE_PATH = FEATURE_STATE_DIR / "feature_state.json"
+PLAYER_HISTORY_PATH = STAGING_DIR / "player_history.parquet"
 MODELS_DIR = DATA_DIR / "models"
 
 # Published comparison, readable curated and player-oriented training datasets.

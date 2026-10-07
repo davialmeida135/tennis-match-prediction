@@ -7,7 +7,6 @@ from dagster import DagsterInstance, Definitions, materialize
 from pipelines.historical_matches import assets
 from pipelines.historical_matches.config import RawMatchesCsv
 from pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
-from pipelines.historical_matches.feature_state import FeatureState, build_training_frame
 from pipelines.historical_matches.transforms.elo import calcular_elo
 from pipelines.historical_matches.transforms.head_to_head import calcular_h2h
 from pipelines.historical_matches.transforms.history import prepare_history
@@ -20,10 +19,11 @@ from pipelines.historical_matches.transforms.imputation import (
     fill_null_height,
     fill_null_rank,
 )
+from pipelines.historical_matches.transforms.player_history import attach_temporal_features
 from pipelines.historical_matches.transforms.training_rows import FINAL_COLUMN_ORDER
 from pipelines.historical_matches.transforms.winrate import calcular_winrate_total
 from pipelines.shared import paths
-from pipelines.shared.contracts import FEATURE_COLUMNS
+from pipelines.shared.contracts import FEATURE_COLUMNS, PlayerHistory
 from pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 
@@ -81,11 +81,8 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
     elo = calcular_elo(raw)
     h2h = calcular_h2h(raw.dropna(subset=["winner_id"]))
     winrates = calcular_winrate_total(raw)
-    _, state = build_training_frame(raw)
-    chronological = FeatureState()
-    expected_differences = [
-        chronological.apply_result(row)["overall_elo_diff"] for _, row in prepared.iterrows()
-    ]
+    _, temporal, history = attach_temporal_features(prepared)
+    expected_differences = temporal["overall_elo_diff"].tolist()
 
     assert prepared["match_num"].tolist()[:1] == [1]
     assert pd.isna(prepared.loc[1, "match_num"])
@@ -95,8 +92,7 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
         assert frame["match_num"].fillna(-1).tolist() == prepared["match_num"].fillna(-1).tolist()
         assert len(frame) == 4
     assert elo["elo_diff"].tolist() == pytest.approx(expected_differences)
-    assert state.players == chronological.players
-    assert sum(player.wins for player in state.players.values()) == 4
+    assert sum(player.wins for player in history.players.values()) == 4
 
 
 @pytest.mark.parametrize("fill", [fill_null_height, fill_null_age, fill_null_rank])
@@ -139,8 +135,6 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     csv_path = tmp_path / "raw.csv"
     raw.to_csv(csv_path, index=False)
     monkeypatch.setattr(paths, "CURATED_DIR", tmp_path / "curated")
-    checkpoint = tmp_path / "state.json"
-    monkeypatch.setattr(assets, "FEATURE_STATE_PATH", checkpoint)
     staging = tmp_path / "staging"
 
     instance_dir = tmp_path / "instance"
@@ -169,10 +163,30 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert list(training.columns) == FINAL_COLUMN_ORDER
     assert training.filter(regex="_(ht|age|rank|rank_points)$").notna().all().all()
     assert elo["elo_diff"].tolist() == pytest.approx(comparisons["overall_elo_diff"].tolist())
-    expected, state = build_training_frame(raw)
+    _, expected, history = attach_temporal_features(normalized)
     pd.testing.assert_frame_equal(
-        comparisons[list(FEATURE_COLUMNS)].abs(), expected[list(FEATURE_COLUMNS)].abs()
+        comparisons[list(FEATURE_COLUMNS)], expected[list(FEATURE_COLUMNS)]
     )
-    assert FeatureState.load(checkpoint).players == state.players
+    snapshot = pd.read_parquet(staging / "player_history.parquet")
+    assert PlayerHistory.model_validate_json(snapshot.loc[0, "history"]) == history
+
+    # Training consumes only the published rows; prediction consumes only the asset snapshot.
+    from ml.predict import predict
+    from ml.train import train
+    from pipelines.shared.contracts import FutureMatchRequest
+
+    monkeypatch.setattr("ml.train._log_mlflow", lambda *_: None)
+    model_path = tmp_path / "model.pkl"
+    metrics = train(tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME, model_path)
+    assert 0 <= metrics["test_accuracy"] <= 1
+    prediction = predict(
+        FutureMatchRequest(
+            player0_name="Alice", player1_name="Bob", match_date="2027-01-01", surface="Hard"
+        ),
+        model_path,
+        staging / "player_history.parquet",
+    )
+    assert prediction.player0_win_probability + prediction.player1_win_probability == 1
+    assert prediction.feature_cutoff == history.last_result_date
     for name in (paths.CURATED_MATCHES_CSV_NAME, paths.PLAYER_COMPARISON_CSV_NAME):
         assert len(pd.read_csv(tmp_path / "curated" / name)) == 200

@@ -2,7 +2,7 @@
 
 from datetime import date
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
@@ -68,7 +68,7 @@ class PlayedMatch(ContractModel):
 
 
 class PlayerState(ContractModel):
-    """Accumulated player information, shared by the engine and its checkpoints."""
+    """Accumulated player information, used by historical transforms and prediction."""
 
     name: str = Field(min_length=1)
     rating: float = INITIAL_ELO
@@ -86,19 +86,18 @@ class PlayerState(ContractModel):
     age: NonnegativeFloat | None = None
 
 
-class FeatureStateCheckpoint(ContractModel):
-    version: Literal[1]
+class PlayerHistory(ContractModel):
     last_result_date: date | None
     players: dict[str, PlayerState]
 
     @model_validator(mode="after")
-    def history_matches_cutoff(self) -> "FeatureStateCheckpoint":
+    def history_matches_cutoff(self) -> "PlayerHistory":
         for player_id, player in self.players.items():
             if not player_id.strip():
                 raise ValueError("player IDs must be nonblank")
             dates = [date.fromisoformat(item.played_on) for item in player.history]
             if dates and (self.last_result_date is None or max(dates) > self.last_result_date):
-                raise ValueError("player history exceeds the checkpoint cutoff")
+                raise ValueError("player history exceeds the player-history cutoff")
             if dates != sorted(dates, reverse=True):
                 raise ValueError("player history must be newest first")
         return self

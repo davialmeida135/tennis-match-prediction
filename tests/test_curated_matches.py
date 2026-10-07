@@ -9,7 +9,7 @@ from pipelines.historical_matches.assets import (
     normalized_atp_matches,
     winrate_featured_atp_matches,
 )
-from pipelines.historical_matches.feature_state import attach_temporal_features
+from pipelines.historical_matches.transforms.player_history import attach_temporal_features
 from pipelines.historical_matches.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     build_training_rows,

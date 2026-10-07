@@ -13,23 +13,24 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from pipelines.historical_matches.feature_state import build_training_frame
-from pipelines.shared.contracts import FEATURE_COLUMNS
-from pipelines.shared.paths import FEATURE_STATE_PATH, MODELS_DIR
+from pipelines.shared.contracts import FEATURE_COLUMNS, TRAINING_MATCHES
+from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
 
 
 def train(
-    historical_matches_path: Path,
+    training_matches_path: Path,
     model_path: Path,
-    state_path: Path = FEATURE_STATE_PATH,
 ) -> dict[str, float]:
-    """Train with chronological splits and save the model plus feature-state checkpoint."""
-    matches = pd.read_csv(
-        historical_matches_path,
-        dtype={"winner_id": "string", "loser_id": "string"},
-        low_memory=False,
-    )
-    frame, state = build_training_frame(matches)
+    """Train from the Dagster-produced dataset using chronological splits."""
+    matches = pd.read_csv(training_matches_path, low_memory=False)
+    missing = set(TRAINING_MATCHES.required).difference(matches.columns)
+    if missing:
+        raise ValueError(
+            "Expected Dagster training rows. Materialize materialize_historical_dataset first. "
+            f"Missing columns: {sorted(missing)}"
+        )
+    frame = matches.loc[:, [*FEATURE_COLUMNS, "winner", "match_date"]]
+    TRAINING_MATCHES.validate_frame(frame)
     if len(frame) < 30:
         raise ValueError("At least 30 completed matches are required to train a model")
     train_end = int(len(frame) * 0.7)
@@ -43,13 +44,12 @@ def train(
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with model_path.open("wb") as file:
         pickle.dump({"model": model, "feature_columns": FEATURE_COLUMNS}, file)
-    state.save(state_path)
     metadata_path = model_path.with_suffix(".json")
     metadata_path.write_text(
         json.dumps(
             {
                 "feature_columns": FEATURE_COLUMNS,
-                "historical_matches_path": str(historical_matches_path),
+                "training_matches_path": str(training_matches_path),
                 "rows": len(frame),
                 "metrics": metrics,
             },
@@ -91,11 +91,12 @@ def _log_mlflow(model_path: Path, metrics: dict[str, float]) -> None:
 def main() -> None:
     """Run chronological training from the command line."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("historical_matches", type=Path)
+    parser.add_argument(
+        "training_matches", type=Path, nargs="?", default=CURATED_DIR / TRAINING_MATCHES_CSV_NAME
+    )
     parser.add_argument("--model-path", type=Path, default=MODELS_DIR / "match_winner.pkl")
-    parser.add_argument("--state-path", type=Path, default=FEATURE_STATE_PATH)
     arguments = parser.parse_args()
-    metrics = train(arguments.historical_matches, arguments.model_path, arguments.state_path)
+    metrics = train(arguments.training_matches, arguments.model_path)
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
