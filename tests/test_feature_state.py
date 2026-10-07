@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 import pandas as pd
@@ -74,6 +75,34 @@ def test_checkpoint_continues_incremental_calculation(tmp_path) -> None:
     actual = FeatureState.load(checkpoint).apply_result(second)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("wins", -1), ("rating", float("inf")), ("rank", 0)],
+)
+def test_checkpoint_rejects_invalid_player_values(tmp_path, field, value) -> None:
+    state = FeatureState()
+    state.apply_result(pd.Series(_match(1, "a", "Alice", "b", "Bob")))
+    path = tmp_path / "state.json"
+    state.save(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["players"]["a"][field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        FeatureState.load(path)
+
+
+def test_checkpoint_rejects_history_after_cutoff(tmp_path) -> None:
+    state = FeatureState()
+    state.apply_result(pd.Series(_match(1, "a", "Alice", "b", "Bob")))
+    path = tmp_path / "state.json"
+    state.save(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["players"]["a"]["history"][0]["played_on"] = "2026-01-02"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="cutoff"):
+        FeatureState.load(path)
 
 
 def test_pandas_timestamps_are_saved_as_calendar_dates() -> None:

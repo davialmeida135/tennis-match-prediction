@@ -4,63 +4,27 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from pipelines.shared.contracts import FutureMatchRequest
-
-INITIAL_ELO = 1500.0
-STATE_VERSION = 1
-FEATURE_COLUMNS = (
-    "overall_elo_diff",
-    "surface_elo_diff",
-    "rank_log_advantage",
-    "points_log_diff",
-    "form_10_diff",
-    "surface_form_10_diff",
-    "minutes_7d_diff",
-    "matches_14d_diff",
-    "age_diff",
-    "h2h_log_odds",
-    "experience_log_diff",
-    "ace_rate_diff",
-    "double_fault_rate_diff",
-    "service_points_won_diff",
+from pipelines.shared.contracts import (
+    FEATURE_COLUMNS as FEATURE_COLUMNS,
+)
+from pipelines.shared.contracts import (
+    INITIAL_ELO,
+    FeatureStateCheckpoint,
+    FutureMatchRequest,
+    PlayedMatch,
+    PlayerState,
+)
+from pipelines.shared.contracts import (
+    TRAINING_MATCHES as TRAINING_MATCHES,
 )
 
-
-@dataclass
-class PlayedMatch:
-    """The minimal past result retained for rolling windows and workload."""
-
-    played_on: str
-    surface: str
-    won: bool
-    minutes: float
-
-
-@dataclass
-class PlayerState:  # pylint: disable=too-many-instance-attributes
-    """All pre-match information accumulated for a player."""
-
-    name: str
-    rating: float = INITIAL_ELO
-    surface_ratings: dict[str, float] = field(default_factory=dict)
-    wins: int = 0
-    losses: int = 0
-    h2h_wins: dict[str, int] = field(default_factory=dict)
-    history: list[PlayedMatch] = field(default_factory=list)
-    serve_points: float = 0.0
-    aces: float = 0.0
-    double_faults: float = 0.0
-    service_points_won: float = 0.0
-    rank: float | None = None
-    rank_points: float | None = None
-    age: float | None = None
+STATE_VERSION = 1
 
 
 class FeatureState:
@@ -110,15 +74,21 @@ class FeatureState:
 
     def save(self, path: Path) -> None:
         """Persist a versioned checkpoint used for incremental feature calculation."""
-        path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "version": STATE_VERSION,
             "last_result_date": self.last_result_date.isoformat()
             if self.last_result_date
             else None,
-            "players": {player_id: asdict(player) for player_id, player in self.players.items()},
+            "players": {
+                player_id: player.model_dump(mode="json")
+                for player_id, player in self.players.items()
+            },
         }
-        path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        checkpoint = FeatureStateCheckpoint.model_validate(payload)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(checkpoint.model_dump(mode="json"), sort_keys=True), encoding="utf-8"
+        )
 
     @classmethod
     def load(cls, path: Path) -> FeatureState:
@@ -126,12 +96,10 @@ class FeatureState:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if payload.get("version") != STATE_VERSION:
             raise ValueError("Unsupported feature-state version")
+        checkpoint = FeatureStateCheckpoint.model_validate(payload)
         state = cls()
-        cutoff = payload.get("last_result_date")
-        state.last_result_date = date.fromisoformat(cutoff) if cutoff else None
-        for player_id, values in payload["players"].items():
-            values["history"] = [PlayedMatch(**item) for item in values["history"]]
-            state.players[player_id] = PlayerState(**values)
+        state.last_result_date = checkpoint.last_result_date
+        state.players = checkpoint.players
         return state
 
     def _resolve_player(self, name: str) -> PlayerState:
@@ -194,7 +162,13 @@ class FeatureState:
         player.losses += int(not won)
         player.h2h_wins[opponent.name] = player.h2h_wins.get(opponent.name, 0) + int(won)
         player.history.insert(
-            0, PlayedMatch(played_on.isoformat(), surface, won, _number(match.get("minutes")))
+            0,
+            PlayedMatch(
+                played_on=played_on.isoformat(),
+                surface=surface,
+                won=won,
+                minutes=_number(match.get("minutes")),
+            ),
         )
         player.history = player.history[:50]
         player.serve_points += _number(match.get(f"{prefix}_svpt"))
@@ -230,6 +204,9 @@ def build_training_frame(
             }
         )
     frame = pd.DataFrame(rows, columns=[*FEATURE_COLUMNS, "winner", "match_date"])
+    # Empty histories remain usable for feature generation; training enforces its row minimum.
+    if not frame.empty:
+        TRAINING_MATCHES.validate_frame(frame)
     return frame, state
 
 

@@ -223,3 +223,17 @@ workspace.yaml            code locations
 - Map SportDevs fields onto the historical schema so live matches feed features
 - Map appending live snapshots onto the historical dataset
 - Train/validation/test split and retraining pipeline
+## Data contracts
+
+Processing boundaries validate DataFrames without coercing their values. Normalized
+matches require parsed, chronological dates and nonblank player IDs and names.
+Temporal training frames require the ordered feature schema, finite numeric
+features, valid chronological dates, and a non-null binary target. The anonymized
+dataset is validated before its CSV is published.
+
+Feature-state checkpoints use nested Pydantic models on save and load. The existing
+version-one JSON format is preserved; unsupported versions, unknown fields,
+invalid counters, non-finite values, and histories beyond the cutoff are rejected.
+All structured models and DataFrame contracts live in `pipelines/shared/contracts.py`
+and share a Pydantic base class. Player state uses the same models in memory and
+in checkpoints, without duplicate serialization schemas.

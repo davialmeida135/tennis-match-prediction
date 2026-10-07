@@ -7,6 +7,8 @@ reported in the Dagster UI with the numbers that caused it.
 
 from dagster import AssetCheckResult, MetadataValue, asset_check
 
+from pipelines.shared.contracts import NORMALIZED_REQUIRED_COLUMNS
+
 from ..shared.metadata import columns_present, columns_without_nulls
 from ..shared.types import PandasDataFrame
 from .anonymization import (
@@ -28,18 +30,7 @@ from .assets import (
 
 # Columns that must always survive the pipeline: the anonymization step selects
 # exactly this schema and fails loudly when something is missing.
-REQUIRED_COLUMNS = [
-    "tourney_date",
-    "tourney_level",
-    "surface",
-    "score",
-    "draw_size",
-    "match_num",
-    "winner_id",
-    "loser_id",
-    "winner_rank",
-    "loser_rank",
-]
+REQUIRED_COLUMNS = list(NORMALIZED_REQUIRED_COLUMNS)
 
 IMPUTED_COLUMNS = [
     "surface",
@@ -152,10 +143,13 @@ def winrate_features_are_probabilities(
         or winrate_featured_atp_matches[column].max() > 1
     }
     return AssetCheckResult(
-        passed=not offenders,
+        passed=not offenders
+        and len(present) == len(WINRATE_COLUMNS)
+        and not winrate_featured_atp_matches[present].isna().any().any(),
         metadata={
             "columns_checked": MetadataValue.json(present),
             "out_of_range": MetadataValue.json(offenders),
+            "missing_columns": MetadataValue.json(sorted(set(WINRATE_COLUMNS).difference(present))),
         },
     )
 
@@ -227,7 +221,7 @@ def target_is_binary(anonymized_matches: PandasDataFrame) -> AssetCheckResult:
     values = sorted(anonymized_matches[TARGET_COLUMN].dropna().unique().tolist())
     unexpected = [value for value in values if value not in (0, 1)]
     return AssetCheckResult(
-        passed=not unexpected,
+        passed=not unexpected and not anonymized_matches[TARGET_COLUMN].isna().any(),
         metadata={
             "values": MetadataValue.json(values),
             "unexpected": MetadataValue.json(unexpected),

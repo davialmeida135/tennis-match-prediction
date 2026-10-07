@@ -19,6 +19,7 @@ dependencies = [
     "dagster-webserver>=1.10.15,<1.11",
     # Configuration
     "python-dotenv>=1.0",
+    "pydantic>=2,<3",
     # Experiment tracking and model artifacts.
     "mlflow>=2.20",
 ]

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import requests
+
+from pipelines.shared.contracts import DownloadedSeason
 
 DATA_FILES_URL = "https://stats.tennismylife.org/api/data-files"
 REQUIRED_COLUMNS = frozenset(
@@ -24,16 +25,6 @@ REQUIRED_COLUMNS = frozenset(
         "surface",
     }
 )
-
-
-@dataclass(frozen=True)
-class DownloadedSeason:
-    """Metadata recorded for one downloaded source file."""
-
-    year: int
-    path: Path
-    sha256: str
-    changed: bool
 
 
 class TennisMyLifeClient:

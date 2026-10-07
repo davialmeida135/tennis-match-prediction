@@ -32,6 +32,8 @@ from dagster import (
     asset,
 )
 
+from pipelines.shared.contracts import NORMALIZED_MATCHES, DataFrameContract
+
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
     ANONYMIZED_CSV_NAME,
@@ -41,7 +43,7 @@ from ..shared.paths import (
     write_curated_csv,
 )
 from ..shared.types import PandasDataFrame
-from .anonymization import TARGET_COLUMN, anonymize
+from .anonymization import FINAL_COLUMN_ORDER, TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
 from .feature_state import FEATURE_COLUMNS, attach_temporal_features
 from .transforms.finalization import (
@@ -121,7 +123,9 @@ def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
     frame = remove_matches_without_player_ids(raw_atp_matches)
     frame = preprocess_dates(frame)
     frame = sort_by_date(frame)
-    return transform_seed_data(frame)
+    frame = transform_seed_data(frame)
+    NORMALIZED_MATCHES.validate_frame(frame)
+    return frame
 
 
 @asset(
@@ -281,6 +285,13 @@ def anonymized_matches(
 ) -> PandasDataFrame:
     """Hide which player won and save the training dataset."""
     frame = anonymize(pre_anonymized_matches)
+    DataFrameContract(
+        name="anonymized training matches",
+        required=tuple(FINAL_COLUMN_ORDER),
+        numeric=FEATURE_COLUMNS,
+        target=TARGET_COLUMN,
+        exact_columns=True,
+    ).validate_frame(frame)
     csv_path = write_curated_csv(frame, ANONYMIZED_CSV_NAME)
 
     target_mean = float(frame[TARGET_COLUMN].mean())
