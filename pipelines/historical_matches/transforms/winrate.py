@@ -6,9 +6,6 @@ players played before it.
 
 import pandas as pd
 import polars as pl
-from polars.exceptions import ColumnNotFoundError
-
-from .history_utils import _get_previous_matches
 
 
 def calcular_winrate_total(df: pl.DataFrame) -> pd.DataFrame:
@@ -94,10 +91,7 @@ def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
 
     # Ensure DataFrame is Polars
     if not isinstance(df, pl.DataFrame):
-        try:
-            df = pl.from_pandas(df)
-        except Exception as e:
-            raise TypeError(f"Input must be a Polars or Pandas DataFrame. Conversion failed: {e}")
+        df = pl.from_pandas(df)
 
     # --- Essential Columns Check ---
     required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id"]
@@ -107,14 +101,9 @@ def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    try:
-        df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-            "original_order"
-        )
-    except ColumnNotFoundError as e:
-        raise ValueError(
-            f"Sorting failed. Ensure 'tourney_date', 'tourney_id', and 'match_num' columns exist and are sortable. Original error: {e}"
-        )
+    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
+        "original_order"
+    )
 
     # --- Melt to Long Format ---
     winners = df_sorted.select(
@@ -204,10 +193,7 @@ def calcular_winrate_superficie(df: pl.DataFrame) -> pd.DataFrame:
 
     # Ensure DataFrame is Polars
     if not isinstance(df, pl.DataFrame):
-        try:
-            df = pl.from_pandas(df)
-        except Exception as e:
-            raise TypeError(f"Input must be a Polars or Pandas DataFrame. Conversion failed: {e}")
+        df = pl.from_pandas(df)
 
     # --- Essential Columns Check ---
     required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id", "surface"]
@@ -217,14 +203,9 @@ def calcular_winrate_superficie(df: pl.DataFrame) -> pd.DataFrame:
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    try:
-        df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-            "original_order"
-        )
-    except ColumnNotFoundError as e:
-        raise ValueError(
-            f"Sorting failed. Ensure 'tourney_date' and 'match_num' columns exist and are sortable. Original error: {e}"
-        )
+    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
+        "original_order"
+    )
 
     # --- Melt to Long Format ---
     # One row per player per match, including the surface
@@ -321,10 +302,7 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
 
     # Ensure DataFrame is Polars
     if not isinstance(df, pl.DataFrame):
-        try:
-            df = pl.from_pandas(df)
-        except Exception as e:
-            raise TypeError(f"Input must be a Polars or Pandas DataFrame. Conversion failed: {e}")
+        df = pl.from_pandas(df)
 
     # --- Essential Columns Check ---
     required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id", "surface"]
@@ -334,14 +312,9 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
 
     # --- Sort and Add Index ---
     # Ensure correct sorting for window functions
-    try:
-        df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
-            "original_order"
-        )
-    except ColumnNotFoundError as e:
-        raise ValueError(
-            f"Sorting failed. Ensure 'tourney_date', 'tourney_id', and 'match_num' columns exist and are sortable. Original error: {e}"
-        )
+    df_sorted = df.sort("tourney_date", "tourney_id", "match_num").with_row_index(
+        "original_order"
+    )
 
     # --- Melt to Long Format ---
     # One row per player per match, including the surface
@@ -424,51 +397,3 @@ def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.D
     ).drop("original_order")  # Remove the temporary index
 
     return final_df.to_pandas()
-
-
-def calcular_winrate_torneio(df):
-    """
-    Calculate winrate for each player in a specific tournament before each match
-    """
-    print("Calculando winrate para cada jogador em cada torneio")
-    df["winner_winrate_tournament"] = 0.0
-    df["loser_winrate_tournament"] = 0.0
-
-    for index, row in df.iterrows():
-        winner_id = row["winner_id"]
-        loser_id = row["loser_id"]
-        tourney_id = row["tourney_id"]
-
-        winner_matches, loser_matches = _get_previous_matches(df, row)
-        # Get previous tournament matches for winner
-        winner_matches = winner_matches[winner_matches["tourney_id"] == tourney_id]
-
-        if len(winner_matches) > 0:
-            winner_wins = len(winner_matches[winner_matches["winner_id"] == winner_id])
-            winner_winrate = winner_wins / len(winner_matches)
-            df.loc[index, "winner_winrate_tournament"] = winner_winrate
-
-        # Get previous tournament matches for loser
-        loser_matches = loser_matches[loser_matches["tourney_id"] == tourney_id]
-
-        if len(loser_matches) > 0:
-            loser_wins = len(loser_matches[loser_matches["winner_id"] == loser_id])
-            loser_winrate = loser_wins / len(loser_matches)
-            df.loc[index, "loser_winrate_tournament"] = loser_winrate
-
-    return df
-
-
-def calcular_todas_winrates(df):
-    """
-    Calculate all winrate statistics for players
-    """
-    df = calcular_winrate_total(df)
-    # df = calcular_winrate_ultimas_n(df, n=50)
-    # df = calcular_winrate_ultimas_n(df, n=10)
-    # df = calcular_winrate_superficie(df)
-    # df = calcular_winrate_superficie_ultimas_n(df, n=50)
-    # df = calcular_winrate_superficie_ultimas_n(df, n=10)
-    # df = calcular_winrate_torneio(df)
-
-    return df

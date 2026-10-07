@@ -1,6 +1,6 @@
 """Dagster entry point of the historical matches pipeline (loaded by workspace.yaml).
 
-Running it materializes the whole chain: Kaggle CSV -> curated dataset ->
+Running it materializes the whole chain: ATP CSV -> curated dataset ->
 data/curated/pre_anonymized_matches.csv -> data/curated/anonymized_matches.csv.
 """
 

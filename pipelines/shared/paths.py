@@ -5,7 +5,7 @@ predictable and there is a single place to change it.
 
     data/
       raw/
-        historical_matches/   input CSVs downloaded from Kaggle (tracked in git)
+        historical_matches/   annual TennisMyLife CSVs and consolidated input
       staging/                one parquet snapshot per Dagster asset (IO manager)
       curated/                the datasets handed to the ML step:
                               pre_anonymized_matches.csv and anonymized_matches.csv
@@ -47,25 +47,9 @@ ANONYMIZED_CSV_NAME = "anonymized_matches.csv"
 TEMPORAL_FEATURES_CSV_NAME = "temporal_features.csv"
 
 
-def ensure_dir(path: Path) -> Path:
-    """Create `path` (including parents) when missing and return it."""
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def staging_snapshot_path(asset_name: str) -> Path:
-    """Parquet snapshot written by the IO manager for a given asset."""
-    return STAGING_DIR / f"{asset_name}.parquet"
-
-
-def curated_dataset_path(file_name: str = PRE_ANONYMIZED_CSV_NAME) -> Path:
-    """CSV path of a dataset in data/curated, ready to be read by the ML step."""
-    return CURATED_DIR / file_name
-
-
 def write_curated_csv(frame: pd.DataFrame, file_name: str) -> Path:
     """Write `frame` under data/curated as `file_name` and return the path."""
-    path = curated_dataset_path(file_name)
-    ensure_dir(path.parent)
+    path = CURATED_DIR / file_name
+    path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(path, index=False)
     return path

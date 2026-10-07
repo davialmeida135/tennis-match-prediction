@@ -11,17 +11,13 @@ import numpy as np
 import pandas as pd
 
 from pipelines.shared.contracts import (
-    FEATURE_COLUMNS as FEATURE_COLUMNS,
-)
-from pipelines.shared.contracts import (
+    FEATURE_COLUMNS,
     INITIAL_ELO,
+    TRAINING_MATCHES,
     FeatureStateCheckpoint,
     FutureMatchRequest,
     PlayedMatch,
     PlayerState,
-)
-from pipelines.shared.contracts import (
-    TRAINING_MATCHES as TRAINING_MATCHES,
 )
 
 STATE_VERSION = 1
@@ -189,7 +185,7 @@ def build_training_frame(
     matches: pd.DataFrame, *, random_seed: int = 42
 ) -> tuple[pd.DataFrame, FeatureState]:
     """Build a balanced, pre-match feature frame and its resulting state checkpoint."""
-    temporal_features, state = build_temporal_match_features(matches)
+    temporal_features, state = _temporal_features_by_row(matches)
     generator = np.random.default_rng(random_seed)
     rows: list[dict[str, float | int | str]] = []
     for _, match in temporal_features.iterrows():
@@ -208,14 +204,6 @@ def build_training_frame(
     if not frame.empty:
         TRAINING_MATCHES.validate_frame(frame)
     return frame, state
-
-
-def build_temporal_match_features(
-    matches: pd.DataFrame,
-) -> tuple[pd.DataFrame, FeatureState]:
-    """Build winner-minus-loser temporal features keyed to their source match."""
-    frame, state = _temporal_features_by_row(matches)
-    return frame.reset_index(drop=True), state
 
 
 def attach_temporal_features(

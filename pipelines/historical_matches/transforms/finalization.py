@@ -1,7 +1,6 @@
 """Last pass before anonymization: encode categoricals, drop leaky statistics."""
 
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 
 ROUND_CODES = {"F": 0, "SF": 1, "QF": 2, "R16": 3, "R32": 4, "R64": 5, "R128": 6, "RR": 3}
 TOURNEY_LEVEL_CODES = {"D": 0, "A": 1, "M": 2, "G": 3, "F": 4}
@@ -49,10 +48,10 @@ def encode_surface(df: pd.DataFrame) -> pd.DataFrame:
     # Historical ATP data includes carpet matches. They remain represented as
     # all-zero surface indicators because the model schema intentionally only
     # contains Hard, Clay, and Grass, while future/unseen surfaces must not fail.
-    encoder = OneHotEncoder(sparse_output=False, categories=[SURFACES], handle_unknown="ignore")
-    encoded = encoder.fit_transform(df[["surface"]])
-    encoded_frame = pd.DataFrame(encoded, columns=SURFACE_COLUMNS, index=df.index)
-    return df.join(encoded_frame)
+    result = df.copy()
+    for surface, column in zip(SURFACES, SURFACE_COLUMNS, strict=True):
+        result[column] = df["surface"].eq(surface).fillna(False).astype(float)
+    return result
 
 
 def transform_round(df: pd.DataFrame) -> pd.DataFrame:

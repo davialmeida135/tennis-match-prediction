@@ -130,10 +130,12 @@ class DataFrameContract(ContractModel):
             errors.append("column set or order does not match the contract")
         for column in self.numeric:
             values = frame[column]
-            if not is_numeric_dtype(values.dtype):
-                errors.append(f"{column}: expected numeric dtype")
-            elif values.isna().any() or not np.isfinite(values.to_numpy(dtype=float)).all():
-                errors.append(f"{column}: expected finite, non-null values")
+            if (
+                not is_numeric_dtype(values.dtype)
+                or values.isna().any()
+                or not np.isfinite(values.to_numpy(dtype=float)).all()
+            ):
+                errors.append(f"{column}: expected numeric dtype with finite, non-null values")
         for column in self.identifiers:
             values = frame[column].astype("string")
             if values.isna().any() or values.str.strip().eq("").any():

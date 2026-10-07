@@ -8,7 +8,7 @@ Layout: `<base_dir>/<asset_name>.parquet`, so `data/staging/elo_featured_atp_mat
 holds the snapshot of the asset named `elo_featured_atp_matches`.
 """
 
-import os
+from pathlib import Path
 
 import pandas as pd
 from dagster import ConfigurableIOManager, InputContext, MetadataValue, OutputContext
@@ -21,22 +21,22 @@ class ParquetDataFrameIOManager(ConfigurableIOManager):
 
     base_dir: str = str(STAGING_DIR)
 
-    def snapshot_path(self, context: InputContext | OutputContext) -> str:
-        return os.path.join(self.base_dir, *context.asset_key.path) + ".parquet"
+    def snapshot_path(self, context: InputContext | OutputContext) -> Path:
+        return Path(self.base_dir).joinpath(*context.asset_key.path).with_suffix(".parquet")
 
     def handle_output(self, context: OutputContext, obj: pd.DataFrame) -> None:
         if not isinstance(obj, pd.DataFrame):
             raise TypeError(f"Expected a pandas DataFrame, got {type(obj).__name__}.")
 
         path = self.snapshot_path(context)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         obj.to_parquet(path, index=False)
         context.log.info(f"Snapshot written to {path}")
-        context.add_output_metadata({"snapshot_path": MetadataValue.path(path)})
+        context.add_output_metadata({"snapshot_path": MetadataValue.path(str(path))})
 
     def load_input(self, context: InputContext) -> pd.DataFrame:
         path = self.snapshot_path(context)
-        if not os.path.exists(path):
+        if not path.exists():
             raise FileNotFoundError(
                 f"No parquet snapshot for asset {context.asset_key.to_user_string()} at {path}. "
                 "Materialize the upstream asset before running the downstream one."

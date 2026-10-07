@@ -1,6 +1,6 @@
 """Assets that turn the raw ATP match history into the training dataset.
 
-    raw_atp_matches                     read the Kaggle CSV
+    raw_atp_matches                     read the consolidated ATP CSV
       -> normalized_atp_matches         dates, chronological order, seed parsing
       -> temporal_training_matches      temporal features attached to source rows
       -> imputed_atp_matches            null height / age / rank / surface filled
@@ -32,7 +32,7 @@ from dagster import (
     asset,
 )
 
-from pipelines.shared.contracts import NORMALIZED_MATCHES, DataFrameContract
+from pipelines.shared.contracts import FEATURE_COLUMNS, NORMALIZED_MATCHES, DataFrameContract
 
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
@@ -42,10 +42,9 @@ from ..shared.paths import (
     TEMPORAL_FEATURES_CSV_NAME,
     write_curated_csv,
 )
-from ..shared.types import PandasDataFrame
 from .anonymization import FINAL_COLUMN_ORDER, TARGET_COLUMN, anonymize
 from .config import RawMatchesCsv
-from .feature_state import FEATURE_COLUMNS, attach_temporal_features
+from .feature_state import attach_temporal_features
 from .transforms.finalization import (
     encode_surface,
     remove_stat_cols,
@@ -87,11 +86,11 @@ DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
     group_name="raw",
     kinds={"csv", "pandas"},
     tags={**DOMAIN_TAGS, "layer": "raw"},
-    description="ATP match results exactly as published on Kaggle (one row per finished match).",
+    description="ATP match results from the consolidated source CSV (one row per finished match).",
 )
 def raw_atp_matches(
     context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv
-) -> PandasDataFrame:
+) -> pd.DataFrame:
     """Read the raw match history CSV. Root of the pipeline: materialized by hand."""
     csv_path = Path(raw_matches_csv.csv_path)
     if not csv_path.exists():
@@ -118,7 +117,7 @@ def raw_atp_matches(
     description="Tourney dates parsed, matches sorted chronologically, seeds expanded into flags.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
+def normalized_atp_matches(raw_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Make the dataset chronological and split the seed columns into numeric + flags."""
     frame = remove_matches_without_player_ids(raw_atp_matches)
     frame = preprocess_dates(frame)
@@ -139,8 +138,8 @@ def normalized_atp_matches(raw_atp_matches: PandasDataFrame) -> PandasDataFrame:
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def temporal_training_matches(
-    context: AssetExecutionContext, normalized_atp_matches: PandasDataFrame
-) -> PandasDataFrame:
+    context: AssetExecutionContext, normalized_atp_matches: pd.DataFrame
+) -> pd.DataFrame:
     """Build keyed winner-minus-loser features and checkpoint from completed results."""
     frame, temporal, state = attach_temporal_features(normalized_atp_matches)
     csv_path = write_curated_csv(temporal, TEMPORAL_FEATURES_CSV_NAME)
@@ -164,7 +163,7 @@ def temporal_training_matches(
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def imputed_atp_matches(temporal_training_matches: PandasDataFrame) -> PandasDataFrame:
+def imputed_atp_matches(temporal_training_matches: pd.DataFrame) -> pd.DataFrame:
     """Replace nulls so downstream feature engineering never has to guard against them."""
     frame = fill_null_surface(temporal_training_matches)
     frame = fill_null_height(frame)
@@ -179,7 +178,7 @@ def imputed_atp_matches(temporal_training_matches: PandasDataFrame) -> PandasDat
     description="Win rates over the last 10/50 matches, overall and per surface.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def winrate_featured_atp_matches(imputed_atp_matches: PandasDataFrame) -> PandasDataFrame:
+def winrate_featured_atp_matches(imputed_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Attach rolling win-rate features computed only from earlier matches."""
     frame = calcular_winrate_total(imputed_atp_matches)
     frame = calcular_winrate_ultimas_n(frame, n=50)
@@ -196,7 +195,7 @@ def winrate_featured_atp_matches(imputed_atp_matches: PandasDataFrame) -> Pandas
     description="Number of previous meetings between the two players.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def h2h_featured_atp_matches(winrate_featured_atp_matches: PandasDataFrame) -> PandasDataFrame:
+def h2h_featured_atp_matches(winrate_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Attach the head-to-head history of each matchup."""
     return calcular_h2h(winrate_featured_atp_matches)
 
@@ -208,7 +207,7 @@ def h2h_featured_atp_matches(winrate_featured_atp_matches: PandasDataFrame) -> P
     description="Elo rating per player plus the pre-match rating difference.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def elo_featured_atp_matches(h2h_featured_atp_matches: PandasDataFrame) -> PandasDataFrame:
+def elo_featured_atp_matches(h2h_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Attach Elo ratings, which double as the baseline the model has to beat."""
     return calcular_elo(h2h_featured_atp_matches)
 
@@ -225,8 +224,8 @@ def elo_featured_atp_matches(h2h_featured_atp_matches: PandasDataFrame) -> Panda
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def curated_atp_matches(
-    elo_featured_atp_matches: PandasDataFrame,
-) -> PandasDataFrame:
+    elo_featured_atp_matches: pd.DataFrame,
+) -> pd.DataFrame:
     """Produce the pre-anonymization dataset."""
     frame = remove_wo(elo_featured_atp_matches)
     if (
@@ -255,8 +254,8 @@ def curated_atp_matches(
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def pre_anonymized_matches(
-    context: AssetExecutionContext, curated_atp_matches: PandasDataFrame
-) -> PandasDataFrame:
+    context: AssetExecutionContext, curated_atp_matches: pd.DataFrame
+) -> pd.DataFrame:
     """Save the curated dataset as the pre-anonymization CSV."""
     csv_path = write_curated_csv(curated_atp_matches, PRE_ANONYMIZED_CSV_NAME)
     context.log.info(f"Wrote {len(curated_atp_matches)} rows to {csv_path}")
@@ -281,8 +280,8 @@ def pre_anonymized_matches(
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def anonymized_matches(
-    context: AssetExecutionContext, pre_anonymized_matches: PandasDataFrame
-) -> PandasDataFrame:
+    context: AssetExecutionContext, pre_anonymized_matches: pd.DataFrame
+) -> pd.DataFrame:
     """Hide which player won and save the training dataset."""
     frame = anonymize(pre_anonymized_matches)
     DataFrameContract(

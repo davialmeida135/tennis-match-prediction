@@ -6,12 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pipelines.historical_matches.feature_state import (
-    FEATURE_COLUMNS,
-    TRAINING_MATCHES,
-    FeatureState,
-)
-from pipelines.shared.contracts import NORMALIZED_MATCHES
+from pipelines.historical_matches.feature_state import FeatureState
+from pipelines.shared.contracts import FEATURE_COLUMNS, NORMALIZED_MATCHES, TRAINING_MATCHES
 
 
 @pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, "1"])

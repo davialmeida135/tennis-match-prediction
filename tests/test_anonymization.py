@@ -7,7 +7,7 @@ from pipelines.historical_matches.anonymization import (
     SIGNED_MATCH_COLUMNS,
     anonymize,
 )
-from pipelines.historical_matches.feature_state import FEATURE_COLUMNS
+from pipelines.shared.contracts import FEATURE_COLUMNS
 
 
 def test_temporal_features_are_in_final_dataset_and_follow_random_player_order() -> None:

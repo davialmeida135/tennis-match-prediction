@@ -13,7 +13,8 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from pipelines.historical_matches.feature_state import FEATURE_COLUMNS, build_training_frame
+from pipelines.historical_matches.feature_state import build_training_frame
+from pipelines.shared.contracts import FEATURE_COLUMNS
 from pipelines.shared.paths import FEATURE_STATE_PATH, MODELS_DIR
 
 

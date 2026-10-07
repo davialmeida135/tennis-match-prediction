@@ -1,9 +1,4 @@
-"""Helpers that describe a DataFrame once, for Dagster metadata and for W&B.
-
-`dataframe_profile` returns plain Python so the exact same information can be
-attached to a Dagster materialization (`dagster_metadata`) and to a W&B artifact
-(`profile`), without duplicating the logic.
-"""
+"""DataFrame profiles and validation summaries displayed in Dagster."""
 
 import math
 from typing import Any

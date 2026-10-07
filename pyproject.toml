@@ -92,8 +92,7 @@ max-line-length = 100
 
 [tool.pylint."messages control"]
 # Historical transforms are pre-Dagster code carried over from the original ETL
-# scripts. Several helpers there are unreachable and carry upstream FIXMEs; the
-# linting budget goes to the pipeline definition layer instead.
+# scripts. Pylint focuses on the pipeline definition layer; Ruff checks all modules.
 ignore-paths = ["pipelines/historical_matches/transforms/"]
 
 [tool.pytest.ini_options]

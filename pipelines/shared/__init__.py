@@ -1,9 +1,9 @@
-"""Reusable building blocks shared by every Dagster pipeline in this project.
+"""Shared data contracts, paths, and Dagster storage helpers.
 
 Modules
 -------
 paths          Canonical filesystem layout (raw inputs, staging snapshots, curated CSVs).
-types          Shared type aliases used in asset signatures.
+contracts      Pydantic models, feature names, and DataFrame contracts.
 metadata       Helpers that turn a DataFrame into Dagster friendly metadata.
 parquet_io     ParquetDataFrameIOManager, the IO manager behind data/staging/.
 """
