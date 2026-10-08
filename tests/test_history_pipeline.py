@@ -146,7 +146,9 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
             [*ASSETS, *ASSET_CHECKS],
             instance=instance,
             resources={
-                "io_manager": ParquetDataFrameIOManager(base_dir=str(staging)),
+                "io_manager": ParquetDataFrameIOManager(
+                    base_dir=str(staging), curated_base_dir=str(tmp_path / "curated")
+                ),
                 "raw_matches_csv": RawMatchesCsv(csv_path=str(csv_path), refresh=False),
             },
         )
@@ -167,7 +169,7 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     pd.testing.assert_frame_equal(
         comparisons[list(FEATURE_COLUMNS)], expected[list(FEATURE_COLUMNS)]
     )
-    snapshot = pd.read_parquet(staging / "player_history.parquet")
+    snapshot = pd.read_parquet(tmp_path / "curated" / "player_history.parquet")
     assert PlayerHistory.model_validate_json(snapshot.loc[0, "history"]) == history
 
     # Training consumes only the published rows; prediction consumes only the asset snapshot.
@@ -190,9 +192,8 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
             player0_name="Alice", player1_name="Bob", match_date="2027-01-01", surface="Hard"
         ),
         model_path,
-        staging / "player_history.parquet",
+        tmp_path / "curated" / "player_history.parquet",
     )
     assert prediction.player0_win_probability + prediction.player1_win_probability == 1
     assert prediction.history_source_date == history.last_source_date
-    for name in (paths.CURATED_MATCHES_CSV_NAME, paths.PLAYER_COMPARISON_CSV_NAME):
-        assert len(pd.read_csv(tmp_path / "curated" / name)) == 200
+    assert len(pd.read_csv(tmp_path / "curated" / paths.CURATED_MATCHES_CSV_NAME)) == 200

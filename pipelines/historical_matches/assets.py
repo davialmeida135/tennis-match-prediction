@@ -26,7 +26,6 @@ from pipelines.shared.contracts import (
 from ..shared.metadata import dataframe_metadata
 from ..shared.paths import (
     CURATED_MATCHES_CSV_NAME,
-    PLAYER_COMPARISON_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,
     write_curated_csv,
 )
@@ -135,10 +134,15 @@ def normalized_atp_matches(raw_atp_matches: pd.DataFrame) -> pd.DataFrame:
 
 @multi_asset(
     outs={
-        "player_comparison_atp_matches": AssetOut(automation_condition=WHEN_INPUT_CHANGES),
-        "player_history": AssetOut(automation_condition=WHEN_INPUT_CHANGES),
+        "player_comparison_atp_matches": AssetOut(
+            group_name="features", automation_condition=WHEN_INPUT_CHANGES
+        ),
+        "player_history": AssetOut(
+            group_name="publish",
+            description="Accumulated player state for future match predictions.",
+            automation_condition=WHEN_INPUT_CHANGES,
+        ),
     },
-    group_name="features",
 )
 def player_comparison_atp_matches(
     normalized_atp_matches: pd.DataFrame,
@@ -329,23 +333,3 @@ def training_atp_matches_csv(
         }
     )
     return training_atp_matches
-
-
-@asset(
-    group_name="publish",
-    kinds={"csv", "pandas"},
-    tags={**DOMAIN_TAGS, "layer": "publish"},
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def player_comparison_atp_matches_csv(
-    context: AssetExecutionContext, player_comparison_atp_matches: pd.DataFrame
-) -> pd.DataFrame:
-    """Publish the keyed pre-match player comparisons for inspection."""
-    columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS]
-    frame = player_comparison_atp_matches[columns].copy()
-    frame["tourney_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime("%Y-%m-%d")
-    csv_path = write_curated_csv(frame, PLAYER_COMPARISON_CSV_NAME)
-    context.add_output_metadata(
-        {"csv_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}
-    )
-    return frame

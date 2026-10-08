@@ -101,8 +101,7 @@ raw_atp_matches
 ```
 
 `curated_atp_matches_csv` publishes the readable curated dataset directly from
-`curated_atp_matches`. `player_comparison_atp_matches_csv` publishes the comparison
-columns directly from `player_comparison_atp_matches`. These exports are branches;
+`curated_atp_matches`. The curated and training exports are branches;
 training-row construction does not depend on CSV publication.
 
 - `transforms/history.py` supplies source-date parsing, numeric match-number ordering,
@@ -190,7 +189,7 @@ Empty, duplicate, or unknown feature selections are rejected. Ordered feature
 names are saved in the model and JSON metadata and logged in MLflow alongside
 the feature count. Prediction uses the saved model's feature selection.
 It rejects raw history and unordered training rows instead of rebuilding features.
-`ml.predict` reads `data/staging/player_history.parquet`, produced together with
+`ml.predict` reads `data/curated/player_history.parquet`, produced together with
 `player_comparison_atp_matches` in one chronological pass. Prediction uses the
 same comparison formulas and requires a date after the asset's latest source date.
 The history asset contains a validated JSON payload inside Parquet, persisted by
@@ -211,7 +210,7 @@ automation condition sensor in Dagster. The root asset is triggered manually.
 | `data/raw/historical_matches/` | Annual CSVs, source manifest, and `all_atp_matches.csv` |
 | `data/staging/` | One Parquet snapshot per Dagster asset |
 | `data/curated/` | Player comparison, curated and training CSV exports |
-| `data/staging/player_history.parquet` | Player-history asset and latest source date used for prediction |
+| `data/curated/player_history.parquet` | Player-history asset and latest source date used for prediction |
 | `data/models/` | Trained model and metric metadata |
 | `dagster_home/` | Local Dagster configuration and SQLite storage |
 

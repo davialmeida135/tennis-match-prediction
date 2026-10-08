@@ -1,7 +1,7 @@
 """Dagster entry point of the historical matches pipeline (loaded by workspace.yaml).
 
 Running it builds chronological history features, curated and training datasets,
-then publishes comparison, curated and training CSVs on separate branches.
+then publishes curated and training CSVs on separate branches.
 """
 
 from dagster import AssetSelection, Definitions, define_asset_job
@@ -15,7 +15,6 @@ from .assets import (
     imputed_atp_matches,
     normalized_atp_matches,
     player_comparison_atp_matches,
-    player_comparison_atp_matches_csv,
     raw_atp_matches,
     training_atp_matches,
     training_atp_matches_csv,
@@ -51,7 +50,6 @@ ASSETS = [
     curated_atp_matches_csv,
     training_atp_matches,
     training_atp_matches_csv,
-    player_comparison_atp_matches_csv,
 ]
 
 ASSET_CHECKS = [
@@ -85,7 +83,7 @@ defs = Definitions(
     asset_checks=ASSET_CHECKS,
     jobs=[materialize_historical_dataset],
     resources={
-        # Every DataFrame asset is persisted as data/staging/<asset_name>.parquet.
+        # Intermediate snapshots go to staging; prediction history goes to curated.
         "io_manager": ParquetDataFrameIOManager(),
         # Where the raw CSV is read from.
         "raw_matches_csv": RawMatchesCsv(),
