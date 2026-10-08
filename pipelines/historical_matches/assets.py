@@ -252,7 +252,7 @@ def training_atp_matches(
         numeric=FEATURE_COLUMNS,
         target=TARGET_COLUMN,
         exact_columns=True,
-        date_column="match_date",
+        date_column="tourney_date",
     ).validate_frame(frame)
 
     target_mean = float(frame[TARGET_COLUMN].mean())
@@ -333,7 +333,7 @@ def player_comparison_atp_matches_csv(
     """Publish the keyed pre-match player comparisons for inspection."""
     columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS]
     frame = player_comparison_atp_matches[columns].copy()
-    frame["match_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime("%Y-%m-%d")
+    frame["tourney_date"] = player_comparison_atp_matches["tourney_date"].dt.strftime("%Y-%m-%d")
     csv_path = write_curated_csv(frame, PLAYER_COMPARISON_CSV_NAME)
     context.add_output_metadata(
         {"csv_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}

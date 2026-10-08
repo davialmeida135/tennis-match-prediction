@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from .history import order_history, parse_match_date
+from .history import order_history, parse_source_date
 
 WINNER_ENTRY_METHODS = {
     "S": "winner_seeded",
@@ -51,7 +51,7 @@ def remove_matches_without_player_ids(df: pd.DataFrame) -> pd.DataFrame:
 def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Convert the integer `tourney_date` (YYYYMMDD) into a datetime plus week/year."""
     result = df.copy()
-    result["tourney_date"] = pd.to_datetime(result["tourney_date"].map(parse_match_date))
+    result["tourney_date"] = pd.to_datetime(result["tourney_date"].map(parse_source_date))
     result["week"] = result["tourney_date"].dt.isocalendar().week.astype("int64")
     result["year"] = result["tourney_date"].dt.isocalendar().year.astype("int64")
     return result

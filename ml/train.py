@@ -33,7 +33,10 @@ def train(
     if unknown:
         raise ValueError(f"Unknown training features: {sorted(unknown)}")
     contract = TRAINING_MATCHES.model_copy(
-        update={"required": (*feature_columns, "winner", "match_date"), "numeric": feature_columns}
+        update={
+            "required": (*feature_columns, "winner", "tourney_date"),
+            "numeric": feature_columns,
+        }
     )
     matches = pd.read_csv(training_matches_path, low_memory=False)
     missing = set(contract.required).difference(matches.columns)
@@ -58,12 +61,20 @@ def train(
     )
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with model_path.open("wb") as file:
-        pickle.dump({"model": model, "feature_columns": feature_columns}, file)
+        pickle.dump(
+            {
+                "model": model,
+                "feature_columns": feature_columns,
+                "history_order": "source_date_match_num",
+            },
+            file,
+        )
     metadata_path = model_path.with_suffix(".json")
     metadata_path.write_text(
         json.dumps(
             {
                 "feature_columns": feature_columns,
+                "history_order": "source_date_match_num",
                 "training_matches_path": str(training_matches_path),
                 "rows": len(frame),
                 "metrics": metrics,

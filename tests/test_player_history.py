@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from ml.predict import features_for
-from pipelines.historical_matches.transforms.history import parse_match_date
+from pipelines.historical_matches.transforms.history import parse_source_date
 from pipelines.historical_matches.transforms.player_history import attach_temporal_features
 from pipelines.shared.contracts import FutureMatchRequest, PlayerHistory
 
@@ -86,7 +86,7 @@ def test_player_history_rejects_invalid_values(field, value):
 def test_player_history_rejects_future_results():
     _, _, history = attach_temporal_features(pd.DataFrame([_match(1, "a", "Alice", "b", "Bob")]))
     payload = history.model_dump()
-    payload["players"]["a"]["history"][0]["played_on"] = "2026-01-02"
+    payload["players"]["a"]["history"][0]["tourney_date"] = "2026-01-02"
     with pytest.raises(ValueError, match="cutoff"):
         PlayerHistory.model_validate(payload)
 
@@ -103,13 +103,13 @@ def test_player_history_rejects_future_results():
     ],
 )
 def test_match_date_formats_preserve_calendar_date(value: object) -> None:
-    assert parse_match_date(value) == date(2024, 2, 29)
+    assert parse_source_date(value) == date(2024, 2, 29)
 
 
 @pytest.mark.parametrize("value", ["2023-02-29", "20230229", "20241301", "2024-00-01"])
 def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
     with pytest.raises(ValueError):
-        parse_match_date(value)
+        parse_source_date(value)
 
 
 def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
@@ -122,7 +122,7 @@ def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
         train(path, tmp_path / "model.pkl")
     frame = pd.DataFrame({column: [0.0, 0.0] for column in FEATURE_COLUMNS})
     frame["winner"] = [0, 1]
-    frame["match_date"] = ["2026-01-02", "2026-01-01"]
+    frame["tourney_date"] = ["2026-01-02", "2026-01-01"]
     frame.to_csv(path, index=False)
     with pytest.raises(ValueError, match="chronological"):
         train(path, tmp_path / "model.pkl")

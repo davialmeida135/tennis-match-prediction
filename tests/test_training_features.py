@@ -13,7 +13,7 @@ def test_subset_preserves_feature_order_in_model_and_metadata(tmp_path, monkeypa
     selected = ("surface_elo_diff", "overall_elo_diff")
     frame = pd.DataFrame({name: [float(i % 7) for i in range(60)] for name in selected})
     frame["winner"] = [i % 2 for i in range(60)]
-    frame["match_date"] = pd.date_range("2024-01-01", periods=60)
+    frame["tourney_date"] = pd.date_range("2024-01-01", periods=60)
     source = tmp_path / "matches.csv"
     frame.to_csv(source, index=False)
     logged = []

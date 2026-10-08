@@ -17,7 +17,7 @@ from pipelines.shared.contracts import (
 def test_training_rejects_invalid_features(bad_value):
     frame = pd.DataFrame({column: [bad_value] for column in TRAINING_FEATURE_COLUMNS})
     frame["winner"] = 1
-    frame["match_date"] = "2026-01-01"
+    frame["tourney_date"] = "2026-01-01"
     with pytest.raises(ValueError, match="contract failed"):
         TRAINING_MATCHES.validate_frame(frame)
 
@@ -26,7 +26,7 @@ def test_training_rejects_invalid_features(bad_value):
 def test_training_rejects_invalid_target(target):
     frame = pd.DataFrame({column: [0.0] for column in TRAINING_FEATURE_COLUMNS})
     frame["winner"] = target
-    frame["match_date"] = "2026-01-01"
+    frame["tourney_date"] = "2026-01-01"
     with pytest.raises(ValueError, match="binary target"):
         TRAINING_MATCHES.validate_frame(frame)
 
@@ -46,7 +46,7 @@ def test_player_history_rejects_extra_fields(tmp_path):
     path.write_text(
         json.dumps(
             {
-                "last_result_date": None,
+                "last_source_date": None,
                 "players": {},
                 "unexpected": True,
             }
@@ -59,7 +59,7 @@ def test_player_history_rejects_extra_fields(tmp_path):
 
 def test_empty_player_history_round_trip(tmp_path):
     path = tmp_path / "history.json"
-    path.write_text(PlayerHistory(last_result_date=None, players={}).model_dump_json())
+    path.write_text(PlayerHistory(last_source_date=None, players={}).model_dump_json())
     loaded = PlayerHistory.model_validate_json(path.read_text())
     assert loaded.players == {}
-    assert loaded.last_result_date is None
+    assert loaded.last_source_date is None

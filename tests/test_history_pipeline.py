@@ -187,6 +187,6 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
         staging / "player_history.parquet",
     )
     assert prediction.player0_win_probability + prediction.player1_win_probability == 1
-    assert prediction.feature_cutoff == history.last_result_date
+    assert prediction.history_source_date == history.last_source_date
     for name in (paths.CURATED_MATCHES_CSV_NAME, paths.PLAYER_COMPARISON_CSV_NAME):
         assert len(pd.read_csv(tmp_path / "curated" / name)) == 200

@@ -5,7 +5,7 @@ import polars as pl
 
 from pipelines.shared.contracts import INITIAL_ELO
 
-from .history import prepare_history
+from .history import history_batches, prepare_history
 
 
 def elo_delta(rating: float, opponent_rating: float, result: float, matches: int) -> float:
@@ -21,23 +21,29 @@ def calcular_elo(df: pd.DataFrame | pl.DataFrame) -> pd.DataFrame:
     result = prepare_history(source)
     ratings: dict[str, float] = {}
     counts: dict[str, int] = {}
-    winner_ratings: list[float] = []
-    loser_ratings: list[float] = []
-    for match in result.itertuples(index=False):
-        winner, loser = str(match.winner_id), str(match.loser_id)
-        winner_rating = ratings.get(winner, INITIAL_ELO)
-        loser_rating = ratings.get(loser, INITIAL_ELO)
-        winner_ratings.append(winner_rating)
-        loser_ratings.append(loser_rating)
-        ratings[winner] = winner_rating + elo_delta(
-            winner_rating, loser_rating, 1.0, counts.get(winner, 0)
-        )
-        ratings[loser] = loser_rating + elo_delta(
-            loser_rating, winner_rating, 0.0, counts.get(loser, 0)
-        )
-        counts[winner] = counts.get(winner, 0) + 1
-        counts[loser] = counts.get(loser, 0) + 1
-    result["winner_elo"] = pd.Series(winner_ratings, index=result.index, dtype=float)
-    result["loser_elo"] = pd.Series(loser_ratings, index=result.index, dtype=float)
+    winner_ratings = [INITIAL_ELO] * len(result)
+    loser_ratings = [INITIAL_ELO] * len(result)
+    for batch in history_batches(result):
+        updates: dict[str, float] = {}
+        played: dict[str, int] = {}
+        for index, match in batch.iterrows():
+            winner, loser = str(match["winner_id"]), str(match["loser_id"])
+            winner_rating = ratings.get(winner, INITIAL_ELO)
+            loser_rating = ratings.get(loser, INITIAL_ELO)
+            winner_ratings[index] = winner_rating
+            loser_ratings[index] = loser_rating
+            for player, rating, opponent, outcome in (
+                (winner, winner_rating, loser_rating, 1.0),
+                (loser, loser_rating, winner_rating, 0.0),
+            ):
+                updates[player] = updates.get(player, 0.0) + elo_delta(
+                    rating, opponent, outcome, counts.get(player, 0)
+                )
+                played[player] = played.get(player, 0) + 1
+        for player, delta in updates.items():
+            ratings[player] = ratings.get(player, INITIAL_ELO) + delta
+            counts[player] = counts.get(player, 0) + played[player]
+    result["winner_elo"] = winner_ratings
+    result["loser_elo"] = loser_ratings
     result["elo_diff"] = result["winner_elo"] - result["loser_elo"]
     return result

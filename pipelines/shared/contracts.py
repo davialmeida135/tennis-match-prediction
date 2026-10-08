@@ -43,7 +43,7 @@ class Prediction(ContractModel):
     player1_name: str
     player0_win_probability: float = Field(ge=0, le=1)
     player1_win_probability: float = Field(ge=0, le=1)
-    feature_cutoff: date
+    history_source_date: date
     model_path: str
 
 
@@ -54,17 +54,11 @@ NonnegativeInt = Annotated[int, Field(ge=0, strict=True)]
 
 
 class PlayedMatch(ContractModel):
-    """Minimal past result retained for rolling windows and workload."""
+    """Past result in source-date/match-number order; no inferred calendar day."""
 
-    played_on: str
+    tourney_date: date
     surface: str
     won: bool = Field(strict=True)
-    minutes: NonnegativeFloat
-
-    @field_validator("played_on")
-    @classmethod
-    def calendar_date(cls, value: str) -> str:
-        return date.fromisoformat(value).isoformat()
 
 
 class PlayerState(ContractModel):
@@ -87,7 +81,7 @@ class PlayerState(ContractModel):
 
 
 class PlayerHistory(ContractModel):
-    last_result_date: date | None
+    last_source_date: date | None
     players: dict[str, PlayerState]
 
     @model_validator(mode="after")
@@ -95,8 +89,8 @@ class PlayerHistory(ContractModel):
         for player_id, player in self.players.items():
             if not player_id.strip():
                 raise ValueError("player IDs must be nonblank")
-            dates = [date.fromisoformat(item.played_on) for item in player.history]
-            if dates and (self.last_result_date is None or max(dates) > self.last_result_date):
+            dates = [item.tourney_date for item in player.history]
+            if dates and (self.last_source_date is None or max(dates) > self.last_source_date):
                 raise ValueError("player history exceeds the player-history cutoff")
             if dates != sorted(dates, reverse=True):
                 raise ValueError("player history must be newest first")
@@ -201,8 +195,6 @@ FEATURE_COLUMNS = (
     "points_log_diff",
     "form_10_diff",
     "surface_form_10_diff",
-    "minutes_7d_diff",
-    "matches_14d_diff",
     "age_diff",
     "h2h_log_odds",
     "experience_log_diff",

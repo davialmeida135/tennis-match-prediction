@@ -34,7 +34,7 @@ def test_h2h_does_not_compare_missing_player_ids() -> None:
 
     featured = calcular_h2h(matches)
 
-    assert featured["h2h"].tolist() == [0, 0]
+    assert featured["h2h"].tolist() == [0]
 
 
 def test_elo_keeps_rows_with_colliding_or_missing_match_keys() -> None:

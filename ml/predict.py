@@ -23,6 +23,8 @@ def predict(
         raise FileNotFoundError(f"Player history asset not found: {history_path}")
     with model_path.open("rb") as file:
         artifact: dict[str, object] = pickle.load(file)
+    if artifact.get("history_order") != "source_date_match_num":
+        raise ValueError("Model must be retrained with source-date/match-number history")
     snapshot = pd.read_parquet(history_path)
     history = PlayerHistory.model_validate_json(snapshot.loc[0, "history"])
     features = features_for(history, request)
@@ -34,22 +36,22 @@ def predict(
         player1_name=request.player1_name,
         player0_win_probability=1 - probability,
         player1_win_probability=probability,
-        feature_cutoff=history.last_result_date or request.match_date,
+        history_source_date=history.last_source_date,
         model_path=str(model_path),
     )
 
 
 def features_for(history: PlayerHistory, request: FutureMatchRequest) -> dict[str, float]:
     """Calculate a future matchup from the persisted Dagster history asset."""
-    if history.last_result_date is None or request.match_date <= history.last_result_date:
-        raise ValueError("Prediction date must be after the persisted player-history cutoff")
+    if history.last_source_date is None or request.match_date <= history.last_source_date:
+        raise ValueError("Prediction date must be after the persisted history source date")
     players = []
     for name in (request.player0_name, request.player1_name):
         matches = [p for p in history.players.values() if p.name.casefold() == name.casefold()]
         if len(matches) != 1:
             raise ValueError(f"Could not resolve exactly one player named '{name}'")
         players.append(matches[0])
-    return calculate_player_comparison(players[0], players[1], request.match_date, request.surface)
+    return calculate_player_comparison(players[0], players[1], request.surface)
 
 
 def main() -> None:

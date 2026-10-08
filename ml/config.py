@@ -10,8 +10,6 @@ TRAINING_FEATURE_COLUMNS: tuple[str, ...] = (
     "points_log_diff",
     "form_10_diff",
     "surface_form_10_diff",
-    "minutes_7d_diff",
-    "matches_14d_diff",
     "age_diff",
     "h2h_log_odds",
     "experience_log_diff",
@@ -22,9 +20,9 @@ TRAINING_FEATURE_COLUMNS: tuple[str, ...] = (
 
 TRAINING_MATCHES = DataFrameContract(
     name="temporal training matches",
-    required=(*TRAINING_FEATURE_COLUMNS, "winner", "match_date"),
+    required=(*TRAINING_FEATURE_COLUMNS, "winner", "tourney_date"),
     numeric=TRAINING_FEATURE_COLUMNS,
-    date_column="match_date",
+    date_column="tourney_date",
     target="winner",
     exact_columns=True,
 )

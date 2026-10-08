@@ -32,8 +32,6 @@ Algumas features recomendadas
 - points log diff
 - former 10 matches diff
 - surface former 10 diff
-- minutes played 7d diff
-- matches played 14d diff
 - age diff
 - venue elo diff
 - venue former 10 diff
@@ -46,3 +44,7 @@ Algumas features recomendadas
 - serve confirm rate diff
 
 Referencia: https://www.instagram.com/p/DdPLc3Goo6j/
+
+Datas reais das partidas são necessárias antes de reintroduzir features de carga
+em 7/14 dias. `tourney_date` tem granularidade variável; a sequência atual usa a
+data da fonte e `match_num`, com estado anterior compartilhado nos grupos ambíguos.

@@ -1,395 +1,66 @@
-"""Rolling win-rate features (overall and per surface).
-
-Every feature is a lookback: the value attached to a match only uses matches the
-players played before it.
-"""
+"""Win rates using the same source-date/match-number order as Elo and H2H."""
 
 import pandas as pd
 import polars as pl
 
-from .history import prepare_history
+from pipelines.historical_matches.transforms.history import history_batch_ids, prepare_history
 
 
-def calcular_winrate_total(df: pl.DataFrame) -> pd.DataFrame:
-    """
-    Calculate total winrate for each player before each match
-    """
-    # Ensure DataFrame is Polars and sorted chronologically
-    if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
-
-    # --- Essential Columns Check ---
-    required_cols = ["tourney_date", "match_num", "winner_id", "loser_id"]
-    if not all(col in df.columns for col in required_cols):
-        raise ValueError(f"DataFrame missing one or more required columns: {required_cols}")
-
-    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
-
-    # Uma linha para cada jogador, com o resultado da partida
-    # Se o jogador ganhou, won = 1, se perdeu, won = 0
-    winners = df_sorted.select(
-        [pl.col("original_order"), pl.col("winner_id").alias("player_id"), pl.lit(1).alias("won")]
-    )
-    losers = df_sorted.select(
-        [pl.col("original_order"), pl.col("loser_id").alias("player_id"), pl.lit(0).alias("won")]
-    )
-    matches_long = pl.concat([winners, losers]).sort("original_order")
-
-    # Cria 5 colunas: cumulative_wins, cumulative_matches, prev_wins, prev_matches e player_winrate_before
-    matches_long = (
-        matches_long.with_columns(
-            [  # Contar quantas vitórias e quantas partidas o jogador tem
-                pl.col("won").cum_sum().over("player_id").alias("cumulative_wins"),
-                pl.col("player_id").cum_count().over("player_id").alias("cumulative_matches"),
-            ]
-        )
-        .with_columns(
-            [  # Cria as colunas de vitórias e partidas anteriores
-                pl.col("cumulative_wins")
-                .shift(1)
-                .over("player_id")
-                .fill_null(0)
-                .alias("prev_wins"),
-                pl.col("cumulative_matches")
-                .shift(1)
-                .over("player_id")
-                .fill_null(0)
-                .alias("prev_matches"),
-            ]
-        )
-        .with_columns(  # Se o jogador não teve partidas anteriores, o winrate é 0.0
-            pl.when(pl.col("prev_matches") > 0)
-            .then(pl.col("prev_wins") / pl.col("prev_matches"))
-            .otherwise(0.0)
-            .alias("player_winrate_before")
-        )
-    )
-
-    # Filtra as colunas que não são necessárias
-    winner_winrate_df = matches_long.filter(pl.col("won") == 1).select(
-        pl.col("original_order"),
-        pl.col("player_winrate_before").alias("winner_winrate"),  # Creates the column
-    )
-    loser_winrate_df = matches_long.filter(pl.col("won") == 0).select(
-        pl.col("original_order"),
-        pl.col("player_winrate_before").alias("loser_winrate"),  # Creates the column
-    )
-
-    # Coloca as colunas de winrate no DataFrame original
-    final_df = (
-        df_sorted.join(winner_winrate_df, on="original_order", how="left")
-        .join(loser_winrate_df, on="original_order", how="left")
-        .drop("original_order")
-    )
-
-    return final_df.to_pandas()
-
-
-def calcular_winrate_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
-    """
-    Calculate winrate for each player in their last n matches before each match using Polars.
-    """
-    print(f"Calculando winrate para cada jogador nas últimas {n} partidas (Polars)")
-
-    # Ensure DataFrame is Polars
-    if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
-
-    # --- Essential Columns Check ---
-    required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"DataFrame missing required columns: {missing_cols}")
-
-    # --- Sort and Add Index ---
-    # Ensure correct sorting for window functions
-    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
-
-    # --- Melt to Long Format ---
-    winners = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("winner_id").alias("player_id"),
-            pl.lit(1).alias("won"),  # 1 for a win
-        ]
-    )
-    losers = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("loser_id").alias("player_id"),
-            pl.lit(0).alias("won"),  # 0 for a loss
-        ]
-    )
-    # Concatenate and sort by original_order to maintain match sequence before further grouping
-    matches_long = pl.concat([winners, losers]).sort("original_order")
-
-    # --- Calculate Rolling Win Rate ---
-    # Sort by player_id, then original_order for correct window function application.
-    # The window functions will operate over ["player_id"].
-    # The inner sort by original_order ensures chronological processing within each group.
-    grouping_cols = ["player_id"]
-
-    # Calculate wins and matches in the rolling window *before* the current match
-    # by shifting 'won' first, then applying rolling operations.
-    matches_long = matches_long.with_columns(
-        [
-            pl.col("won")
-            .shift(1)
-            .rolling_sum(window_size=n, min_samples=1)
-            .over(grouping_cols)
-            .alias("prev_n_wins"),
-            pl.col("won")
-            .shift(1)
-            .is_not_null()
-            .cast(pl.Int8)
-            .rolling_sum(window_size=n, min_samples=1)
-            .over(grouping_cols)
-            .alias("prev_n_matches"),
-        ]
-    )
-
-    # Calculate win rate based on the stats from previous n matches
-    matches_long = matches_long.with_columns(
-        pl.when(pl.col("prev_n_matches") > 0)
-        .then(pl.col("prev_n_wins") / pl.col("prev_n_matches"))
-        .otherwise(0.0)  # Default winrate is 0.0 if no qualifying previous n matches
-        .alias(f"player_winrate_last_{n}_before")
-    )
-
-    # --- Join Back to Original Shape ---
-    winrate_col_name = f"player_winrate_last_{n}_before"
-    winner_alias = f"winner_winrate_last_{n}"
-    loser_alias = f"loser_winrate_last_{n}"
-
-    # Select winner winrate
-    winner_winrate_df = matches_long.filter(pl.col("won") == 1).select(
-        pl.col("original_order"), pl.col(winrate_col_name).alias(winner_alias)
-    )
-
-    # Select loser winrate
-    loser_winrate_df = matches_long.filter(pl.col("won") == 0).select(
-        pl.col("original_order"), pl.col(winrate_col_name).alias(loser_alias)
-    )
-
-    # Join back to the original sorted DataFrame
-    final_df = df_sorted.join(winner_winrate_df, on="original_order", how="left").join(
-        loser_winrate_df, on="original_order", how="left"
-    )
-
-    # --- Cleanup and Return ---
-    # Fill potential nulls created by the join if a player had no prior matches
-    final_df = final_df.with_columns(
-        [pl.col(winner_alias).fill_null(0.0), pl.col(loser_alias).fill_null(0.0)]
-    ).drop("original_order")  # Remove the temporary index
-
-    return final_df.to_pandas()
-
-
-def calcular_winrate_superficie(df: pl.DataFrame) -> pd.DataFrame:
-    """
-    Calculate winrate for each player on a specific surface before each match using Polars.
-    """
-    print("Calculando winrate para cada jogador em cada superficie (Polars)")
-
-    # Ensure DataFrame is Polars
-    if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
-
-    # --- Essential Columns Check ---
-    required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id", "surface"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"DataFrame missing required columns: {missing_cols}")
-
-    # --- Sort and Add Index ---
-    # Ensure correct sorting for window functions
-    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
-
-    # --- Melt to Long Format ---
-    # One row per player per match, including the surface
-    winners = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("winner_id").alias("player_id"),
-            pl.col("surface"),
-            pl.lit(1).alias("won"),  # 1 for a win
-        ]
-    )
-    losers = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("loser_id").alias("player_id"),
-            pl.col("surface"),
-            pl.lit(0).alias("won"),  # 0 for a loss
-        ]
-    )
-    matches_long = pl.concat([winners, losers]).sort("original_order")
-
-    # --- Calculate Cumulative Win Rate per Surface ---
-    # Group by player_id AND surface for these calculations
-    grouping_cols = ["player_id", "surface"]
-
-    matches_long = (
-        matches_long.with_columns(
+def _attach_winrates(
+    df: pd.DataFrame | pl.DataFrame, *, n: int | None, by_surface: bool
+) -> pd.DataFrame:
+    """Read the prior batch's results, then append outcomes for the next batch."""
+    if n is not None and n < 1:
+        raise ValueError("Win-rate window must be positive")
+    result = prepare_history(df.to_pandas() if isinstance(df, pl.DataFrame) else df)
+    suffix = "_surface" if by_surface else ""
+    if n is not None:
+        suffix += f"_last_{n}"
+    batches = history_batch_ids(result)
+    long = pl.from_pandas(
+        pd.concat(
             [
-                pl.col("won").cum_sum().over(grouping_cols).alias("cumulative_wins_surface"),
-                pl.col("player_id")
-                .cum_count()
-                .over(grouping_cols)
-                .alias("cumulative_matches_surface"),
-            ]
+                pd.DataFrame(
+                    {
+                        "row": result.index,
+                        "batch": batches,
+                        "player": result[f"{side}_id"].astype(str),
+                        "surface": result["surface"] if by_surface else "",
+                        "won": won,
+                    }
+                )
+                for side, won in (("winner", 1), ("loser", 0))
+            ],
+            ignore_index=True,
         )
-        .with_columns(
-            [
-                pl.col("cumulative_wins_surface")
-                .shift(1)
-                .over(grouping_cols)
-                .fill_null(0)
-                .alias("prev_wins_surface"),
-                pl.col("cumulative_matches_surface")
-                .shift(1)
-                .over(grouping_cols)
-                .fill_null(0)
-                .alias("prev_matches_surface"),
-            ]
-        )
-        .with_columns(
-            pl.when(pl.col("prev_matches_surface") > 0)
-            .then(pl.col("prev_wins_surface") / pl.col("prev_matches_surface"))
-            .otherwise(0.0)
-            .alias("player_winrate_surface_before")
-        )
+    ).sort("row")
+    groups = ["player", "surface"]
+    previous = pl.col("won").shift(1)
+    rate = (
+        previous.cum_sum() / (pl.col("won").cum_count() - 1)
+        if n is None
+        else previous.rolling_mean(n, min_samples=1)
     )
-
-    # --- Join Back to Original Shape ---
-    winner_alias = "winner_winrate_surface"
-    loser_alias = "loser_winrate_surface"
-
-    # Select winner winrate on surface
-    winner_winrate_df = matches_long.filter(pl.col("won") == 1).select(
-        pl.col("original_order"), pl.col("player_winrate_surface_before").alias(winner_alias)
-    )
-
-    # Select loser winrate on surface
-    loser_winrate_df = matches_long.filter(pl.col("won") == 0).select(
-        pl.col("original_order"), pl.col("player_winrate_surface_before").alias(loser_alias)
-    )
-
-    # Join back to the original sorted DataFrame
-    final_df = df_sorted.join(winner_winrate_df, on="original_order", how="left").join(
-        loser_winrate_df, on="original_order", how="left"
-    )
-
-    # --- Cleanup and Return ---
-    # Fill potential nulls created by the join if a player had no prior matches on that surface
-    final_df = final_df.with_columns(
-        [pl.col(winner_alias).fill_null(0.0), pl.col(loser_alias).fill_null(0.0)]
-    ).drop("original_order")  # Remove the temporary index
-
-    return final_df.to_pandas()
+    long = long.with_columns(rate.over(groups).fill_null(0.0).alias("rate"))
+    long = long.with_columns(pl.col("rate").first().over(["batch", *groups]).alias("rate"))
+    for side, won in (("winner", 1), ("loser", 0)):
+        result[f"{side}_winrate{suffix}"] = long.filter(pl.col("won") == won)["rate"].to_numpy()
+    return result
 
 
-def calcular_winrate_superficie_ultimas_n(df: pl.DataFrame, n: int = 50) -> pd.DataFrame:
-    """
-    Calculate winrate for each player on a specific surface in their last n matches
-    on that surface before each match, using Polars.
-    """
-    print(
-        f"Calculando winrate para cada jogador em cada superficie nas últimas {n} partidas (Polars)"
-    )
+def calcular_winrate_total(df: pd.DataFrame | pl.DataFrame) -> pd.DataFrame:
+    return _attach_winrates(df, n=None, by_surface=False)
 
-    # Ensure DataFrame is Polars
-    if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
 
-    # --- Essential Columns Check ---
-    required_cols = ["tourney_date", "tourney_id", "match_num", "winner_id", "loser_id", "surface"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"DataFrame missing required columns: {missing_cols}")
+def calcular_winrate_ultimas_n(df: pd.DataFrame | pl.DataFrame, n: int = 50) -> pd.DataFrame:
+    return _attach_winrates(df, n=n, by_surface=False)
 
-    # --- Sort and Add Index ---
-    # Ensure correct sorting for window functions
-    df_sorted = pl.from_pandas(prepare_history(df.to_pandas())).with_row_index("original_order")
 
-    # --- Melt to Long Format ---
-    # One row per player per match, including the surface
-    winners = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("winner_id").alias("player_id"),
-            pl.col("surface"),
-            pl.lit(1).alias("won"),  # 1 for a win
-        ]
-    )
-    losers = df_sorted.select(
-        [
-            pl.col("original_order"),
-            pl.col("loser_id").alias("player_id"),
-            pl.col("surface"),
-            pl.lit(0).alias("won"),  # 0 for a loss
-        ]
-    )
-    # Concatenate and sort by original_order to maintain match sequence before further grouping
-    matches_long = pl.concat([winners, losers]).sort("original_order")
+def calcular_winrate_superficie(df: pd.DataFrame | pl.DataFrame) -> pd.DataFrame:
+    return _attach_winrates(df, n=None, by_surface=True)
 
-    # --- Calculate Rolling Win Rate per Surface ---
-    # Sort by player, surface, then original_order for correct window function application
-    # The window functions will operate over ["player_id", "surface"]
-    # The inner sort by original_order ensures chronological processing within each group.
-    grouping_cols = ["player_id", "surface"]
 
-    # Calculate wins and matches in the rolling window *before* the current match
-    # by shifting 'won' first, then applying rolling operations.
-    matches_long = matches_long.with_columns(
-        [
-            pl.col("won")
-            .shift(1)
-            .rolling_sum(window_size=n, min_samples=1)
-            .over(grouping_cols)
-            .alias("prev_n_wins_surface"),
-            pl.col("won")
-            .shift(1)
-            .is_not_null()
-            .cast(pl.Int8)
-            .rolling_sum(window_size=n, min_samples=1)
-            .over(grouping_cols)
-            .alias("prev_n_matches_surface"),
-        ]
-    )
-
-    # Calculate win rate based on the stats from previous n matches on that surface
-    matches_long = matches_long.with_columns(
-        pl.when(pl.col("prev_n_matches_surface") > 0)
-        .then(pl.col("prev_n_wins_surface") / pl.col("prev_n_matches_surface"))
-        .otherwise(0.0)  # Default winrate is 0.0 if no qualifying previous matches
-        .alias(f"player_winrate_surface_last_{n}_before")
-    )
-
-    # --- Join Back to Original Shape ---
-    winrate_col_name = f"player_winrate_surface_last_{n}_before"
-    winner_alias = f"winner_winrate_surface_last_{n}"
-    loser_alias = f"loser_winrate_surface_last_{n}"
-
-    # Select winner winrate on surface for the last N matches
-    winner_winrate_df = matches_long.filter(pl.col("won") == 1).select(
-        pl.col("original_order"), pl.col(winrate_col_name).alias(winner_alias)
-    )
-
-    # Select loser winrate on surface for the last N matches
-    loser_winrate_df = matches_long.filter(pl.col("won") == 0).select(
-        pl.col("original_order"), pl.col(winrate_col_name).alias(loser_alias)
-    )
-
-    # Join back to the original sorted DataFrame
-    final_df = df_sorted.join(winner_winrate_df, on="original_order", how="left").join(
-        loser_winrate_df, on="original_order", how="left"
-    )
-
-    # --- Cleanup and Return ---
-    # Fill potential nulls created by the join if a player had no prior matches on that surface in the window
-    final_df = final_df.with_columns(
-        [pl.col(winner_alias).fill_null(0.0), pl.col(loser_alias).fill_null(0.0)]
-    ).drop("original_order")  # Remove the temporary index
-
-    return final_df.to_pandas()
+def calcular_winrate_superficie_ultimas_n(
+    df: pd.DataFrame | pl.DataFrame, n: int = 50
+) -> pd.DataFrame:
+    return _attach_winrates(df, n=n, by_surface=True)

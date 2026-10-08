@@ -18,7 +18,7 @@ SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *FEATURE_COLUMNS]
 
 # Match level columns: identical no matter which player is player0 or player1.
 MATCH_COLUMNS = [
-    "match_date",
+    "tourney_date",
     "draw_size",
     "tourney_level",
     "week",
@@ -60,7 +60,7 @@ PLAYER_ATTRIBUTE_STEMS = [
 ]
 
 FINAL_COLUMN_ORDER = [
-    "match_date",
+    "tourney_date",
     "draw_size",
     "tourney_level",
     "week",
@@ -131,7 +131,7 @@ def build_training_rows(df: pd.DataFrame, *, random_seed: int | None = None) -> 
         A new pandas DataFrame with the player0_/player1_ columns and the target.
     """
     df = df.copy()
-    df["match_date"] = pd.to_datetime(df["tourney_date"]).dt.strftime("%Y-%m-%d")
+    df["tourney_date"] = pd.to_datetime(df["tourney_date"]).dt.strftime("%Y-%m-%d")
     frame = df if isinstance(df, pl.DataFrame) else pl.from_pandas(df)
 
     required_columns = _required_input_columns()

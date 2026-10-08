@@ -4,17 +4,16 @@ Inputs are player snapshots and match context. History updates belong to the pla
 """
 
 import math
-from datetime import date, timedelta
 
 from pipelines.shared.contracts import INITIAL_ELO, PlayedMatch, PlayerState
 
 
 def calculate_player_comparison(
-    player0: PlayerState, player1: PlayerState, match_date: date, surface: str
+    player0: PlayerState, player1: PlayerState, surface: str
 ) -> dict[str, float]:
     """Calculate FEATURE_COLUMNS as player1 minus player0 without mutating history."""
-    player0_recent = _recent(player0, match_date)
-    player1_recent = _recent(player1, match_date)
+    player0_recent = player0.history
+    player1_recent = player1.history
     meetings_10 = player1.h2h_wins.get(player0.name, 0)
     meetings_01 = player0.h2h_wins.get(player1.name, 0)
     return {
@@ -26,10 +25,6 @@ def calculate_player_comparison(
         "form_10_diff": _win_rate(player1_recent[:10]) - _win_rate(player0_recent[:10]),
         "surface_form_10_diff": _win_rate(_on_surface(player1_recent, surface)[:10])
         - _win_rate(_on_surface(player0_recent, surface)[:10]),
-        "minutes_7d_diff": _minutes_since(player1_recent, match_date, 7)
-        - _minutes_since(player0_recent, match_date, 7),
-        "matches_14d_diff": _matches_since(player1_recent, match_date, 14)
-        - _matches_since(player0_recent, match_date, 14),
         "age_diff": _value(player1.age) - _value(player0.age),
         "h2h_log_odds": math.log((meetings_10 + 1) / (meetings_01 + 1)),
         "experience_log_diff": math.log1p(player1.wins + player1.losses)
@@ -43,26 +38,12 @@ def calculate_player_comparison(
     }
 
 
-def _recent(player: PlayerState, match_date: date) -> list[PlayedMatch]:
-    return [item for item in player.history if date.fromisoformat(item.played_on) < match_date]
-
-
 def _on_surface(matches: list[PlayedMatch], surface: str) -> list[PlayedMatch]:
     return [item for item in matches if item.surface == surface]
 
 
 def _win_rate(matches: list[PlayedMatch]) -> float:
     return sum(item.won for item in matches) / len(matches) if matches else 0.0
-
-
-def _minutes_since(matches: list[PlayedMatch], match_date: date, days: int) -> float:
-    cutoff = match_date - timedelta(days=days)
-    return sum(item.minutes for item in matches if date.fromisoformat(item.played_on) >= cutoff)
-
-
-def _matches_since(matches: list[PlayedMatch], match_date: date, days: int) -> int:
-    cutoff = match_date - timedelta(days=days)
-    return sum(date.fromisoformat(item.played_on) >= cutoff for item in matches)
 
 
 def _value(value: float | None) -> float:
