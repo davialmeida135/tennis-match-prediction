@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from pipelines.shared.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.contracts import FEATURE_COLUMNS
 
 TARGET_COLUMN = "winner"
 SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *FEATURE_COLUMNS]

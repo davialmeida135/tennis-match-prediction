@@ -5,7 +5,10 @@ from collections import Counter
 import pandas as pd
 import polars as pl
 
-from pipelines.historical_matches.transforms.history import history_batches, prepare_history
+from tennis_match_prediction.transforms.history import (
+    history_batches,
+    prepare_history,
+)
 
 
 def calcular_h2h(df: pd.DataFrame | pl.DataFrame) -> pd.DataFrame:

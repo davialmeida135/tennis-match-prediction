@@ -6,8 +6,7 @@ then publishes curated and training CSVs on separate branches.
 
 from dagster import AssetSelection, Definitions, define_asset_job
 
-from ..shared.parquet_io import ParquetDataFrameIOManager
-from .assets import (
+from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
     curated_atp_matches_csv,
     elo_featured_atp_matches,
@@ -20,7 +19,7 @@ from .assets import (
     training_atp_matches_csv,
     winrate_featured_atp_matches,
 )
-from .checks import (
+from tennis_match_prediction.pipelines.historical_matches.checks import (
     curated_matches_feed_training,
     curated_matches_have_no_walkovers,
     elo_features_present,
@@ -36,7 +35,8 @@ from .checks import (
     target_is_binary,
     winrate_features_are_probabilities,
 )
-from .config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 ASSETS = [
     raw_atp_matches,

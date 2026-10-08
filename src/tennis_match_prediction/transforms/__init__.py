@@ -13,6 +13,7 @@ history         common date parsing, filtering and chronological ordering.
 elo             pre-match ratings and shared Elo update formula.
 head_to_head    prior head-to-head win differences.
 player_comparison  pre-match model features calculated from player snapshots.
+player_history  chronological player snapshots and match comparisons.
 curation    column encoding and removal of leaky per-match statistics.
 training_rows   player positions, signed comparisons and the binary training target.
 """

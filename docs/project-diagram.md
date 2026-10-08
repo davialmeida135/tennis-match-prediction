@@ -11,10 +11,10 @@ flowchart TB
     extras --> curate["Impute → encode context → remove outcome statistics"]
     curate --> rows["Assign player0/player1 and target"]
     rows --> training[("training_atp_matches.csv<br/>tourney_date + features + target")]
-    training --> train["ml.train<br/>Warmup excluded from fitting<br/>Explicit training / validation / test dates"]
+    training --> train["tennis_match_prediction.ml.train<br/>Warmup excluded from fitting<br/>Explicit training / validation / test dates"]
     train --> model[("Model + metadata")]
     train --> tracking["MLflow metrics and artifacts"]
-    history --> predict["ml.predict<br/>Shared comparison formulas"]
+    history --> predict["tennis_match_prediction.ml.predict<br/>Shared comparison formulas"]
     model --> predict
     request["Player names + future date + surface"] --> predict
     predict --> output["Win probabilities + history_source_date + model path"]

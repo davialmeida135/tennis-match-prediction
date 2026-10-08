@@ -7,9 +7,9 @@ import pandas as pd
 import pytest
 from dagster import materialize
 
-from pipelines.historical_matches.assets import raw_atp_matches
-from pipelines.historical_matches.config import RawMatchesCsv
-from pipelines.shared.parquet_io import ParquetDataFrameIOManager
+from tennis_match_prediction.pipelines.historical_matches.assets import raw_atp_matches
+from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 
 def _csv(year):
@@ -55,7 +55,9 @@ def _mock_download(monkeypatch, years, calls):
             )
         return Response(_csv(int(url.rsplit("/", 1)[1][:4])))
 
-    monkeypatch.setattr("pipelines.historical_matches.config.requests.get", get)
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
+    )
 
 
 @pytest.mark.parametrize("cached", [True, False])
@@ -66,7 +68,10 @@ def test_local_materialization_never_downloads(tmp_path, monkeypatch, cached):
     def unexpected_download(*args, **kwargs):
         pytest.fail("Local materialization must not contact the source")
 
-    monkeypatch.setattr("pipelines.historical_matches.config.requests.get", unexpected_download)
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        unexpected_download,
+    )
     assert _materialize(tmp_path, RawMatchesCsv(csv_path=str(output), refresh=False)).success
     assert output.exists()
     frame = pd.read_parquet(tmp_path / "staging" / "raw_atp_matches.parquet")
@@ -137,7 +142,9 @@ def test_consolidation_handles_file_locks(tmp_path, monkeypatch, failures, winer
         return original_replace(path, target)
 
     monkeypatch.setattr(Path, "replace", locked_replace)
-    monkeypatch.setattr("pipelines.historical_matches.config.time.sleep", delays.append)
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.time.sleep", delays.append
+    )
     source = RawMatchesCsv(csv_path=str(output))
     if failures == 2:
         source.consolidate_seasons(tmp_path)

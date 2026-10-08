@@ -1,6 +1,6 @@
 """Canonical filesystem layout for the project.
 
-Every path used by the pipelines is declared here so the data flow stays
+Every path used by data processing and machine learning is declared here so the data flow stays
 predictable and there is a single place to change it.
 
     data/
@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 # module reads an environment variable.
 load_dotenv()
 
+# In the editable src layout: <project>/src/tennis_match_prediction/paths.py.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DATA_DIR = Path(os.getenv("TENNIS_DATA_DIR") or PROJECT_ROOT / "data")

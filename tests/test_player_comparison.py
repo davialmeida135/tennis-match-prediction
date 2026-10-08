@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from pipelines.historical_matches.transforms.player_comparison import calculate_player_comparison
-from pipelines.shared.contracts import FEATURE_COLUMNS, PlayedMatch, PlayerState
+from tennis_match_prediction.contracts import FEATURE_COLUMNS, PlayedMatch, PlayerState
+from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 
 def test_features_use_snapshots_without_mutating_them() -> None:

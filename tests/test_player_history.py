@@ -3,10 +3,14 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from ml.predict import features_for
-from pipelines.historical_matches.transforms.history import parse_source_date
-from pipelines.historical_matches.transforms.player_history import attach_temporal_features
-from pipelines.shared.contracts import FutureMatchRequest, PlayerHistory
+from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory
+from tennis_match_prediction.ml.predict import features_for
+from tennis_match_prediction.transforms.history import (
+    parse_source_date,
+)
+from tennis_match_prediction.transforms.player_history import (
+    attach_temporal_features,
+)
 
 
 def _match(
@@ -142,8 +146,8 @@ def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
 
 
 def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
-    from ml.train import train
-    from pipelines.shared.contracts import FEATURE_COLUMNS
+    from tennis_match_prediction.contracts import FEATURE_COLUMNS
+    from tennis_match_prediction.ml.train import train
 
     path = tmp_path / "training.csv"
     pd.DataFrame([_match(1, "a", "Alice", "b", "Bob")]).to_csv(path, index=False)

@@ -7,7 +7,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from ml import train as training
+from tennis_match_prediction.ml import train as training
 
 
 def test_subset_preserves_feature_order_in_model_and_metadata(tmp_path, monkeypatch):

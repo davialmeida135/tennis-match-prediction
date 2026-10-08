@@ -4,13 +4,18 @@ import pandas as pd
 import pytest
 from dagster import DagsterInstance, Definitions, materialize
 
-from pipelines.historical_matches import assets
-from pipelines.historical_matches.config import RawMatchesCsv
-from pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
-from pipelines.historical_matches.transforms.elo import calcular_elo
-from pipelines.historical_matches.transforms.head_to_head import calcular_h2h
-from pipelines.historical_matches.transforms.history import prepare_history
-from pipelines.historical_matches.transforms.imputation import (
+from tennis_match_prediction import paths
+from tennis_match_prediction.contracts import FEATURE_COLUMNS, PlayerHistory
+from tennis_match_prediction.pipelines.historical_matches import assets
+from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
+from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
+from tennis_match_prediction.transforms.elo import calcular_elo
+from tennis_match_prediction.transforms.head_to_head import (
+    calcular_h2h,
+)
+from tennis_match_prediction.transforms.history import prepare_history
+from tennis_match_prediction.transforms.imputation import (
     DEFAULT_AGE,
     DEFAULT_HEIGHT,
     DEFAULT_RANK,
@@ -19,12 +24,15 @@ from pipelines.historical_matches.transforms.imputation import (
     fill_null_height,
     fill_null_rank,
 )
-from pipelines.historical_matches.transforms.player_history import attach_temporal_features
-from pipelines.historical_matches.transforms.training_rows import FINAL_COLUMN_ORDER
-from pipelines.historical_matches.transforms.winrate import calcular_winrate_total
-from pipelines.shared import paths
-from pipelines.shared.contracts import FEATURE_COLUMNS, PlayerHistory
-from pipelines.shared.parquet_io import ParquetDataFrameIOManager
+from tennis_match_prediction.transforms.player_history import (
+    attach_temporal_features,
+)
+from tennis_match_prediction.transforms.training_rows import (
+    FINAL_COLUMN_ORDER,
+)
+from tennis_match_prediction.transforms.winrate import (
+    calcular_winrate_total,
+)
 
 
 def _history(count: int = 4) -> pd.DataFrame:
@@ -173,11 +181,11 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert PlayerHistory.model_validate_json(snapshot.loc[0, "history"]) == history
 
     # Training consumes only the published rows; prediction consumes only the asset snapshot.
-    from ml.predict import predict
-    from ml.train import train
-    from pipelines.shared.contracts import FutureMatchRequest
+    from tennis_match_prediction.contracts import FutureMatchRequest
+    from tennis_match_prediction.ml.predict import predict
+    from tennis_match_prediction.ml.train import train
 
-    monkeypatch.setattr("ml.train._log_mlflow", lambda *_: None)
+    monkeypatch.setattr("tennis_match_prediction.ml.train._log_mlflow", lambda *_: None)
     model_path = tmp_path / "model.pkl"
     metrics = train(
         tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME,
