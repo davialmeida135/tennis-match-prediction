@@ -91,6 +91,35 @@ def test_player_history_rejects_future_results():
         PlayerHistory.model_validate(payload)
 
 
+@pytest.mark.parametrize("invalid", [-13.689, float("inf"), float("-inf"), float("nan")])
+def test_invalid_source_attributes_preserve_valid_prior_history(invalid):
+    first = _match(1, "a", "Alice", "b", "Bob")
+    second = _match(2, "a", "Alice", "b", "Bob")
+    second["tourney_date"] = 20260102
+    for side in ("winner", "loser"):
+        for attribute in ("age", "rank", "rank_points"):
+            second[f"{side}_{attribute}"] = invalid
+    _, _, history = attach_temporal_features(pd.DataFrame([first, second]))
+    assert history.players["a"].age == 25
+    assert history.players["b"].age == 27
+    assert history.players["a"].rank == 10
+    assert history.players["a"].rank_points == 3000
+
+
+def test_negative_initial_age_is_unknown_and_zero_points_are_valid():
+    first = _match(1, "a", "Alice", "b", "Bob")
+    first["winner_age"] = -13.689
+    second = _match(2, "a", "Alice", "b", "Bob")
+    second["tourney_date"] = 20260102
+    second["winner_age"] = -5.013
+    second["winner_rank"] = 0
+    second["winner_rank_points"] = 0
+    _, _, history = attach_temporal_features(pd.DataFrame([first, second]))
+    assert history.players["a"].age is None
+    assert history.players["a"].rank == 10
+    assert history.players["a"].rank_points == 0
+
+
 @pytest.mark.parametrize(
     "value",
     [

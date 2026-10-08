@@ -1,0 +1,305 @@
+{
+  "seasons": [
+    {
+      "path": "1967.csv",
+      "sha256": "e47c28b586566328090793c42b4363c886fc490f6228a6ada754378d24313088",
+      "year": 1967
+    },
+    {
+      "path": "1968.csv",
+      "sha256": "eeec6a5184b63c02636360d3a9ab3af29b96ee479ec8c755441a4ad372d4ab38",
+      "year": 1968
+    },
+    {
+      "path": "1969.csv",
+      "sha256": "7f830dfd6be257cd222766b796f0dec9817a653fb6e86a5f0e9820a1a0f3c827",
+      "year": 1969
+    },
+    {
+      "path": "1970.csv",
+      "sha256": "100f13357ce0a3ba15db8bdc178d4942c45d9127aaf3623421723059774b2ad2",
+      "year": 1970
+    },
+    {
+      "path": "1971.csv",
+      "sha256": "6d11e6a61a03525e4a964355bd4a18edc8bdf060b2078cb376fa9b91a32cc2f7",
+      "year": 1971
+    },
+    {
+      "path": "1972.csv",
+      "sha256": "ea9ba7155d129a171e106ab9b6eab00729b71e0f7b41b5b76767e0e91e0adcc4",
+      "year": 1972
+    },
+    {
+      "path": "1973.csv",
+      "sha256": "6199cb1a76095c55d2dd504297416b88f2d9ee94bc9a73d2f7cb995c8ff5167e",
+      "year": 1973
+    },
+    {
+      "path": "1974.csv",
+      "sha256": "c4fa0fd563ca7c03b39f2da32d5beca89501d548ac20242dbf024353481a3a2e",
+      "year": 1974
+    },
+    {
+      "path": "1975.csv",
+      "sha256": "64df6cf1c5a7bbfb4d933d72b2ffac78bdda21d547398b1c17ba9798d21da9b2",
+      "year": 1975
+    },
+    {
+      "path": "1976.csv",
+      "sha256": "9c783e673941366a9dd3fb68893870e19eb5bac32b66eacab9a9c69e04cf232f",
+      "year": 1976
+    },
+    {
+      "path": "1977.csv",
+      "sha256": "0827aebaf440409ad57d93e99939b4f5ad003506fa286b7b73672389b0cca2f6",
+      "year": 1977
+    },
+    {
+      "path": "1978.csv",
+      "sha256": "2252d1f102af5f5439812b3299ab0d6bd042c5560f3ba8268d3de71b1d48a59d",
+      "year": 1978
+    },
+    {
+      "path": "1979.csv",
+      "sha256": "321c5117cb053c7ba7b487c9ec349a53d07da5aa21d81e6030777c6022a7d0d8",
+      "year": 1979
+    },
+    {
+      "path": "1980.csv",
+      "sha256": "c34dc18ded9b7a0edfa2b03e857f6fd826630fc0cfe0ff636645d6a111f9cfa4",
+      "year": 1980
+    },
+    {
+      "path": "1981.csv",
+      "sha256": "1eef045183c0c44c98f1497958094d90b2d70d4ca899e8789eab0b8288d92395",
+      "year": 1981
+    },
+    {
+      "path": "1982.csv",
+      "sha256": "650b6539dba727c11d20e699d20dd7c1a43026aaf103aa7d9c5ec3ab9e7c1bb4",
+      "year": 1982
+    },
+    {
+      "path": "1983.csv",
+      "sha256": "9bbf932be0c13e86a7e6a4f85bd295d1b90597f425611d0d66c7b4bf30906111",
+      "year": 1983
+    },
+    {
+      "path": "1984.csv",
+      "sha256": "9cf4b6d5a309cd72212da31ef33359aa3e4ab88bc59c4177d48469cf61e7348b",
+      "year": 1984
+    },
+    {
+      "path": "1985.csv",
+      "sha256": "0caed94b3e82a50e8351c940694c49f88fa597a6ad701e5a963ae5a556bbb243",
+      "year": 1985
+    },
+    {
+      "path": "1986.csv",
+      "sha256": "8ed9c0507c14a9faa2428a2ada5ae883705c65448e022ecd56fc094ffe3d8542",
+      "year": 1986
+    },
+    {
+      "path": "1987.csv",
+      "sha256": "4b631a057894a248cc2227466847da16e5e37a0fbd0a1623a673d0f5bbf7ecc6",
+      "year": 1987
+    },
+    {
+      "path": "1988.csv",
+      "sha256": "3743cc9d635942770c8fc44241864158703af48f642a16223746430106dffab7",
+      "year": 1988
+    },
+    {
+      "path": "1989.csv",
+      "sha256": "2256184f6388deb6ac89cdeccf9b48467636a45fb011dec0d324926af967f343",
+      "year": 1989
+    },
+    {
+      "path": "1990.csv",
+      "sha256": "d662c193f4fce1a14f87db301c0278a27614c20742e3e29682214dee9ef64805",
+      "year": 1990
+    },
+    {
+      "path": "1991.csv",
+      "sha256": "7f06d2f00e155da1c4dee1960d10735cc1b8ac636f6b18395f68496aefc589b4",
+      "year": 1991
+    },
+    {
+      "path": "1992.csv",
+      "sha256": "1e6b619c4792f393fc96a5c0642fb46384169fff4aad88eb475e5d541c5769eb",
+      "year": 1992
+    },
+    {
+      "path": "1993.csv",
+      "sha256": "40c5ca5c72ac3500bed7707c8a1de162497c90cbed559294c7380c5834eb478a",
+      "year": 1993
+    },
+    {
+      "path": "1994.csv",
+      "sha256": "3a63f7605e75e4e326f1f49a0845b65c82ce4909a71d91871d284ff200e1d8d5",
+      "year": 1994
+    },
+    {
+      "path": "1995.csv",
+      "sha256": "daf92a2b63b93d139a2a0602df7594e0dd7d2b8d0a71a85c2cd6e843a8454e93",
+      "year": 1995
+    },
+    {
+      "path": "1996.csv",
+      "sha256": "9044208da0d2ca75463b4f1d60e645babd9e922e34a4e9c14d93f567492064aa",
+      "year": 1996
+    },
+    {
+      "path": "1997.csv",
+      "sha256": "2233cb66f61f626fa1c43469658b2e6bfb278936aa432111b39764c28dc09a2d",
+      "year": 1997
+    },
+    {
+      "path": "1998.csv",
+      "sha256": "395fa0d20974f0a7ea2d49ffbd6c69936449b300d03ad177c19b7f2a59138de4",
+      "year": 1998
+    },
+    {
+      "path": "1999.csv",
+      "sha256": "03f7010efdecec795ede2c2f04b8f44a9e783ec48397892cdb444fed49d7b0f3",
+      "year": 1999
+    },
+    {
+      "path": "2000.csv",
+      "sha256": "75d9d51730a462c76fd9e9ddbea69e52f594ab4fcec9eca310e6076312381bbb",
+      "year": 2000
+    },
+    {
+      "path": "2001.csv",
+      "sha256": "34004bf31625c87c0bd70b222446bcd905fe04baa208caae59942de00638727e",
+      "year": 2001
+    },
+    {
+      "path": "2002.csv",
+      "sha256": "1d0ea099fb027fbf5570a623c8db76c0fc40a0e9ae0f51b62e77ff27f710976d",
+      "year": 2002
+    },
+    {
+      "path": "2003.csv",
+      "sha256": "84b3731d9767a0dc83a827d8415479216d319db749659e7506899ff576d992cf",
+      "year": 2003
+    },
+    {
+      "path": "2004.csv",
+      "sha256": "a89091ecefa858e41190eb85e55405440447dbb004f50f675ae8aa2b28f4e21f",
+      "year": 2004
+    },
+    {
+      "path": "2005.csv",
+      "sha256": "0517e2888d97387042285aae428cb8f6d0b22846a61e721fcecc7cb3eb49ff00",
+      "year": 2005
+    },
+    {
+      "path": "2006.csv",
+      "sha256": "acbb393c12f6bd9b3d6e7d71700db9676abbab98b6f937a6603d5cad365e271e",
+      "year": 2006
+    },
+    {
+      "path": "2007.csv",
+      "sha256": "f557cc49ba7bb436641cbdc2d7d2fa05afa6ce45f83c28a4452b1189f554827b",
+      "year": 2007
+    },
+    {
+      "path": "2008.csv",
+      "sha256": "51b2f23e0a3a620b4e080c46469076f5eff37fe51eff2cd7a127f68d3fc597d2",
+      "year": 2008
+    },
+    {
+      "path": "2009.csv",
+      "sha256": "0311f6bfcdb6cbeed8add108262d131171493004be9f88b127320f9cdbcd541b",
+      "year": 2009
+    },
+    {
+      "path": "2010.csv",
+      "sha256": "27fe66a5abbeadb451113b8119646494651a6d954892856173b49f697953b221",
+      "year": 2010
+    },
+    {
+      "path": "2011.csv",
+      "sha256": "ec816cad779d0d31856c39f3c25f61b4c5c4df10c7245611c358e0c8de4f9236",
+      "year": 2011
+    },
+    {
+      "path": "2012.csv",
+      "sha256": "7f299dc1c46e96bc81292c0dd8eed46ef1c37ff1a0dcef4e8b35866ffa310683",
+      "year": 2012
+    },
+    {
+      "path": "2013.csv",
+      "sha256": "3011ef277a4d94f5e722193dda4d71d5a77bf2d557a33233ea2329240ffa19bb",
+      "year": 2013
+    },
+    {
+      "path": "2014.csv",
+      "sha256": "1e172cd272815584ab1b6e7e1fa9bd0f6e87618047da65ee8fcd36676dd2f492",
+      "year": 2014
+    },
+    {
+      "path": "2015.csv",
+      "sha256": "0d156d21a70dd620e1a014aa589e034ff24a7478d24a5cdea5bdc984189c26e7",
+      "year": 2015
+    },
+    {
+      "path": "2016.csv",
+      "sha256": "e425cc4a03d3f114a21e32f9bc3c1f2049e5e04e674eadc92e5e40c883ec0a78",
+      "year": 2016
+    },
+    {
+      "path": "2017.csv",
+      "sha256": "73256c9b283d76faf5d97b68ed572b6c342397b5140566d6320c7a52de2a614f",
+      "year": 2017
+    },
+    {
+      "path": "2018.csv",
+      "sha256": "7764b5190089656bdeece8c2f9d31d5d915a326d4a1c4fc84d49228fcdcdd5db",
+      "year": 2018
+    },
+    {
+      "path": "2019.csv",
+      "sha256": "ed8c6862c50caceeae9ab2299bf1d565d88a2e39bbfd3e5e5250453bd1ee1dac",
+      "year": 2019
+    },
+    {
+      "path": "2020.csv",
+      "sha256": "959508f99f80b3f7f0c0f0029160ffa58f27813e19a63b1d0636a4f04a8ef125",
+      "year": 2020
+    },
+    {
+      "path": "2021.csv",
+      "sha256": "56f135106006a75ab8210ec654c3db598e177058599cb90477aac44acf1152e4",
+      "year": 2021
+    },
+    {
+      "path": "2022.csv",
+      "sha256": "e3a4c75ce4f1edb944b6eaa3ed5610dae8f25d2e5a7f4eca0808cbea55f033b7",
+      "year": 2022
+    },
+    {
+      "path": "2023.csv",
+      "sha256": "df615751795c00b042f3b61159f6dd9e12971065090a330c586fb524e207d574",
+      "year": 2023
+    },
+    {
+      "path": "2024.csv",
+      "sha256": "e534bf94cbe9bb97a7fb4b3d5e967e6a5610697078981eba9f7117596affc5b7",
+      "year": 2024
+    },
+    {
+      "path": "2025.csv",
+      "sha256": "2b201025c9cf1a3c7842c289f825a637a28548dea7f92479510a060146df4fff",
+      "year": 2025
+    },
+    {
+      "path": "2026.csv",
+      "sha256": "25cbc9ecb2ca63cebd8d57bd7f19f0d24062f84b850b8834630c7e509c85db2d",
+      "year": 2026
+    }
+  ],
+  "source": "https://stats.tennismylife.org/api/data-files"
+}

@@ -66,7 +66,7 @@ def test_local_materialization_never_downloads(tmp_path, monkeypatch, cached):
         pytest.fail("Local materialization must not contact the source")
 
     monkeypatch.setattr("pipelines.historical_matches.config.requests.get", unexpected_download)
-    assert _materialize(tmp_path, RawMatchesCsv(csv_path=str(output))).success
+    assert _materialize(tmp_path, RawMatchesCsv(csv_path=str(output), refresh=False)).success
     assert output.exists()
     frame = pd.read_parquet(tmp_path / "staging" / "raw_atp_matches.parquet")
     assert frame["winner_id"].tolist() == ["001"]

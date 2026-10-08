@@ -147,7 +147,7 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
             instance=instance,
             resources={
                 "io_manager": ParquetDataFrameIOManager(base_dir=str(staging)),
-                "raw_matches_csv": RawMatchesCsv(csv_path=str(csv_path)),
+                "raw_matches_csv": RawMatchesCsv(csv_path=str(csv_path), refresh=False),
             },
         )
 

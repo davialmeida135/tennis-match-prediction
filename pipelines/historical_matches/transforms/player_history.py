@@ -1,6 +1,7 @@
 """Chronological transforms producing match comparisons and player-history assets."""
 
 from datetime import date
+from math import isfinite
 
 import pandas as pd
 
@@ -81,9 +82,10 @@ def _update_player(
         match.get(f"{prefix}_2ndWon")
     )
     side = "winner" if won else "loser"
-    player.rank = _optional_number(match.get(f"{side}_rank")) or player.rank
-    player.rank_points = _optional_number(match.get(f"{side}_rank_points")) or player.rank_points
-    player.age = _optional_number(match.get(f"{side}_age")) or player.age
+    for attribute in ("rank", "rank_points", "age"):
+        value = _optional_number(match.get(f"{side}_{attribute}"))
+        if value is not None and value >= 0 and (attribute != "rank" or value > 0):
+            setattr(player, attribute, value)
 
 
 def attach_temporal_features(
@@ -159,9 +161,9 @@ def _temporal_features_by_row(
 
 def _number(value: object) -> float:
     parsed = pd.to_numeric(value, errors="coerce")
-    return float(parsed) if pd.notna(parsed) else 0.0
+    return float(parsed) if pd.notna(parsed) and isfinite(parsed) and parsed >= 0 else 0.0
 
 
 def _optional_number(value: object) -> float | None:
     parsed = pd.to_numeric(value, errors="coerce")
-    return float(parsed) if pd.notna(parsed) else None
+    return float(parsed) if pd.notna(parsed) and isfinite(parsed) else None
