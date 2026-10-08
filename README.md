@@ -12,7 +12,7 @@ Use Python 3.12 and `uv`:
 uv sync
 Copy-Item .env.example .env
 uv run dagster job execute -m pipelines.historical_matches.defs -j materialize_historical_dataset
-uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01
+uv run python -m ml.train
 ```
 
 Then predict a match on a date **after the latest source date in the player-history asset**:
@@ -153,10 +153,21 @@ This workflow is the single source of features for training and prediction.
 CSV path) and requires only the configured training features, target and
 chronological date. Override the defaults for one run with
 `uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
-The Python API requires `train_start`, `validation_start`, and `test_start` as
-`datetime.date` values, alongside optional `feature_columns`.
+Edit `ml/config.py` to change the training CSV, model path, selected features,
+iteration limit, random seed, and split dates without passing CLI arguments.
+The default dates are `TRAIN_START = date(2017, 1, 1)`,
+`VALIDATION_START = date(2024, 1, 1)`, and `TEST_START = date(2025, 1, 1)`.
+You can also train directly from Python:
 
-All three dates are required and must be strictly increasing. The periods are:
+```python
+from ml.train import train
+
+metrics = train()
+```
+
+The Python API accepts overrides for paths, dates (`datetime.date` values), and
+`feature_columns`; CLI arguments override the same defaults for a single run.
+All three dates must be strictly increasing. The periods are:
 
 - Warmup: `tourney_date < train_start`; retained by Dagster for history/features,
   excluded from scaler fitting, model fitting, and evaluation.

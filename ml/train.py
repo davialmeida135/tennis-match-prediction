@@ -14,21 +14,30 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
+from ml.config import (
+    MAX_ITER,
+    MODEL_PATH,
+    RANDOM_STATE,
+    TEST_START,
+    TRAIN_START,
+    TRAINING_FEATURE_COLUMNS,
+    TRAINING_MATCHES,
+    TRAINING_MATCHES_PATH,
+    VALIDATION_START,
+)
 from pipelines.shared.contracts import FEATURE_COLUMNS
-from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
 
 
 def train(
-    training_matches_path: Path,
-    model_path: Path,
+    training_matches_path: Path = TRAINING_MATCHES_PATH,
+    model_path: Path = MODEL_PATH,
     *,
-    train_start: date,
-    validation_start: date,
-    test_start: date,
+    train_start: date = TRAIN_START,
+    validation_start: date = VALIDATION_START,
+    test_start: date = TEST_START,
     feature_columns: tuple[str, ...] = TRAINING_FEATURE_COLUMNS,
 ) -> dict[str, float]:
-    """Train from the Dagster-produced dataset using chronological splits."""
+    """Train using ml/config.py defaults or explicit paths, dates, and features."""
     if not feature_columns:
         raise ValueError("Select at least one training feature")
     if len(set(feature_columns)) != len(feature_columns):
@@ -84,7 +93,9 @@ def train(
             for name, period in periods.items()
         },
     }
-    model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1_000, random_state=42))
+    model = make_pipeline(
+        StandardScaler(), LogisticRegression(max_iter=MAX_ITER, random_state=RANDOM_STATE)
+    )
     model.fit(training.loc[:, list(feature_columns)], training["winner"])
     metrics = _metrics(model, validation, "validation", feature_columns) | _metrics(
         model, testing, "test", feature_columns
@@ -147,6 +158,8 @@ def _log_mlflow(
         mlflow.log_params(
             {
                 "model": "logistic_regression",
+                "max_iter": MAX_ITER,
+                "random_state": RANDOM_STATE,
                 "feature_count": len(feature_columns),
                 "feature_columns": json.dumps(feature_columns),
                 **{
@@ -167,17 +180,17 @@ def main() -> None:
     """Run chronological training from the command line."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "training_matches", type=Path, nargs="?", default=CURATED_DIR / TRAINING_MATCHES_CSV_NAME
+        "training_matches", type=Path, nargs="?", default=TRAINING_MATCHES_PATH
     )
-    parser.add_argument("--model-path", type=Path, default=MODELS_DIR / "match_winner.pkl")
+    parser.add_argument("--model-path", type=Path, default=MODEL_PATH)
     parser.add_argument(
         "--train-start",
         type=date.fromisoformat,
-        required=True,
+        default=TRAIN_START,
         help="YYYY-MM-DD; earlier rows are history warmup only",
     )
-    parser.add_argument("--validation-start", type=date.fromisoformat, required=True)
-    parser.add_argument("--test-start", type=date.fromisoformat, required=True)
+    parser.add_argument("--validation-start", type=date.fromisoformat, default=VALIDATION_START)
+    parser.add_argument("--test-start", type=date.fromisoformat, default=TEST_START)
     parser.add_argument(
         "--features",
         nargs="+",
