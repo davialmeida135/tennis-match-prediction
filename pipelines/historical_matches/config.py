@@ -5,8 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 import pandas as pd
@@ -30,6 +34,32 @@ REQUIRED_COLUMNS = frozenset(
         "surface",
     }
 )
+
+
+@contextmanager
+def _atomic_output(output: Path) -> Iterator[Path]:
+    """Publish through a unique, closed temporary file, tolerating brief Windows locks."""
+    with NamedTemporaryFile(
+        dir=output.parent, prefix=f".{output.name}.", suffix=".tmp", delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+    try:
+        yield temporary
+        for attempt in range(5):
+            try:
+                temporary.replace(output)
+                break
+            except PermissionError as error:
+                if getattr(error, "winerror", None) not in {32, 33}:
+                    raise
+                if attempt == 4:
+                    raise PermissionError(
+                        f"Cannot replace {output}: Windows reports that a file is in use. "
+                        "Close applications holding the CSV open and retry materialization."
+                    ) from error
+                time.sleep(0.25 * 2**attempt)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class RawMatchesCsv(ConfigurableResource):
@@ -85,9 +115,8 @@ class RawMatchesCsv(ConfigurableResource):
         if missing:
             raise ValueError(f"{path.name} is incompatible; missing columns: {sorted(missing)}")
         if changed:
-            temporary = path.with_suffix(".tmp")
-            temporary.write_bytes(content)
-            temporary.replace(path)
+            with _atomic_output(path) as temporary:
+                temporary.write_bytes(content)
         return DownloadedSeason(year=year, path=path, sha256=digest, changed=changed)
 
     def _write_manifest(self, destination: Path, files: list[DownloadedSeason]) -> None:
@@ -153,7 +182,6 @@ class RawMatchesCsv(ConfigurableResource):
         frame = self.load_seasons(raw_directory)
         output = Path(self.csv_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_suffix(".tmp")
-        frame.to_csv(temporary, index=False)
-        temporary.replace(output)
+        with _atomic_output(output) as temporary:
+            frame.to_csv(temporary, index=False)
         return frame

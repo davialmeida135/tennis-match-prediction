@@ -1,6 +1,7 @@
 """Source acquisition belongs to the raw asset, including cache and refresh behavior."""
 
 import json
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -112,3 +113,47 @@ def test_invalid_local_season_does_not_replace_consolidated_csv(tmp_path):
     with pytest.raises(ValueError, match="2025.csv is incompatible"):
         source.consolidate_seasons(tmp_path)
     assert output.read_bytes() == _csv(2024)
+
+
+@pytest.mark.parametrize("failures,winerror", [(2, 32), (5, 32), (1, 5)])
+def test_consolidation_handles_file_locks(tmp_path, monkeypatch, failures, winerror):
+    output = tmp_path / "all_atp_matches.csv"
+    previous = _csv(2023)
+    output.write_bytes(previous)
+    (tmp_path / "2024.csv").write_bytes(_csv(2024))
+    # Another execution's temporary file must remain untouched.
+    shared_temporary = output.with_suffix(".tmp")
+    shared_temporary.write_bytes(b"other run")
+    original_replace = Path.replace
+    attempts = []
+    delays = []
+
+    def locked_replace(path, target):
+        attempts.append(path)
+        if len(attempts) <= failures:
+            error = PermissionError("file locked")
+            error.winerror = winerror
+            raise error
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", locked_replace)
+    monkeypatch.setattr("pipelines.historical_matches.config.time.sleep", delays.append)
+    source = RawMatchesCsv(csv_path=str(output))
+    if failures == 2:
+        source.consolidate_seasons(tmp_path)
+        assert pd.read_csv(output)["tourney_date"].tolist() == [20240101]
+        assert len(attempts) == 3
+        assert delays == [0.25, 0.5]
+    else:
+        with pytest.raises(PermissionError) as caught:
+            source.consolidate_seasons(tmp_path)
+        assert output.read_bytes() == previous
+        if winerror == 32:
+            assert "Close applications" in str(caught.value)
+            assert len(attempts) == 5
+        else:
+            assert caught.value.winerror == 5
+            assert len(attempts) == 1
+            assert delays == []
+    assert shared_temporary.read_bytes() == b"other run"
+    assert not list(tmp_path.glob(".all_atp_matches.csv.*.tmp"))

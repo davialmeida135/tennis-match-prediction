@@ -43,7 +43,7 @@ def dataframe_profile(frame: pd.DataFrame, *, preview_rows: int = PREVIEW_ROWS) 
         "nulls_by_column": {
             str(column): int(count) for column, count in frame.isna().sum().items() if count
         },
-        "preview": jsonable(frame.head(preview_rows).fillna("").to_dict(orient="records")),
+        "preview": jsonable(frame.head(preview_rows).to_dict(orient="records")),
     }
 
     numeric = frame.select_dtypes(include=[np.number])

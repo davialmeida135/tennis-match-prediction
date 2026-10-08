@@ -246,11 +246,12 @@ def curated_atp_matches(
 
 
 @asset(
-    group_name="training",
+    group_name="training_preparation",
     kinds={"pandas", "polars"},
-    tags={**DOMAIN_TAGS, "layer": "training"},
+    tags={**DOMAIN_TAGS, "layer": "training_preparation"},
     description=(
-        "Assign winner/loser to player0/player1 reproducibly and construct the "
+        "Prepare the training dataset by assigning winner/loser to player0/player1 "
+        "reproducibly and constructing the "
         f"binary `{TARGET_COLUMN}` target for training experiments."
     ),
     automation_condition=WHEN_INPUT_CHANGES,
