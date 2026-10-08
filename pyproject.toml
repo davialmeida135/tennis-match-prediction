@@ -15,8 +15,8 @@ dependencies = [
     "pyarrow>=14",
     "requests>=2.31",
     # Orchestration
-    "dagster>=1.10.15,<1.11",
-    "dagster-webserver>=1.10.15,<1.11",
+    "dagster>=1.13.25,<1.14",
+    "dagster-webserver>=1.13.25,<1.14",
     # Configuration
     "python-dotenv>=1.0",
     "pydantic>=2,<3",
@@ -27,7 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 # Only needed when dagster_home/dagster.yaml points at MySQL storage instead of
 # the default SQLite files.
-mysql = ["dagster-mysql>=0.24"]
+mysql = ["dagster-mysql>=0.29.25,<0.30"]
 # Notebooks and exploration tools under notebooks/.
 notebooks = [
     "jupyterlab>=4",
