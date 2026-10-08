@@ -58,7 +58,7 @@ Read these files in this order:
 6. `src/tennis_match_prediction/ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
 7. `src/tennis_match_prediction/ml/predict.py` — load the model and player-history asset to predict a future match.
 
-The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `src/tennis_match_prediction/ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
+The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `src/tennis_match_prediction/ml/config.py`. Edit that tuple to select or reorder model inputs; `PLAYER_COMPARISON_FEATURE_COLUMNS` defines the generated dataset schema.
 Training randomly assigns the winner to player0 or player1 and gives the features
 that same orientation. `winner=1` means player1 won.
 

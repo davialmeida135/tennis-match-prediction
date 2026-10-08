@@ -3,7 +3,7 @@ import math
 import pytest
 
 from tennis_match_prediction.contracts import (
-    FEATURE_COLUMNS,
+    PLAYER_COMPARISON_FEATURE_COLUMNS,
     PlayedMatch,
     PlayerState,
 )
@@ -54,7 +54,7 @@ def test_features_use_snapshots_without_mutating_them() -> None:
 
     features = calculate_player_comparison(player0, player1, "Hard")
 
-    assert tuple(features) == FEATURE_COLUMNS
+    assert tuple(features) == PLAYER_COMPARISON_FEATURE_COLUMNS
     assert features == pytest.approx(
         {
             "overall_elo_diff": 100,
@@ -80,4 +80,4 @@ def test_unknown_surface_ratings_and_empty_histories_have_neutral_features() -> 
     features = calculate_player_comparison(
         PlayerState(name="Alice"), PlayerState(name="Bob"), "Clay"
     )
-    assert features == dict.fromkeys(FEATURE_COLUMNS, 0.0)
+    assert features == dict.fromkeys(PLAYER_COMPARISON_FEATURE_COLUMNS, 0.0)

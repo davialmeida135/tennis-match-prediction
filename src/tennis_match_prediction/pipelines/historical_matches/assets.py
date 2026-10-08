@@ -18,8 +18,8 @@ from dagster import (
 )
 
 from tennis_match_prediction.contracts import (
-    FEATURE_COLUMNS,
     NORMALIZED_MATCHES,
+    PLAYER_COMPARISON_FEATURE_COLUMNS,
     DataFrameContract,
 )
 from tennis_match_prediction.paths import (
@@ -238,8 +238,8 @@ def curated_atp_matches(
     """Encode match context and remove outcome statistics before target construction."""
     frame = remove_wo(imputed_atp_matches)
     if (
-        not set(FEATURE_COLUMNS).issubset(frame.columns)
-        or frame[list(FEATURE_COLUMNS)].isna().any().any()
+        not set(PLAYER_COMPARISON_FEATURE_COLUMNS).issubset(frame.columns)
+        or frame[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].isna().any().any()
     ):
         raise ValueError(
             "Missing temporal features. Materialize player_comparison_atp_matches and all "
@@ -271,7 +271,7 @@ def training_atp_matches(
     DataFrameContract(
         name="player-oriented training matches",
         required=tuple(FINAL_COLUMN_ORDER),
-        numeric=FEATURE_COLUMNS,
+        numeric=PLAYER_COMPARISON_FEATURE_COLUMNS,
         target=TARGET_COLUMN,
         exact_columns=True,
         date_column="tourney_date",

@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 
 from tennis_match_prediction.contracts import (
-    FEATURE_COLUMNS,
     INITIAL_ELO,
+    PLAYER_COMPARISON_FEATURE_COLUMNS,
     FutureMatchRequest,
     PlayerHistory,
 )
@@ -82,7 +82,7 @@ def test_later_match_in_same_tournament_cannot_change_prior_features() -> None:
 def test_ambiguous_numbers_share_prior_history_and_apply_results_afterward(numbers) -> None:
     source = _matches(numbers)
     _, features, history = attach_temporal_features(source)
-    assert features[list(FEATURE_COLUMNS)].eq(0.0).all().all()
+    assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
     assert calcular_elo(source)["elo_diff"].eq(0.0).all()
     assert calcular_h2h(source)["h2h"].eq(0).all()
     assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
@@ -130,7 +130,7 @@ def test_surface_elo_updates_only_the_played_surface() -> None:
 def test_tournament_id_cannot_order_same_day_results_for_a_shared_player() -> None:
     source = _matches([1, 2]).assign(tourney_id=["event-a", "event-b"])
     _, features, _ = attach_temporal_features(source)
-    assert features[list(FEATURE_COLUMNS)].eq(0.0).all().all()
+    assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
     assert calcular_elo(source)["elo_diff"].eq(0.0).all()
     assert calcular_h2h(source)["h2h"].eq(0).all()
     assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
@@ -144,7 +144,10 @@ def test_next_period_prediction_matches_historical_features() -> None:
     )
     future = _matches([1]).assign(tourney_date=20260112, tourney_id="2026-2")
     _, features, _ = attach_temporal_features(pd.concat([source, future], ignore_index=True))
-    assert features_for(history, request) == features.iloc[-1][list(FEATURE_COLUMNS)].to_dict()
+    assert (
+        features_for(history, request)
+        == features.iloc[-1][list(PLAYER_COMPARISON_FEATURE_COLUMNS)].to_dict()
+    )
 
 
 def test_old_history_format_is_rejected() -> None:
@@ -154,7 +157,9 @@ def test_old_history_format_is_rejected() -> None:
 
 def test_old_model_format_is_rejected(tmp_path) -> None:
     model_path = tmp_path / "model.pkl"
-    model_path.write_bytes(pickle.dumps({"model": None, "feature_columns": FEATURE_COLUMNS}))
+    model_path.write_bytes(
+        pickle.dumps({"model": None, "feature_columns": PLAYER_COMPARISON_FEATURE_COLUMNS})
+    )
     history_path = tmp_path / "history.parquet"
     pd.DataFrame(
         {"history": [PlayerHistory(last_source_date=None, players={}).model_dump_json()]}

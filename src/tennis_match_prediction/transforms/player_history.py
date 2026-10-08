@@ -6,7 +6,7 @@ from math import isfinite
 import pandas as pd
 
 from tennis_match_prediction.contracts import (
-    FEATURE_COLUMNS,
+    PLAYER_COMPARISON_FEATURE_COLUMNS,
     PlayedMatch,
     PlayerHistory,
     PlayerState,
@@ -92,7 +92,7 @@ def attach_temporal_features(
     """Keep features on their source rows; also return the comparisons and player history."""
     source = matches.reset_index(drop=True)
     features, state = _temporal_features_by_row(source)
-    featured = source.join(features[list(FEATURE_COLUMNS)])
+    featured = source.join(features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)])
     return featured, features.reset_index(drop=True), state
 
 
@@ -150,7 +150,7 @@ def _temporal_features_by_row(
             )
         for _, match in batch.iterrows():
             _apply_result(state, match, prior)
-    columns = ["tourney_id", "match_num", "winner_id", "loser_id", *FEATURE_COLUMNS, "tourney_date"]
+    columns = ["tourney_id", "match_num", "winner_id", "loser_id", *PLAYER_COMPARISON_FEATURE_COLUMNS, "tourney_date"]
     frame = pd.DataFrame(rows, columns=columns, index=source_rows)
     # Preserve missing source match numbers in the standalone temporal export.
     frame["match_num"] = frame["match_num"].astype("Int64")

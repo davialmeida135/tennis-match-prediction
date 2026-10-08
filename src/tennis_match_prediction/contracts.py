@@ -202,7 +202,7 @@ class DownloadedSeason(ContractModel):
     changed: bool
 
 
-FEATURE_COLUMNS = (
+PLAYER_COMPARISON_FEATURE_COLUMNS = (
     "overall_elo_diff",
     "surface_elo_diff",
     "rank_log_advantage",

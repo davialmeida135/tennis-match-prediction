@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from tennis_match_prediction.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
 
 TARGET_COLUMN = "winner"
-SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *FEATURE_COLUMNS]
+SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *PLAYER_COMPARISON_FEATURE_COLUMNS]
 
 # Match level columns: identical no matter which player is player0 or player1.
 MATCH_COLUMNS = [
@@ -31,7 +31,7 @@ MATCH_COLUMNS = [
     "surface_Hard",
     "surface_Clay",
     "surface_Grass",
-    *FEATURE_COLUMNS,
+    *PLAYER_COMPARISON_FEATURE_COLUMNS,
 ]
 
 # Every `winner_<stem>` / `loser_<stem>` pair becomes `player0_<stem>` / `player1_<stem>`.
@@ -101,7 +101,7 @@ FINAL_COLUMN_ORDER = [
     "surface_Grass",
     "h2h",
     "elo_diff",
-    *FEATURE_COLUMNS,
+    *PLAYER_COMPARISON_FEATURE_COLUMNS,
     "player0_winrate",
     "player1_winrate",
     "player0_winrate_last_10",

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from tennis_match_prediction.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     MATCH_COLUMNS,
@@ -21,7 +21,7 @@ def test_temporal_features_are_in_final_dataset_and_follow_random_player_order()
     result = build_training_rows(pd.DataFrame([row, row]), random_seed=1)
 
     assert list(result.columns) == FINAL_COLUMN_ORDER
-    assert set(FEATURE_COLUMNS).issubset(result.columns)
+    assert set(PLAYER_COMPARISON_FEATURE_COLUMNS).issubset(result.columns)
     for _, match in result.iterrows():
         expected_sign = 1 if match["winner"] == 1 else -1
         assert all(match[column] == expected_sign for column in SIGNED_MATCH_COLUMNS)

@@ -146,7 +146,7 @@ def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
 
 
 def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
-    from tennis_match_prediction.contracts import FEATURE_COLUMNS
+    from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
     from tennis_match_prediction.ml.train import train
 
     path = tmp_path / "training.csv"
@@ -159,7 +159,7 @@ def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
             validation_start=date(2026, 2, 1),
             test_start=date(2026, 3, 1),
         )
-    frame = pd.DataFrame({column: [0.0, 0.0] for column in FEATURE_COLUMNS})
+    frame = pd.DataFrame({column: [0.0, 0.0] for column in PLAYER_COMPARISON_FEATURE_COLUMNS})
     frame["winner"] = [0, 1]
     frame["tourney_date"] = ["2026-01-02", "2026-01-01"]
     frame.to_csv(path, index=False)

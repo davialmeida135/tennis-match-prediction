@@ -14,7 +14,7 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from tennis_match_prediction.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.ml.config import (
     MAX_ITER,
     MODEL_PATH,
@@ -42,7 +42,7 @@ def train(
         raise ValueError("Select at least one training feature")
     if len(set(feature_columns)) != len(feature_columns):
         raise ValueError("Training features must not contain duplicates")
-    unknown = set(feature_columns).difference(FEATURE_COLUMNS)
+    unknown = set(feature_columns).difference(PLAYER_COMPARISON_FEATURE_COLUMNS)
     if unknown:
         raise ValueError(f"Unknown training features: {sorted(unknown)}")
     contract = TRAINING_MATCHES.model_copy(

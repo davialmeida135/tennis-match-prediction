@@ -5,7 +5,7 @@ import pytest
 from dagster import DagsterInstance, Definitions, materialize
 
 from tennis_match_prediction import paths
-from tennis_match_prediction.contracts import FEATURE_COLUMNS, PlayerHistory
+from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS, PlayerHistory
 from tennis_match_prediction.pipelines.historical_matches import assets
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
@@ -175,7 +175,8 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert elo["elo_diff"].tolist() == pytest.approx(comparisons["overall_elo_diff"].tolist())
     _, expected, history = attach_temporal_features(normalized)
     pd.testing.assert_frame_equal(
-        comparisons[list(FEATURE_COLUMNS)], expected[list(FEATURE_COLUMNS)]
+        comparisons[list(PLAYER_COMPARISON_FEATURE_COLUMNS)],
+        expected[list(PLAYER_COMPARISON_FEATURE_COLUMNS)],
     )
     snapshot = pd.read_parquet(tmp_path / "curated" / "player_history.parquet")
     assert PlayerHistory.model_validate_json(snapshot.loc[0, "history"]) == history
