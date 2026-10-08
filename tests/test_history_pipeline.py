@@ -11,9 +11,6 @@ from tennis_match_prediction.pipelines.historical_matches.config import RawMatch
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.head_to_head import (
-    calcular_h2h,
-)
 from tennis_match_prediction.transforms.history import prepare_history
 from tennis_match_prediction.transforms.imputation import (
     DEFAULT_AGE,
@@ -87,7 +84,6 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
 
     prepared = prepare_history(raw)
     elo = calcular_elo(raw)
-    h2h = calcular_h2h(raw.dropna(subset=["winner_id"]))
     winrates = calcular_winrate_total(raw)
     _, temporal, history = attach_temporal_features(prepared)
     expected_differences = temporal["overall_elo_diff"].tolist()
@@ -95,11 +91,11 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
     assert prepared["match_num"].tolist()[:1] == [1]
     assert pd.isna(prepared.loc[1, "match_num"])
     assert prepared["surface"].tolist() == ["Hard"] * 4
-    for frame in (elo, h2h, winrates):
+    for frame in (elo, winrates):
         assert frame["tourney_id"].tolist() == prepared["tourney_id"].tolist()
         assert frame["match_num"].fillna(-1).tolist() == prepared["match_num"].fillna(-1).tolist()
         assert len(frame) == 4
-    assert elo["elo_diff"].tolist() == pytest.approx(expected_differences)
+    assert (elo["winner_elo"] - elo["loser_elo"]).tolist() == pytest.approx(expected_differences)
     assert sum(player.wins for player in history.players.values()) == 4
 
 
@@ -171,8 +167,12 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert len(normalized) == len(training) == 200
     assert normalized["surface"].eq("Hard").all()
     assert list(training.columns) == FINAL_COLUMN_ORDER
+    assert {"h2h", "elo_diff"}.isdisjoint(elo.columns)
+    assert not (staging / "h2h_featured_atp_matches.parquet").exists()
     assert training.filter(regex="_(ht|age|rank|rank_points)$").notna().all().all()
-    assert elo["elo_diff"].tolist() == pytest.approx(comparisons["overall_elo_diff"].tolist())
+    assert (elo["winner_elo"] - elo["loser_elo"]).tolist() == pytest.approx(
+        comparisons["overall_elo_diff"].tolist()
+    )
     _, expected, history = attach_temporal_features(normalized)
     pd.testing.assert_frame_equal(
         comparisons[list(PLAYER_COMPARISON_FEATURE_COLUMNS)],

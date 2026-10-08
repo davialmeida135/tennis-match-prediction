@@ -37,9 +37,6 @@ from tennis_match_prediction.transforms.curation import (
     transform_tourney_level,
 )
 from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.head_to_head import (
-    calcular_h2h,
-)
 from tennis_match_prediction.transforms.imputation import (
     fill_null_age,
     fill_null_height,
@@ -181,28 +178,14 @@ def winrate_featured_atp_matches(
 
 @asset(
     group_name="features",
-    kinds={"pandas", "polars"},
-    tags={**DOMAIN_TAGS, "layer": "features"},
-    description="Pre-match head-to-head win difference between the two players.",
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def h2h_featured_atp_matches(
-    winrate_featured_atp_matches: pd.DataFrame,
-) -> pd.DataFrame:
-    """Attach the head-to-head history of each matchup."""
-    return calcular_h2h(winrate_featured_atp_matches)
-
-
-@asset(
-    group_name="features",
     kinds={"pandas"},
     tags={**DOMAIN_TAGS, "layer": "features"},
-    description="Elo rating per player plus the pre-match rating difference.",
+    description="Pre-match Elo rating per player.",
     automation_condition=WHEN_INPUT_CHANGES,
 )
-def elo_featured_atp_matches(h2h_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
+def elo_featured_atp_matches(winrate_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Attach pre-match Elo ratings using the player-history transform's update formula."""
-    return calcular_elo(h2h_featured_atp_matches)
+    return calcular_elo(winrate_featured_atp_matches)
 
 
 @asset(

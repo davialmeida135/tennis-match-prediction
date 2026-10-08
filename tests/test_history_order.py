@@ -1,5 +1,6 @@
 """Regression tests for source-date/match-number history without inferred days."""
 
+import math
 import pickle
 
 import pandas as pd
@@ -13,9 +14,6 @@ from tennis_match_prediction.contracts import (
 )
 from tennis_match_prediction.ml.predict import features_for, predict
 from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.head_to_head import (
-    calcular_h2h,
-)
 from tennis_match_prediction.transforms.history import prepare_history
 from tennis_match_prediction.transforms.player_history import (
     attach_temporal_features,
@@ -51,13 +49,14 @@ def test_same_source_date_uses_numeric_match_order_for_every_feature() -> None:
     prepared = prepare_history(_matches(["10", "2", "1"]))
     _, features, _ = attach_temporal_features(prepared)
     elo = calcular_elo(prepared)
-    h2h = calcular_h2h(prepared)
     assert features["match_num"].tolist() == [1, 2, 10]
-    assert features["overall_elo_diff"].tolist() == pytest.approx(elo["elo_diff"].tolist())
+    assert features["overall_elo_diff"].tolist() == pytest.approx(
+        (elo["winner_elo"] - elo["loser_elo"]).tolist()
+    )
     assert features["form_10_diff"].tolist() == [0.0, 1.0, 1.0]
     assert features["surface_form_10_diff"].tolist() == [0.0, 1.0, 1.0]
     assert features["ace_rate_diff"].tolist() == pytest.approx([0.0, 0.1, 0.1])
-    assert h2h["h2h"].tolist() == [0, 1, 2]
+    assert features["h2h_log_odds"].tolist() == pytest.approx([0, math.log(2), math.log(3)])
     for transform, suffix in (
         (calcular_winrate_total, ""),
         (calcular_winrate_ultimas_n, "_last_50"),
@@ -83,8 +82,8 @@ def test_ambiguous_numbers_share_prior_history_and_apply_results_afterward(numbe
     source = _matches(numbers)
     _, features, history = attach_temporal_features(source)
     assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
-    assert calcular_elo(source)["elo_diff"].eq(0.0).all()
-    assert calcular_h2h(source)["h2h"].eq(0).all()
+    elo = calcular_elo(source)
+    assert elo["winner_elo"].eq(elo["loser_elo"]).all()
     assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
     assert history.players["a"].wins == 2
     assert history.players["b"].losses == 2
@@ -131,8 +130,8 @@ def test_tournament_id_cannot_order_same_day_results_for_a_shared_player() -> No
     source = _matches([1, 2]).assign(tourney_id=["event-a", "event-b"])
     _, features, _ = attach_temporal_features(source)
     assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
-    assert calcular_elo(source)["elo_diff"].eq(0.0).all()
-    assert calcular_h2h(source)["h2h"].eq(0).all()
+    elo = calcular_elo(source)
+    assert elo["winner_elo"].eq(elo["loser_elo"]).all()
     assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
 
 

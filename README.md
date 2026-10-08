@@ -103,7 +103,6 @@ raw_atp_matches
   -> normalized_atp_matches (filter walkovers/missing IDs, clean surface, parse/order dates)
   -> player_comparison_atp_matches (12 pre-match comparisons + player_history asset)
   -> winrate_featured_atp_matches
-  -> h2h_featured_atp_matches
   -> elo_featured_atp_matches
   -> imputed_atp_matches (earlier observations only)
   -> curated_atp_matches (encode context, drop per-match statistics)
@@ -120,7 +119,6 @@ training-row construction does not depend on CSV publication.
 - `transforms/elo.py` owns overall and surface Elo updates and the formula shared
   by historical Elo columns and player history. Both players update from ratings
   frozen before their history batch.
-- `transforms/head_to_head.py` calculates the prior head-to-head win difference.
 - `transforms/curation.py` encodes categoricals and removes outcome statistics for
   `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
 - `transforms/imputation.py` fills height/age from the pooled mean of earlier

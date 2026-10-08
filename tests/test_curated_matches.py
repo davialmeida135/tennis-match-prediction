@@ -4,7 +4,6 @@ import pytest
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
     elo_featured_atp_matches,
-    h2h_featured_atp_matches,
     imputed_atp_matches,
     normalized_atp_matches,
     winrate_featured_atp_matches,
@@ -121,12 +120,13 @@ def test_feature_chain_preserves_matches_through_training_rows() -> None:
     normalized = normalized_atp_matches(raw)
     featured, _, _ = attach_temporal_features(normalized)
     winrates = winrate_featured_atp_matches(featured)
-    h2h = h2h_featured_atp_matches(winrates)
-    elo = elo_featured_atp_matches(h2h)
+    elo = elo_featured_atp_matches(winrates)
     imputed = imputed_atp_matches(elo)
     curated = curated_atp_matches(imputed)
     final = build_training_rows(curated, random_seed=42)
 
-    assert all(len(frame) == len(raw) for frame in (featured, imputed, winrates, h2h, elo, final))
+    assert all(len(frame) == len(raw) for frame in (featured, imputed, winrates, elo, final))
     assert list(final.columns) == FINAL_COLUMN_ORDER
+    assert {"h2h", "elo_diff"}.isdisjoint(curated.columns)
+    assert {"h2h", "elo_diff"}.isdisjoint(final.columns)
     assert final[["player0_elo", "player1_elo", "overall_elo_diff"]].notna().all().all()

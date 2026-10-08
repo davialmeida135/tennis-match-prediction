@@ -14,9 +14,12 @@ import polars as pl
 from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
 
 TARGET_COLUMN = "winner"
-SIGNED_MATCH_COLUMNS = ["h2h", "elo_diff", *PLAYER_COMPARISON_FEATURE_COLUMNS]
+
+# Columns that can have positive or negative values.
+SIGNED_MATCH_COLUMNS = list(PLAYER_COMPARISON_FEATURE_COLUMNS)
 
 # Match level columns: identical no matter which player is player0 or player1.
+# Used for checks and to build the final output column order.
 MATCH_COLUMNS = [
     "tourney_date",
     "draw_size",
@@ -26,8 +29,6 @@ MATCH_COLUMNS = [
     "match_num",
     "best_of",
     "round",
-    "h2h",
-    "elo_diff",
     "surface_Hard",
     "surface_Clay",
     "surface_Grass",
@@ -99,8 +100,6 @@ FINAL_COLUMN_ORDER = [
     "surface_Hard",
     "surface_Clay",
     "surface_Grass",
-    "h2h",
-    "elo_diff",
     *PLAYER_COMPARISON_FEATURE_COLUMNS,
     "player0_winrate",
     "player1_winrate",

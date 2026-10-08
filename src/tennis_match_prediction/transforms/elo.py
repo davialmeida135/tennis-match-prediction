@@ -84,5 +84,4 @@ def calcular_elo(df: pd.DataFrame | pl.DataFrame) -> pd.DataFrame:
             counts[player] = counts.get(player, 0) + played[player]
     result["winner_elo"] = winner_ratings
     result["loser_elo"] = loser_ratings
-    result["elo_diff"] = result["winner_elo"] - result["loser_elo"]
     return result

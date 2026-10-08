@@ -12,7 +12,6 @@ from tennis_match_prediction.contracts import NORMALIZED_REQUIRED_COLUMNS
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
     elo_featured_atp_matches,
-    h2h_featured_atp_matches,
     imputed_atp_matches,
     normalized_atp_matches,
     raw_atp_matches,
@@ -59,7 +58,7 @@ WINRATE_COLUMNS = [
     "loser_winrate_surface_last_50",
 ]
 
-ELO_COLUMNS = ["winner_elo", "loser_elo", "elo_diff"]
+ELO_COLUMNS = ["winner_elo", "loser_elo"]
 
 # player0/player1 are shuffled at random, so the target must land near 50/50.
 TARGET_BALANCE_TOLERANCE = 0.05
@@ -166,21 +165,10 @@ def winrate_features_are_probabilities(
 
 
 @asset_check(
-    asset=h2h_featured_atp_matches,
-    name="feature_columns_present",
-    description="Win-rate features and the pre-match head-to-head win difference are present.",
-)
-def h2h_features_present(h2h_featured_atp_matches: pd.DataFrame) -> AssetCheckResult:
-    expected = [*WINRATE_COLUMNS, "h2h"]
-    passed, metadata = columns_present(h2h_featured_atp_matches, expected)
-    return AssetCheckResult(passed=passed, metadata=metadata)
-
-
-@asset_check(
     asset=elo_featured_atp_matches,
     name="elo_features_present",
     description=(
-        "Both player ratings and their difference are available before the dataset is curated."
+        "Both player ratings are available before the dataset is curated."
     ),
 )
 def elo_features_present(elo_featured_atp_matches: pd.DataFrame) -> AssetCheckResult:
