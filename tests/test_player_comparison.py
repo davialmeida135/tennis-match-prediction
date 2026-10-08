@@ -2,12 +2,28 @@ import math
 
 import pytest
 
-from tennis_match_prediction.contracts import FEATURE_COLUMNS, PlayedMatch, PlayerState
+from tennis_match_prediction.contracts import (
+    FEATURE_COLUMNS,
+    PlayedMatch,
+    PlayerState,
+)
 from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 
 def test_features_use_snapshots_without_mutating_them() -> None:
-    player0 = PlayerState(name="Alice")
+    player0 = PlayerState(
+        name="Alice",
+        rank=1,
+        rank_points=0,
+        age=20,
+        ace_serve_points=100,
+        double_fault_serve_points=100,
+        service_won_serve_points=100,
+        history=[PlayedMatch(tourney_date="2026-01-01", surface="Hard", won=False)],
+        surface_history={
+            "Hard": [PlayedMatch(tourney_date="2026-01-01", surface="Hard", won=False)]
+        },
+    )
     player1 = PlayerState(
         name="Bob",
         rating=1600,
@@ -19,6 +35,12 @@ def test_features_use_snapshots_without_mutating_them() -> None:
         rank_points=99,
         age=25,
         serve_points=100,
+        ace_serve_points=100,
+        double_fault_serve_points=100,
+        service_won_serve_points=100,
+        surface_history={
+            "Hard": [PlayedMatch(tourney_date="2026-01-08", surface="Hard", won=True)]
+        },
         aces=10,
         double_faults=5,
         service_points_won=70,
@@ -37,11 +59,11 @@ def test_features_use_snapshots_without_mutating_them() -> None:
         {
             "overall_elo_diff": 100,
             "surface_elo_diff": 50,
-            "rank_log_advantage": -math.log(10),
+            "rank_log_advantage": math.log(2) - math.log(10),
             "points_log_diff": math.log(100),
             "form_10_diff": 2 / 3,
             "surface_form_10_diff": 1,
-            "age_diff": 25,
+            "age_diff": 5,
             "h2h_log_odds": math.log(3),
             "experience_log_diff": math.log(5),
             "ace_rate_diff": 0.1,

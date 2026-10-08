@@ -113,14 +113,17 @@ def test_surface_elo_updates_only_the_played_surface() -> None:
     assert comparisons.iloc[1]["overall_elo_diff"] > 0.0
     assert comparisons.iloc[1]["surface_elo_diff"] == 0.0
     for player_id in ("a", "b"):
-        assert after_clay.players[player_id].surface_ratings["Hard"] == (
-            after_hard.players[player_id].surface_ratings["Hard"]
-        )
-        assert final.players[player_id].surface_ratings["Clay"] == (
-            after_clay.players[player_id].surface_ratings["Clay"]
-        )
-        assert final.players[player_id].surface_ratings["Hard"] != (
+        assert (
             after_clay.players[player_id].surface_ratings["Hard"]
+            == (after_hard.players[player_id].surface_ratings["Hard"])
+        )
+        assert (
+            final.players[player_id].surface_ratings["Clay"]
+            == (after_clay.players[player_id].surface_ratings["Clay"])
+        )
+        assert (
+            final.players[player_id].surface_ratings["Hard"]
+            != (after_clay.players[player_id].surface_ratings["Hard"])
         )
 
 

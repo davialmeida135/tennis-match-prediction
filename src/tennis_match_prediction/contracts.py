@@ -71,7 +71,11 @@ class PlayerState(ContractModel):
     losses: NonnegativeInt = 0
     h2h_wins: dict[str, NonnegativeInt] = Field(default_factory=dict)
     history: list[PlayedMatch] = Field(default_factory=list, max_length=50)
+    surface_history: dict[str, list[PlayedMatch]] = Field(default_factory=dict)
     serve_points: NonnegativeFloat = 0.0
+    ace_serve_points: NonnegativeFloat = 0.0
+    double_fault_serve_points: NonnegativeFloat = 0.0
+    service_won_serve_points: NonnegativeFloat = 0.0
     aces: NonnegativeFloat = 0.0
     double_faults: NonnegativeFloat = 0.0
     service_points_won: NonnegativeFloat = 0.0
@@ -94,6 +98,16 @@ class PlayerHistory(ContractModel):
                 raise ValueError("player history exceeds the player-history cutoff")
             if dates != sorted(dates, reverse=True):
                 raise ValueError("player history must be newest first")
+            for surface, matches in player.surface_history.items():
+                if len(matches) > 10 or any(item.surface != surface for item in matches):
+                    raise ValueError("surface history must contain at most 10 matching results")
+                surface_dates = [item.tourney_date for item in matches]
+                if surface_dates and (
+                    self.last_source_date is None or max(surface_dates) > self.last_source_date
+                ):
+                    raise ValueError("surface history exceeds the player-history cutoff")
+                if surface_dates != sorted(surface_dates, reverse=True):
+                    raise ValueError("surface history must be newest first")
         return self
 
 

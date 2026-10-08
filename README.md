@@ -53,7 +53,7 @@ Read these files in this order:
 1. `src/tennis_match_prediction/pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
 2. `src/tennis_match_prediction/pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
 3. `src/tennis_match_prediction/contracts.py` — Pydantic models, feature names, and DataFrame validation.
-4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the 12 model features.
+4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the model features.
 5. `src/tennis_match_prediction/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
 6. `src/tennis_match_prediction/ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
 7. `src/tennis_match_prediction/ml/predict.py` — load the model and player-history asset to predict a future match.
@@ -247,6 +247,12 @@ These are exploratory notebooks, not pipeline steps; there is no live-data
 pipeline currently. Install their optional libraries with
 `uv sync --extra notebooks`. The tennis-data.co.uk notebook additionally uses
 Excel readers such as `xlrd`.
+
+Feature quality rules and the local source coverage report are documented in
+[docs/feature-quality.md](docs/feature-quality.md). The model uses 12 comparison
+features. Surface form has an independent last-10 history; serve rates use
+denominators matched to the available statistic. Comparisons with unavailable
+information are neutral (zero).
 
 Remaining work is tracked in `TODO.md`. `diagram.excalidraw` and `diagram.png`
 are earlier design sketches; the workflow above describes the current code.

@@ -47,6 +47,9 @@ def _update_player(
     *,
     won: bool,
 ) -> None:
+    """
+    Update a player's state based on the outcome of a match.
+    """
     prefix = "w" if won else "l"
     player.wins += int(won)
     player.losses += int(not won)
@@ -60,12 +63,22 @@ def _update_player(
         ),
     )
     player.history = player.history[:50]
-    player.serve_points += _number(match.get(f"{prefix}_svpt"))
-    player.aces += _number(match.get(f"{prefix}_ace"))
-    player.double_faults += _number(match.get(f"{prefix}_df"))
-    player.service_points_won += _number(match.get(f"{prefix}_1stWon")) + _number(
-        match.get(f"{prefix}_2ndWon")
-    )
+    player.surface_history.setdefault(surface, []).insert(0, player.history[0])
+    player.surface_history[surface] = player.surface_history[surface][:10]
+    points = _optional_number(match.get(f"{prefix}_svpt"))
+    if points is not None and points > 0:
+        player.serve_points += points
+        for numerator, denominator, fields in (
+            ("aces", "ace_serve_points", ("ace",)),
+            ("double_faults", "double_fault_serve_points", ("df",)),
+            ("service_points_won", "service_won_serve_points", ("1stWon", "2ndWon")),
+        ):
+            values = [_optional_number(match.get(f"{prefix}_{field}")) for field in fields]
+            if all(value is not None and value >= 0 for value in values):
+                total = sum(values)
+                if total <= points:
+                    setattr(player, numerator, getattr(player, numerator) + total)
+                    setattr(player, denominator, getattr(player, denominator) + points)
     side = "winner" if won else "loser"
     for attribute in ("rank", "rank_points", "age"):
         value = _optional_number(match.get(f"{side}_{attribute}"))
@@ -142,11 +155,6 @@ def _temporal_features_by_row(
     # Preserve missing source match numbers in the standalone temporal export.
     frame["match_num"] = frame["match_num"].astype("Int64")
     return frame, PlayerHistory.model_validate(state.model_dump())
-
-
-def _number(value: object) -> float:
-    parsed = pd.to_numeric(value, errors="coerce")
-    return float(parsed) if pd.notna(parsed) and isfinite(parsed) and parsed >= 0 else 0.0
 
 
 def _optional_number(value: object) -> float | None:

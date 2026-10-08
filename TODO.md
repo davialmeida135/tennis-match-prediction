@@ -22,8 +22,11 @@ com features calculadas apenas a partir das informações disponíveis antes do 
 - [ ] Ampliar testes com várias rodadas do mesmo torneio, datas empatadas e números de partida ausentes; verificar que nenhum resultado do grupo ambíguo entra nas suas próprias features.
 - [ ] Verificar que Elo, H2H, forma recente e estatísticas de saque usam a mesma fronteira de informação disponível.
 - [ ] Obter datas efetivas das partidas antes de reintroduzir `minutes_7d_diff` e `matches_14d_diff`.
-- [ ] Avaliar histórico por superfície separado: as últimas 50 partidas gerais podem não conter as últimas 10 de determinada superfície.
-- [ ] Medir ausência de ranking, pontos, idade e estatísticas de saque; distinguir valores desconhecidos de zeros legítimos.
+- [x] Manter janela independente das últimas 10 partidas por superfície, com teste após mais de 50 partidas em outras superfícies.
+- [x] Medir ausência de ranking, pontos, idade e estatísticas de saque; distinguir valores desconhecidos de zeros legítimos. Relatório por temporada em `docs/feature-quality.md` e `docs/feature-quality-coverage.json`.
+- [x] Calcular taxas de saque com denominadores específicos e observações completas; rejeitar contagens inválidas e preservar zeros observados.
+- [x] Neutralizar comparações sem informação, compartilhando as fórmulas entre treino e predição.
+- [ ] Medir defasagem dos últimos valores conhecidos de ranking, pontos e idade; avaliar alternativas na validação.
 
 Critério de conclusão: política temporal documentada e testes que comprovem a
 consistência das features nos casos de ordem conhecida e ambígua. `last_source_date`
