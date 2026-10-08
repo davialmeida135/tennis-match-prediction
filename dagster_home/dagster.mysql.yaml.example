@@ -1,0 +1,41 @@
+# MySQL storage template for a shared Dagster deployment.
+#
+# Copy to dagster_home/dagster.yaml and replace the placeholders. Requires the
+# `dagster-mysql` package (`uv sync --extra mysql`).
+#
+# Why a template instead of the real config: dagster.yaml is not templated, so
+# credentials would have to be committed in plain text. Keep the real file in
+# .gitignore (already ignored) and never commit it.
+
+event_log_storage:
+  module: dagster_mysql.event_log
+  class: MySQLEventLogStorage
+  config:
+    mysql_db:
+      username: <user>
+      password: <password>
+      hostname: <host>
+      db_name: dagster
+      port: 3306
+
+run_storage:
+  module: dagster_mysql.run_storage
+  class: MySQLRunStorage
+  config:
+    mysql_db:
+      username: <user>
+      password: <password>
+      hostname: <host>
+      db_name: dagster
+      port: 3306
+
+schedule_storage:
+  module: dagster_mysql.schedule_storage
+  class: MySQLScheduleStorage
+  config:
+    mysql_db:
+      username: <user>
+      password: <password>
+      hostname: <host>
+      db_name: dagster
+      port: 3306

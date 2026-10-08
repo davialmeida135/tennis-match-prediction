@@ -1,160 +1,240 @@
-# tennis-match-prediction
+# Tennis match prediction
 
-Sistema de machine learning para predição de vencedor de partidas de tênis
+Predict an ATP match from two player names, a date, and a surface. Historical
+results come from TennisMyLife; training uses a chronological split and logistic
+regression. A Dagster player-history asset supplies each player's pre-match history.
 
-Envolve tratamento de dados e aplicação de modelos de aprendizado de máquina
+## Start here
 
-## Datasets
+Use Python 3.12 and `uv`:
 
-Partidas até 2022
-https://www.kaggle.com/datasets/sijovm/atpdata
-
-Partidas de 1968-2024
-
-https://www.kaggle.com/datasets/guillemservera/tennis
-
-Partidas 2000-2025
-https://www.kaggle.com/datasets/dissfya/atp-tennis-2000-2023daily-pull
-
-Script tratamento partidas
-https://www.kaggle.com/code/dissfya/atp-tennis-daily-pull
-http://tennis-data.co.uk/2025/2025.xlsx
-
-API pra pegar mais dados no futuro
-
-https://developer.sportradar.com/tennis/reference/overview
-https://sportdevs.com/dashboard
-https://www.kaggle.com/code/dissfya/atp-tennis-daily-pull
-## Conceito inicial
-
-https://www.tennisabstract.com/blog/2019/12/03/an-introduction-to-tennis-elo/
-
-Dadas informações sobre 2 jogadores, retornar se o vencedor é o jogador 1 ou 2
-
-| Player1_info| Player2_info| Winner
-    123             124         1
-
-## Como rodar
-
-dagster dev
-
-## TODO
-### Limpeza inicial
-
-### Cálculo de dados dos jogadores
-- Winrate em um torneio
-- H2H recente (last 5) (polars) talvez fazer H2H padrao com polars tambem
-- Diferença de rank
-- Diferença de idade
-- Diferença de Altura
-- Partidas ganhas
-- Win streak (polars)
-- Win streak na superfície (polars)
-- Win streak no torneio (polars)
-
-### Limpeza final
-- Limpar colunas desnecessárias
-- tirar partidas RET
-- Anonimizar os dados
-- Numerar tourney level
-- Numerar round
-
-## DONE
-### Limpeza inicial
-- Merge datasets
-- Limpar W/O
-- Fillar altura, idade, minutos(com media do torneio)
-- Fillar falta de rank (não sei como)
-
-### Cálculo de dados dos jogadores
-- H2H
-- ELO
-- Diferença de ELO
-- Tempo jogado em um torneio
-- Helper functions de pegar todos os confrontos entre jogadores e todas as partidas de um jogador
-- Winrate Total (polars)
-- Winrate nas ultimas 50 partidas (polars)
-- Winrate das ultimas 10 partidas (polars)
-- Winrate em uma superfície (polars)
-- Winrate superfície ultimas 50 Consertar isso (polars)
-- Winrate superfície ultimas 10 Consertar isso (polars)
-
-### Limpeza final
-- Tirar player id, score, match_num, tourney_date
-- Refazer seeds (one-hot encoding nos entry_methods)
-- Surface one-hot encode
-- Numerar mão do forehand
-- 
-
-## Modelo
-- Baseline de performance = elo
-- Random Forest/DT
-- Experimentos com redes neurais + MLFlow
-- Regularização L1 ou L2 com rede neural
-
-## Estrutura de arquivos
-ETL/
-├── kaggle/
-│ ├── matches_original.csv # Dump inicial dos dados 
-│ └── players_original.csv
-├── past_matches_api/
-├── next_matches_api/
-├── anonymize_past/
-└── anonymize_next/
-data/
-├── kaggle/
-│ └── raw/
-├── past_matches_api/
-├── next_matches_api/
-├── anonymized_past/
-└── anonymized_next/
-ml/
-├──
-└──
-
-## Arquitetura
-- Dagster: 
-  - Alimentar banco de dados
-  - Tratamento automático de dados
-  - Métricas sobre os conjuntos
-  - Divisão Treino/Validação/Teste
-  - Divisão entre real/predicted
-  - Avisos
-  - Versionamento de datasets?
-- WandB
-  - Treino de modelos
-  - Versionamento de modelos
-  - Salvar parâmetros e métricas de modelos
-
-## Roadmap
-- EDA
-- Limpeza Inicial
-- Criação de Features novas *
-- Limpeza final, one hot encoding, anonimizar players
-- Versionar dataset final
-
-- Rodar algum algoritmo de feature importance para determinar quais features serão usadas
-- Treinar um modelo inicial, documentar testes no MLFlow ou WandB
-- Plot Model com netron
-- Manter comparações com baseline (elo)
-
-- Conexão com uma api para alimentação do dataset
-- Pipeline de retreino do modelo
-
-
-## Como Executar
-
-- Preencha um arquivo .env com os seguintes campos
-```
-DAGSTER_HOME = "D:/Github/tennis-match-prediction/dagster_home"
-WANDB_BASE_URL = url
-WANDB_API_KEY = yourkey
+```powershell
+uv sync
+Copy-Item .env.example .env
+uv run dagster job execute -m pipelines.historical_matches.defs -j materialize_historical_dataset
+uv run python -m ml.train
 ```
 
+Then predict a match on a date **after the latest source date in the player-history asset**:
+
+```powershell
+uv run python -m ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard
 ```
-dagster dev
+
+Both players must be present in the history. The prediction returns win
+probabilities, the latest history source date, and the model path. Training also records
+validation/test metrics and logs the model artifact to local MLflow.
+
+To refresh selected seasons instead of downloading all seasons:
+
+```powershell
+uv run python -m ml.refresh_history 2025 2026
 ```
-Precisa dos seguintes serviços rodando
-- Dagster
-- Wandb
-- MySQL 
+
+This materializes `raw_atp_matches` in Dagster, updates annual files, then
+consolidates all locally available seasons and persists the raw Parquet snapshot.
+Re-materialize the Dagster dataset after refreshing history, then retrain.
+
+## How the code fits together
+
+Read these files in this order:
+
+1. `pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
+2. `pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `ml/refresh_history.py` materializes the raw asset with refresh enabled.
+3. `pipelines/shared/contracts.py` — Pydantic models, feature names, and DataFrame validation.
+4. `pipelines/historical_matches/transforms/player_comparison.py` — pure formulas for the 12 model features.
+5. `pipelines/historical_matches/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
+6. `ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
+7. `ml/predict.py` — load the model and player-history asset to predict a future match.
+
+The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
+Training randomly assigns the winner to player0 or player1 and gives the features
+that same orientation. `winner=1` means player1 won.
+
+All data models live in `contracts.py` and inherit from `ContractModel`.
+`PlayerState`, `PlayedMatch` and `PlayerHistory` validate the prediction history
+persisted by Dagster. DataFrame contracts check columns, dates, finite features, and
+binary targets with vectorized operations.
+
+## Dagster dataset workflow
+
+There is one Dagster code location, configured in `workspace.yaml`:
+
+```powershell
+uv run dagster dev
+```
+
+Set `DAGSTER_HOME` in `.env` to the absolute path of this checkout's `dagster_home`
+directory. Open `materialize_historical_dataset` in the UI to build the dataset.
+The raw asset reuses an existing consolidated CSV. If it is missing, it
+consolidates annual CSVs in the same directory; if none exist, it downloads
+available seasons first. Existing CSVs are not refreshed automatically by age.
+
+To request an update directly in the Dagster Launchpad, configure the resource:
+
+```yaml
+resources:
+  raw_matches_csv:
+    config:
+      refresh: true
+      years: [2025, 2026]
+```
+
+Omit `years` to download all available seasons. `csv_path` overrides the output
+path and determines the directory containing annual files. The refresh CLI also
+accepts `--csv-path`. Run the full dataset job with refresh enabled to update
+source history and all downstream datasets together.
+
+The assets in `pipelines/historical_matches/assets.py` run in this order:
+
+```text
+raw_atp_matches
+  -> normalized_atp_matches (filter walkovers/missing IDs, clean surface, parse/order dates)
+  -> player_comparison_atp_matches (12 pre-match comparisons + player_history asset)
+  -> winrate_featured_atp_matches
+  -> h2h_featured_atp_matches
+  -> elo_featured_atp_matches
+  -> imputed_atp_matches (earlier observations only)
+  -> curated_atp_matches (encode context, drop per-match statistics)
+  -> training_atp_matches (assign player positions, construct target)
+  -> training_atp_matches_csv
+```
+
+`curated_atp_matches_csv` publishes the readable curated dataset directly from
+`curated_atp_matches`. The curated and training exports are branches;
+training-row construction does not depend on CSV publication.
+
+- `transforms/history.py` supplies source-date parsing, numeric match-number ordering,
+  shared history batches, and played-match filtering.
+- `transforms/elo.py` contains the rating update formula used by both historical
+  Elo columns and the player-history transform; both players update from their prior ratings.
+- `transforms/head_to_head.py` calculates the prior head-to-head win difference.
+- `transforms/curation.py` encodes categoricals and removes outcome statistics for
+  `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
+- `transforms/imputation.py` fills height/age from the pooled mean of earlier
+  observed values, rank from the worst earlier rank, and points from the lowest
+  earlier points. Both player sides share these references. Initial defaults are
+  height 180 cm, age 25, rank 2000 and points 0; future rows never affect past fills.
+- `transforms/training_rows.py` assigns winner/loser attributes to player0/player1 and
+  orients signed features with the target. The asset uses random seed 42.
+- `checks.py` checks intermediate and final datasets.
+- `defs.py` registers the assets, checks, and job.
+- `shared/parquet_io.py` persists DataFrames so individual steps can be rerun.
+
+### History order and source-date limitations
+
+[TennisMyLife](https://stats.tennismylife.org/tennis-match-database) documents
+`tourney_date` as the tournament week. Local files have
+mixed granularity: some recent tournaments have dates for individual rounds,
+while older tournaments repeat the start date for every match. The pipeline
+preserves that field as `tourney_date`; it does not invent a match calendar date.
+
+All result-derived features use the same source-date/tournament/match-number
+order. A larger numeric `match_num` within a tournament follows earlier matches,
+even when their source dates are equal. Missing, nonpositive or duplicate numbers
+within a source-date/tournament group make its order ambiguous: all its features
+use the group's prior state, then its results are applied. When a player appears
+in multiple tournaments on the same source date, the entire date uses one prior
+state; tournament IDs do not establish chronology. Features never use the current
+match's outcome. This is source sequence, not a verified order of match completion.
+
+Calendar workload features (`minutes_7d_diff`, `matches_14d_diff`) are removed.
+Recent form uses earlier matches in source sequence, including earlier rounds
+sharing a source date. Models and history snapshots must be rebuilt; old formats
+are rejected. Training datasets and comparison exports use `tourney_date`, not
+`match_date`. Predictions expose `history_source_date`, not a result-completion
+cutoff. The prediction date must exceed this source date, but that check cannot
+establish when a tournament finished or validate an in-progress tournament.
+Verified match dates are needed for daily workload or a calendar-accurate backtest.
+
+This workflow is the single source of features for training and prediction.
+`ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
+CSV path) and requires only the configured training features, target and
+chronological date. Override the defaults for one run with
+`uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
+Edit `ml/config.py` to change the training CSV, model path, selected features,
+iteration limit, random seed, and split dates without passing CLI arguments.
+The default dates are `TRAIN_START = date(2017, 1, 1)`,
+`VALIDATION_START = date(2024, 1, 1)`, and `TEST_START = date(2025, 1, 1)`.
+You can also train directly from Python:
+
+```python
+from ml.train import train
+
+metrics = train()
+```
+
+The Python API accepts overrides for paths, dates (`datetime.date` values), and
+`feature_columns`; CLI arguments override the same defaults for a single run.
+All three dates must be strictly increasing. The periods are:
+
+- Warmup: `tourney_date < train_start`; retained by Dagster for history/features,
+  excluded from scaler fitting, model fitting, and evaluation.
+- Training: `train_start <= tourney_date < validation_start`.
+- Validation: `validation_start <= tourney_date < test_start`.
+- Test: `tourney_date >= test_start`, through the end of the input dataset.
+
+Generate features from the full history before training; do not trim the raw data
+at `train_start`. Every period must contain rows, and training must contain both
+target classes. Equal source dates always stay together. These are source-date
+cuts, not verified match-day cuts; tournaments spanning multiple source dates
+can still cross boundaries. Choose dates outside overlapping tournaments when
+that separation is required. The example assumes history begins before 2017.
+Split boundaries, row counts, and observed date ranges are saved in the model
+and JSON metadata; boundaries are also logged as MLflow parameters.
+
+Dagster partitions are not required for these training cuts. See
+[the partitioning assessment](docs/partitioning.md) for ingestion and temporal-state considerations.
+Empty, duplicate, or unknown feature selections are rejected. Ordered feature
+names are saved in the model and JSON metadata and logged in MLflow alongside
+the feature count. Prediction uses the saved model's feature selection.
+It rejects raw history and unordered training rows instead of rebuilding features.
+`ml.predict` reads `data/curated/player_history.parquet`, produced together with
+`player_comparison_atp_matches` in one chronological pass. Prediction uses the
+same comparison formulas and requires a date after the asset's latest source date.
+The history asset contains a validated JSON payload inside Parquet, persisted by
+the existing Dagster IO manager; there is no separate checkpoint writer or engine.
+The wider exported columns remain available for inspection and experiments.
+
+Asset and CSV names changed during this refactor. Re-materialize the full
+`materialize_historical_dataset` job to rebuild snapshots under the new names;
+old snapshots and CSV files are not migrated or deleted automatically.
+
+To run downstream assets automatically after inputs change, enable the default
+automation condition sensor in Dagster. The root asset is triggered manually.
+
+## Files and configuration
+
+| Location | Contents |
+| --- | --- |
+| `data/raw/historical_matches/` | Annual CSVs, source manifest, and `all_atp_matches.csv` |
+| `data/staging/` | One Parquet snapshot per Dagster asset |
+| `data/curated/` | Player comparison, curated and training CSV exports |
+| `data/curated/player_history.parquet` | Player-history asset and latest source date used for prediction |
+| `data/models/` | Trained model and metric metadata |
+| `dagster_home/` | Local Dagster configuration and SQLite storage |
+
+`TENNIS_DATA_DIR` changes the data root. `TENNIS_RAW_MATCHES_CSV` overrides the
+Dagster source CSV. The training CLI defaults to the published training CSV. Use `--history-path`
+on the prediction CLI to select a player-history snapshot.
+Defaults and environment loading are in `pipelines/shared/paths.py`.
+
+The optional MySQL configuration is in `dagster_home/dagster.mysql.yaml.example`;
+install it with `uv sync --extra mysql` if needed.
+
+## Development and exploration
+
+```powershell
+uv run pytest
+uv run ruff check pipelines ml tests
+uv run pylint pipelines
+```
+
+`notebooks/` contains historical EDA and experiments with alternative sources.
+These are exploratory notebooks, not pipeline steps; there is no live-data
+pipeline currently. Install their optional libraries with
+`uv sync --extra notebooks`. The tennis-data.co.uk notebook additionally uses
+Excel readers such as `xlrd`.
+
+Remaining work is tracked in `TODO.md`. `diagram.excalidraw` and `diagram.png`
+are earlier design sketches; the workflow above describes the current code.
