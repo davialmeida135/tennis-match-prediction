@@ -4,7 +4,7 @@ import json
 
 import pandas as pd
 
-from pipelines.shared.metadata import dataframe_metadata, dataframe_profile
+from tennis_match_prediction.pipelines.shared.metadata import dataframe_metadata, dataframe_profile
 
 
 def test_nullable_columns_render_as_json_nulls():

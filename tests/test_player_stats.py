@@ -1,9 +1,11 @@
 import pandas as pd
 
-from pipelines.historical_matches.transforms.elo import calcular_elo
-from pipelines.historical_matches.transforms.head_to_head import calcular_h2h
-from pipelines.historical_matches.transforms.history import prepare_history
-from pipelines.historical_matches.transforms.normalization import (
+from tennis_match_prediction.transforms.elo import calcular_elo
+from tennis_match_prediction.transforms.head_to_head import (
+    calcular_h2h,
+)
+from tennis_match_prediction.transforms.history import prepare_history
+from tennis_match_prediction.transforms.normalization import (
     remove_matches_without_player_ids,
 )
 

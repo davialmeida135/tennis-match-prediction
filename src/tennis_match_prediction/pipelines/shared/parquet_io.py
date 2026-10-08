@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 from dagster import ConfigurableIOManager, InputContext, MetadataValue, OutputContext
 
-from .paths import CURATED_DIR, STAGING_DIR
+from tennis_match_prediction.paths import CURATED_DIR, STAGING_DIR
 
 
 class ParquetDataFrameIOManager(ConfigurableIOManager):

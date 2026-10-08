@@ -11,14 +11,14 @@ Use Python 3.12 and `uv`:
 ```powershell
 uv sync
 Copy-Item .env.example .env
-uv run dagster job execute -m pipelines.historical_matches.defs -j materialize_historical_dataset
-uv run python -m ml.train
+uv run dagster job execute -m tennis_match_prediction.pipelines.historical_matches.defs -j materialize_historical_dataset
+uv run python -m tennis_match_prediction.ml.train
 ```
 
 Then predict a match on a date **after the latest source date in the player-history asset**:
 
 ```powershell
-uv run python -m ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard
+uv run python -m tennis_match_prediction.ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard
 ```
 
 Both players must be present in the history. The prediction returns win
@@ -28,7 +28,7 @@ validation/test metrics and logs the model artifact to local MLflow.
 To refresh selected seasons instead of downloading all seasons:
 
 ```powershell
-uv run python -m ml.refresh_history 2025 2026
+uv run python -m tennis_match_prediction.pipelines.historical_matches.refresh_history 2025 2026
 ```
 
 This materializes `raw_atp_matches` in Dagster, updates annual files, then
@@ -37,17 +37,28 @@ Re-materialize the Dagster dataset after refreshing history, then retrain.
 
 ## How the code fits together
 
+Importable code lives in `src/tennis_match_prediction/`. `uv sync` installs the
+package in editable mode, so commands and tests use the installed package without
+adding the repository root to `PYTHONPATH`. Tests, notebooks, docs, and data stay
+outside `src/`.
+
+`transforms/` holds data normalization, imputation, history calculations, feature
+formulas, curation, and training-row construction. Pipelines and prediction import
+this shared logic directly. `pipelines/` owns Dagster orchestration and ingestion;
+`ml/` owns training and prediction. Shared contracts and filesystem configuration
+live at the package root in `contracts.py` and `paths.py`.
+
 Read these files in this order:
 
-1. `pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
-2. `pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `ml/refresh_history.py` materializes the raw asset with refresh enabled.
-3. `pipelines/shared/contracts.py` — Pydantic models, feature names, and DataFrame validation.
-4. `pipelines/historical_matches/transforms/player_comparison.py` — pure formulas for the 12 model features.
-5. `pipelines/historical_matches/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
-6. `ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
-7. `ml/predict.py` — load the model and player-history asset to predict a future match.
+1. `src/tennis_match_prediction/pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
+2. `src/tennis_match_prediction/pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
+3. `src/tennis_match_prediction/contracts.py` — Pydantic models, feature names, and DataFrame validation.
+4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the 12 model features.
+5. `src/tennis_match_prediction/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
+6. `src/tennis_match_prediction/ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
+7. `src/tennis_match_prediction/ml/predict.py` — load the model and player-history asset to predict a future match.
 
-The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
+The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `src/tennis_match_prediction/ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
 Training randomly assigns the winner to player0 or player1 and gives the features
 that same orientation. `winner=1` means player1 won.
 
@@ -85,7 +96,7 @@ path and determines the directory containing annual files. The refresh CLI also
 accepts `--csv-path`. Run the full dataset job with refresh enabled to update
 source history and all downstream datasets together.
 
-The assets in `pipelines/historical_matches/assets.py` run in this order:
+The assets in `src/tennis_match_prediction/pipelines/historical_matches/assets.py` run in this order:
 
 ```text
 raw_atp_matches
@@ -106,8 +117,9 @@ training-row construction does not depend on CSV publication.
 
 - `transforms/history.py` supplies source-date parsing, numeric match-number ordering,
   shared history batches, and played-match filtering.
-- `transforms/elo.py` contains the rating update formula used by both historical
-  Elo columns and the player-history transform; both players update from their prior ratings.
+- `transforms/elo.py` owns overall and surface Elo updates and the formula shared
+  by historical Elo columns and player history. Both players update from ratings
+  frozen before their history batch.
 - `transforms/head_to_head.py` calculates the prior head-to-head win difference.
 - `transforms/curation.py` encodes categoricals and removes outcome statistics for
   `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
@@ -148,18 +160,18 @@ establish when a tournament finished or validate an in-progress tournament.
 Verified match dates are needed for daily workload or a calendar-accurate backtest.
 
 This workflow is the single source of features for training and prediction.
-`ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
+`tennis_match_prediction.ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
 CSV path) and requires only the configured training features, target and
 chronological date. Override the defaults for one run with
-`uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
-Edit `ml/config.py` to change the training CSV, model path, selected features,
+`uv run python -m tennis_match_prediction.ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
+Edit `src/tennis_match_prediction/ml/config.py` to change the training CSV, model path, selected features,
 iteration limit, random seed, and split dates without passing CLI arguments.
 The default dates are `TRAIN_START = date(2017, 1, 1)`,
 `VALIDATION_START = date(2024, 1, 1)`, and `TEST_START = date(2025, 1, 1)`.
 You can also train directly from Python:
 
 ```python
-from ml.train import train
+from tennis_match_prediction.ml.train import train
 
 metrics = train()
 ```
@@ -189,7 +201,7 @@ Empty, duplicate, or unknown feature selections are rejected. Ordered feature
 names are saved in the model and JSON metadata and logged in MLflow alongside
 the feature count. Prediction uses the saved model's feature selection.
 It rejects raw history and unordered training rows instead of rebuilding features.
-`ml.predict` reads `data/curated/player_history.parquet`, produced together with
+`tennis_match_prediction.ml.predict` reads `data/curated/player_history.parquet`, produced together with
 `player_comparison_atp_matches` in one chronological pass. Prediction uses the
 same comparison formulas and requires a date after the asset's latest source date.
 The history asset contains a validated JSON payload inside Parquet, persisted by
@@ -217,7 +229,7 @@ automation condition sensor in Dagster. The root asset is triggered manually.
 `TENNIS_DATA_DIR` changes the data root. `TENNIS_RAW_MATCHES_CSV` overrides the
 Dagster source CSV. The training CLI defaults to the published training CSV. Use `--history-path`
 on the prediction CLI to select a player-history snapshot.
-Defaults and environment loading are in `pipelines/shared/paths.py`.
+Defaults and environment loading are in `src/tennis_match_prediction/paths.py`.
 
 The optional MySQL configuration is in `dagster_home/dagster.mysql.yaml.example`;
 install it with `uv sync --extra mysql` if needed.
@@ -226,8 +238,8 @@ install it with `uv sync --extra mysql` if needed.
 
 ```powershell
 uv run pytest
-uv run ruff check pipelines ml tests
-uv run pylint pipelines
+uv run ruff check src tests
+uv run pylint src/tennis_match_prediction/pipelines
 ```
 
 `notebooks/` contains historical EDA and experiments with alternative sources.

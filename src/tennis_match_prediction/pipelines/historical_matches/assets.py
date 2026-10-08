@@ -17,44 +17,51 @@ from dagster import (
     multi_asset,
 )
 
-from pipelines.shared.contracts import (
+from tennis_match_prediction.contracts import (
     FEATURE_COLUMNS,
     NORMALIZED_MATCHES,
     DataFrameContract,
 )
-
-from ..shared.metadata import dataframe_metadata
-from ..shared.paths import (
+from tennis_match_prediction.paths import (
     CURATED_MATCHES_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,
     write_curated_csv,
 )
-from .config import RawMatchesCsv
-from .transforms.curation import (
+from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.shared.metadata import dataframe_metadata
+from tennis_match_prediction.transforms.curation import (
     encode_surface,
     remove_stat_cols,
     transform_handedness,
     transform_round,
     transform_tourney_level,
 )
-from .transforms.elo import calcular_elo
-from .transforms.head_to_head import calcular_h2h
-from .transforms.imputation import (
+from tennis_match_prediction.transforms.elo import calcular_elo
+from tennis_match_prediction.transforms.head_to_head import (
+    calcular_h2h,
+)
+from tennis_match_prediction.transforms.imputation import (
     fill_null_age,
     fill_null_height,
     fill_null_rank,
     fill_null_surface,
 )
-from .transforms.normalization import (
+from tennis_match_prediction.transforms.normalization import (
     preprocess_dates,
     remove_matches_without_player_ids,
     remove_wo,
     sort_by_date,
     transform_seed_data,
 )
-from .transforms.player_history import attach_temporal_features
-from .transforms.training_rows import FINAL_COLUMN_ORDER, TARGET_COLUMN, build_training_rows
-from .transforms.winrate import (
+from tennis_match_prediction.transforms.player_history import (
+    attach_temporal_features,
+)
+from tennis_match_prediction.transforms.training_rows import (
+    FINAL_COLUMN_ORDER,
+    TARGET_COLUMN,
+    build_training_rows,
+)
+from tennis_match_prediction.transforms.winrate import (
     calcular_winrate_superficie,
     calcular_winrate_superficie_ultimas_n,
     calcular_winrate_total,

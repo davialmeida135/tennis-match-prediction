@@ -5,18 +5,27 @@ import pickle
 import pandas as pd
 import pytest
 
-from ml.predict import features_for, predict
-from pipelines.historical_matches.transforms.elo import calcular_elo
-from pipelines.historical_matches.transforms.head_to_head import calcular_h2h
-from pipelines.historical_matches.transforms.history import prepare_history
-from pipelines.historical_matches.transforms.player_history import attach_temporal_features
-from pipelines.historical_matches.transforms.winrate import (
+from tennis_match_prediction.contracts import (
+    FEATURE_COLUMNS,
+    INITIAL_ELO,
+    FutureMatchRequest,
+    PlayerHistory,
+)
+from tennis_match_prediction.ml.predict import features_for, predict
+from tennis_match_prediction.transforms.elo import calcular_elo
+from tennis_match_prediction.transforms.head_to_head import (
+    calcular_h2h,
+)
+from tennis_match_prediction.transforms.history import prepare_history
+from tennis_match_prediction.transforms.player_history import (
+    attach_temporal_features,
+)
+from tennis_match_prediction.transforms.winrate import (
     calcular_winrate_superficie,
     calcular_winrate_superficie_ultimas_n,
     calcular_winrate_total,
     calcular_winrate_ultimas_n,
 )
-from pipelines.shared.contracts import FEATURE_COLUMNS, FutureMatchRequest, PlayerHistory
 
 
 def _matches(numbers: list[object]) -> pd.DataFrame:
@@ -79,10 +88,40 @@ def test_ambiguous_numbers_share_prior_history_and_apply_results_afterward(numbe
     assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
     assert history.players["a"].wins == 2
     assert history.players["b"].losses == 2
+    # Both results must use the same pre-batch rating and completed-match count.
+    expected_gain = 2 * (250 / (5**0.4)) * 0.5
+    assert history.players["a"].rating == pytest.approx(INITIAL_ELO + expected_gain)
+    assert history.players["a"].surface_ratings["Hard"] == pytest.approx(
+        INITIAL_ELO + expected_gain
+    )
+    assert history.players["b"].surface_ratings["Hard"] == pytest.approx(
+        INITIAL_ELO - expected_gain
+    )
     future = source.iloc[[0]].assign(tourney_date=20260112, match_num=1)
     _, full, _ = attach_temporal_features(pd.concat([source, future], ignore_index=True))
     assert full.iloc[-1]["form_10_diff"] == 1.0
     assert full.iloc[-1]["overall_elo_diff"] > 0.0
+
+
+def test_surface_elo_updates_only_the_played_surface() -> None:
+    source = _matches([1, 2, 3]).assign(surface=["Hard", "Clay", "Hard"])
+    _, _, after_hard = attach_temporal_features(source.iloc[:1])
+    _, comparisons, after_clay = attach_temporal_features(source.iloc[:2])
+    _, _, final = attach_temporal_features(source)
+
+    # Prior Hard results influence overall Elo, but a first Clay match starts equal.
+    assert comparisons.iloc[1]["overall_elo_diff"] > 0.0
+    assert comparisons.iloc[1]["surface_elo_diff"] == 0.0
+    for player_id in ("a", "b"):
+        assert after_clay.players[player_id].surface_ratings["Hard"] == (
+            after_hard.players[player_id].surface_ratings["Hard"]
+        )
+        assert final.players[player_id].surface_ratings["Clay"] == (
+            after_clay.players[player_id].surface_ratings["Clay"]
+        )
+        assert final.players[player_id].surface_ratings["Hard"] != (
+            after_clay.players[player_id].surface_ratings["Hard"]
+        )
 
 
 def test_tournament_id_cannot_order_same_day_results_for_a_shared_player() -> None:

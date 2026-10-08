@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from pipelines.historical_matches.transforms.player_comparison import calculate_player_comparison
-from pipelines.shared.contracts import FutureMatchRequest, PlayerHistory, Prediction
-from pipelines.shared.paths import MODELS_DIR, PLAYER_HISTORY_PATH
+from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory, Prediction
+from tennis_match_prediction.paths import MODELS_DIR, PLAYER_HISTORY_PATH
+from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 
 def predict(

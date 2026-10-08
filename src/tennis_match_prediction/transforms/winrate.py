@@ -3,7 +3,10 @@
 import pandas as pd
 import polars as pl
 
-from pipelines.historical_matches.transforms.history import history_batch_ids, prepare_history
+from tennis_match_prediction.transforms.history import (
+    history_batch_ids,
+    prepare_history,
+)
 
 
 def _attach_winrates(

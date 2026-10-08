@@ -2,10 +2,10 @@
 
 from datetime import date
 
-from pipelines.shared.contracts import DataFrameContract
-from pipelines.shared.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
+from tennis_match_prediction.contracts import DataFrameContract
+from tennis_match_prediction.paths import CURATED_DIR, MODELS_DIR, TRAINING_MATCHES_CSV_NAME
 
-# Edit these values, then call train() or run python -m ml.train without arguments.
+# Edit these defaults, then call train() or run the training module without arguments.
 TRAINING_MATCHES_PATH = CURATED_DIR / TRAINING_MATCHES_CSV_NAME
 MODEL_PATH = MODELS_DIR / "match_winner.pkl"
 

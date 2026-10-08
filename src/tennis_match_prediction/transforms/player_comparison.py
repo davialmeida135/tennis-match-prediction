@@ -1,11 +1,12 @@
 """Pure pre-match feature formulas shared by historical processing and prediction.
 
-Inputs are player snapshots and match context. History updates belong to the player-history transform; these functions never change the supplied snapshots.
+Inputs are player snapshots and match context. History updates belong to the
+player-history transform; these functions never change the supplied snapshots.
 """
 
 import math
 
-from pipelines.shared.contracts import INITIAL_ELO, PlayedMatch, PlayerState
+from tennis_match_prediction.contracts import INITIAL_ELO, PlayedMatch, PlayerState
 
 
 def calculate_player_comparison(

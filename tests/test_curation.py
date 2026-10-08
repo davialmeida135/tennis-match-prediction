@@ -1,6 +1,6 @@
 import pandas as pd
 
-from pipelines.historical_matches.transforms.curation import (
+from tennis_match_prediction.transforms.curation import (
     SURFACE_COLUMNS,
     encode_surface,
 )

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from dagster import materialize
 
-from pipelines.historical_matches.assets import raw_atp_matches
-from pipelines.historical_matches.config import RawMatchesCsv
-from pipelines.shared.parquet_io import ParquetDataFrameIOManager
+from tennis_match_prediction.pipelines.historical_matches.assets import raw_atp_matches
+from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 
 def main() -> None:

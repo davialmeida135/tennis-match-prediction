@@ -1,13 +1,13 @@
 import pandas as pd
 
-from pipelines.historical_matches.transforms.training_rows import (
+from tennis_match_prediction.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     MATCH_COLUMNS,
     PLAYER_ATTRIBUTE_STEMS,
     SIGNED_MATCH_COLUMNS,
     build_training_rows,
 )
-from pipelines.shared.contracts import FEATURE_COLUMNS
 
 
 def test_temporal_features_are_in_final_dataset_and_follow_random_player_order() -> None:

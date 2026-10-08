@@ -14,7 +14,8 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from ml.config import (
+from tennis_match_prediction.contracts import FEATURE_COLUMNS
+from tennis_match_prediction.ml.config import (
     MAX_ITER,
     MODEL_PATH,
     RANDOM_STATE,
@@ -25,7 +26,6 @@ from ml.config import (
     TRAINING_MATCHES_PATH,
     VALIDATION_START,
 )
-from pipelines.shared.contracts import FEATURE_COLUMNS
 
 
 def train(
@@ -37,7 +37,7 @@ def train(
     test_start: date = TEST_START,
     feature_columns: tuple[str, ...] = TRAINING_FEATURE_COLUMNS,
 ) -> dict[str, float]:
-    """Train using ml/config.py defaults or explicit paths, dates, and features."""
+    """Train using ML configuration defaults or explicit paths, dates, and features."""
     if not feature_columns:
         raise ValueError("Select at least one training feature")
     if len(set(feature_columns)) != len(feature_columns):
@@ -195,7 +195,7 @@ def main() -> None:
         "--features",
         nargs="+",
         default=TRAINING_FEATURE_COLUMNS,
-        help="Ordered feature names to train on (defaults to ml/config.py)",
+        help="Ordered feature names to train on (defaults to tennis_match_prediction.ml.config)",
     )
     arguments = parser.parse_args()
     metrics = train(

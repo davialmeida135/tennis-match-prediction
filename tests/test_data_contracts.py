@@ -6,11 +6,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
-from pipelines.shared.contracts import (
+from tennis_match_prediction.contracts import (
     NORMALIZED_MATCHES,
     PlayerHistory,
 )
+from tennis_match_prediction.ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
 
 
 @pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf, "1"])

@@ -5,17 +5,21 @@ from math import isfinite
 
 import pandas as pd
 
-from pipelines.historical_matches.transforms.elo import elo_delta
-from pipelines.historical_matches.transforms.history import history_batches, order_history
-from pipelines.historical_matches.transforms.imputation import fill_null_surface
-from pipelines.historical_matches.transforms.player_comparison import calculate_player_comparison
-from pipelines.shared.contracts import (
+from tennis_match_prediction.contracts import (
     FEATURE_COLUMNS,
-    INITIAL_ELO,
     PlayedMatch,
     PlayerHistory,
     PlayerState,
 )
+from tennis_match_prediction.transforms.elo import update_match_ratings
+from tennis_match_prediction.transforms.history import (
+    history_batches,
+    order_history,
+)
+from tennis_match_prediction.transforms.imputation import (
+    fill_null_surface,
+)
+from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 
 def _apply_result(history: PlayerHistory, match: pd.Series, prior: dict[str, PlayerState]) -> None:
@@ -25,27 +29,8 @@ def _apply_result(history: PlayerHistory, match: pd.Series, prior: dict[str, Pla
     previous_winner = prior[str(match["winner_id"])]
     previous_loser = prior[str(match["loser_id"])]
     surface = str(match.get("surface", "Hard"))
-    winner_rating = previous_winner.rating
-    loser_rating = previous_loser.rating
-    winner_surface_rating = previous_winner.surface_ratings.get(surface, INITIAL_ELO)
-    loser_surface_rating = previous_loser.surface_ratings.get(surface, INITIAL_ELO)
-    winner.rating += elo_delta(
-        winner_rating, loser_rating, 1.0, previous_winner.wins + previous_winner.losses
-    )
-    loser.rating += elo_delta(
-        loser_rating, winner_rating, 0.0, previous_loser.wins + previous_loser.losses
-    )
-    winner.surface_ratings[surface] = winner.surface_ratings.get(surface, INITIAL_ELO) + elo_delta(
-        winner_surface_rating,
-        loser_surface_rating,
-        1.0,
-        previous_winner.wins + previous_winner.losses,
-    )
-    loser.surface_ratings[surface] = loser.surface_ratings.get(surface, INITIAL_ELO) + elo_delta(
-        loser_surface_rating,
-        winner_surface_rating,
-        0.0,
-        previous_loser.wins + previous_loser.losses,
+    update_match_ratings(
+        winner, loser, surface, prior_winner=previous_winner, prior_loser=previous_loser
     )
     source_date = match["tourney_date"].date()
     _update_player(winner, loser, match, source_date, surface, won=True)

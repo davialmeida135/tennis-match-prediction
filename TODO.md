@@ -5,12 +5,12 @@ com features calculadas apenas a partir das informações disponíveis antes do 
 
 ## Base implementada
 
-- [x] Definir features e contratos de dados com Pydantic (`pipelines/shared/contracts.py`).
+- [x] Definir features e contratos de dados com Pydantic (`src/tennis_match_prediction/contracts.py`).
 - [x] Implementar download de temporadas e consolidação dos dados históricos.
 - [x] Compartilhar as fórmulas das features entre processamento histórico e predição.
 - [x] Persistir `PlayerHistory` com `last_source_date` e estados dos jogadores em `player_history.parquet`.
-- [x] Prever com nomes, data e superfície usando o histórico salvo (`ml/predict.py`).
-- [x] Registrar métricas e artefatos de treinamento no MLflow (`ml/train.py`).
+- [x] Prever com nomes, data e superfície usando o histórico salvo (`src/tennis_match_prediction/ml/predict.py`).
+- [x] Registrar métricas e artefatos de treinamento no MLflow (`src/tennis_match_prediction/ml/train.py`).
 - [x] Separar aquecimento, treino, validação e teste por datas explícitas.
 - [x] Calcular comparações antes de atualizar resultados dos grupos com ordem ambígua.
 - [x] Remover features de carga em 7/14 dias enquanto não houver datas reais das partidas.

@@ -18,8 +18,8 @@ import requests
 from dagster import ConfigurableResource
 from pydantic import Field
 
-from pipelines.shared.contracts import DownloadedSeason
-from pipelines.shared.paths import DEFAULT_HISTORICAL_MATCHES_CSV
+from tennis_match_prediction.contracts import DownloadedSeason
+from tennis_match_prediction.paths import DEFAULT_HISTORICAL_MATCHES_CSV
 
 DATA_FILES_URL = "https://stats.tennismylife.org/api/data-files"
 REQUIRED_COLUMNS = frozenset(
