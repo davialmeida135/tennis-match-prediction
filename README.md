@@ -11,9 +11,8 @@ Use Python 3.12 and `uv`:
 ```powershell
 uv sync
 Copy-Item .env.example .env
-uv run python -m ml.refresh_history
 uv run dagster job execute -m pipelines.historical_matches.defs -j materialize_historical_dataset
-uv run python -m ml.train
+uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01
 ```
 
 Then predict a match on a date **after the latest source date in the player-history asset**:
@@ -32,19 +31,20 @@ To refresh selected seasons instead of downloading all seasons:
 uv run python -m ml.refresh_history 2025 2026
 ```
 
-This updates annual files, then consolidates all locally available seasons.
+This materializes `raw_atp_matches` in Dagster, updates annual files, then
+consolidates all locally available seasons and persists the raw Parquet snapshot.
 Re-materialize the Dagster dataset after refreshing history, then retrain.
 
 ## How the code fits together
 
 Read these files in this order:
 
-1. `ml/refresh_history.py` — command to download data.
-2. `pipelines/historical_matches/tennis_my_life.py` — download, deduplicate, and consolidate seasons.
+1. `pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
+2. `pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `ml/refresh_history.py` materializes the raw asset with refresh enabled.
 3. `pipelines/shared/contracts.py` — Pydantic models, feature names, and DataFrame validation.
 4. `pipelines/historical_matches/transforms/player_comparison.py` — pure formulas for the 12 model features.
 5. `pipelines/historical_matches/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
-6. `ml/train.py` — read the published training dataset, split chronologically (70%/15%/15%), train, and save.
+6. `ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
 7. `ml/predict.py` — load the model and player-history asset to predict a future match.
 
 The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `ml/config.py`. Edit that tuple to select or reorder model inputs; `FEATURE_COLUMNS` defines the generated dataset schema.
@@ -66,7 +66,24 @@ uv run dagster dev
 
 Set `DAGSTER_HOME` in `.env` to the absolute path of this checkout's `dagster_home`
 directory. Open `materialize_historical_dataset` in the UI to build the dataset.
-The source CSV must already exist; download it with `ml.refresh_history` first.
+The raw asset reuses an existing consolidated CSV. If it is missing, it
+consolidates annual CSVs in the same directory; if none exist, it downloads
+available seasons first. Existing CSVs are not refreshed automatically by age.
+
+To request an update directly in the Dagster Launchpad, configure the resource:
+
+```yaml
+resources:
+  raw_matches_csv:
+    config:
+      refresh: true
+      years: [2025, 2026]
+```
+
+Omit `years` to download all available seasons. `csv_path` overrides the output
+path and determines the directory containing annual files. The refresh CLI also
+accepts `--csv-path`. Run the full dataset job with refresh enabled to update
+source history and all downstream datasets together.
 
 The assets in `pipelines/historical_matches/assets.py` run in this order:
 
@@ -135,8 +152,29 @@ This workflow is the single source of features for training and prediction.
 `ml.train` reads `data/curated/training_atp_matches.csv` (or an explicit training
 CSV path) and requires only the configured training features, target and
 chronological date. Override the defaults for one run with
-`uv run python -m ml.train --features overall_elo_diff surface_elo_diff`.
-The Python API accepts `train(..., feature_columns=("overall_elo_diff",))`.
+`uv run python -m ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
+The Python API requires `train_start`, `validation_start`, and `test_start` as
+`datetime.date` values, alongside optional `feature_columns`.
+
+All three dates are required and must be strictly increasing. The periods are:
+
+- Warmup: `tourney_date < train_start`; retained by Dagster for history/features,
+  excluded from scaler fitting, model fitting, and evaluation.
+- Training: `train_start <= tourney_date < validation_start`.
+- Validation: `validation_start <= tourney_date < test_start`.
+- Test: `tourney_date >= test_start`, through the end of the input dataset.
+
+Generate features from the full history before training; do not trim the raw data
+at `train_start`. Every period must contain rows, and training must contain both
+target classes. Equal source dates always stay together. These are source-date
+cuts, not verified match-day cuts; tournaments spanning multiple source dates
+can still cross boundaries. Choose dates outside overlapping tournaments when
+that separation is required. The example assumes history begins before 2017.
+Split boundaries, row counts, and observed date ranges are saved in the model
+and JSON metadata; boundaries are also logged as MLflow parameters.
+
+Dagster partitions are not required for these training cuts. See
+[the partitioning assessment](docs/partitioning.md) for ingestion and temporal-state considerations.
 Empty, duplicate, or unknown feature selections are rejected. Ordered feature
 names are saved in the model and JSON metadata and logged in MLflow alongside
 the feature count. Prediction uses the saved model's feature selection.

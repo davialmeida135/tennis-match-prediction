@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import pickle
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -22,6 +23,9 @@ def train(
     training_matches_path: Path,
     model_path: Path,
     *,
+    train_start: date,
+    validation_start: date,
+    test_start: date,
     feature_columns: tuple[str, ...] = TRAINING_FEATURE_COLUMNS,
 ) -> dict[str, float]:
     """Train from the Dagster-produced dataset using chronological splits."""
@@ -49,11 +53,37 @@ def train(
     contract.validate_frame(frame)
     if len(frame) < 30:
         raise ValueError("At least 30 completed matches are required to train a model")
-    train_end = int(len(frame) * 0.7)
-    validation_end = int(len(frame) * 0.85)
-    training = frame.iloc[:train_end]
-    validation = frame.iloc[train_end:validation_end]
-    testing = frame.iloc[validation_end:]
+    if not train_start < validation_start < test_start:
+        raise ValueError("Dates must satisfy train_start < validation_start < test_start")
+    dates = pd.to_datetime(frame["tourney_date"], format="ISO8601").dt.date
+    periods = {
+        "warmup": frame.loc[dates < train_start],
+        "training": frame.loc[(dates >= train_start) & (dates < validation_start)],
+        "validation": frame.loc[(dates >= validation_start) & (dates < test_start)],
+        "test": frame.loc[dates >= test_start],
+    }
+    for name, period in periods.items():
+        if period.empty:
+            raise ValueError(f"The {name} period contains no matches; adjust the split dates")
+    training = periods["training"]
+    validation = periods["validation"]
+    testing = periods["test"]
+    if training["winner"].nunique() != 2:
+        raise ValueError("The training period must contain both target classes")
+    split_metadata = {
+        "date_column": "tourney_date",
+        "train_start": train_start.isoformat(),
+        "validation_start": validation_start.isoformat(),
+        "test_start": test_start.isoformat(),
+        "periods": {
+            name: {
+                "rows": len(period),
+                "first_date": str(period["tourney_date"].iloc[0]),
+                "last_date": str(period["tourney_date"].iloc[-1]),
+            }
+            for name, period in periods.items()
+        },
+    }
     model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1_000, random_state=42))
     model.fit(training.loc[:, list(feature_columns)], training["winner"])
     metrics = _metrics(model, validation, "validation", feature_columns) | _metrics(
@@ -66,6 +96,7 @@ def train(
                 "model": model,
                 "feature_columns": feature_columns,
                 "history_order": "source_date_match_num",
+                "split": split_metadata,
             },
             file,
         )
@@ -77,6 +108,7 @@ def train(
                 "history_order": "source_date_match_num",
                 "training_matches_path": str(training_matches_path),
                 "rows": len(frame),
+                "split": split_metadata,
                 "metrics": metrics,
             },
             indent=2,
@@ -98,7 +130,7 @@ def _metrics(
     return {
         f"{prefix}_accuracy": float(accuracy_score(frame["winner"], probabilities >= 0.5)),
         f"{prefix}_brier": float(brier_score_loss(frame["winner"], probabilities)),
-        f"{prefix}_log_loss": float(log_loss(frame["winner"], probabilities)),
+        f"{prefix}_log_loss": float(log_loss(frame["winner"], probabilities, labels=[0, 1])),
     }
 
 
@@ -117,6 +149,13 @@ def _log_mlflow(
                 "model": "logistic_regression",
                 "feature_count": len(feature_columns),
                 "feature_columns": json.dumps(feature_columns),
+                **{
+                    key: value
+                    for key, value in json.loads(
+                        model_path.with_suffix(".json").read_text(encoding="utf-8")
+                    )["split"].items()
+                    if key != "periods"
+                },
             }
         )
         mlflow.log_metrics(metrics)
@@ -132,6 +171,14 @@ def main() -> None:
     )
     parser.add_argument("--model-path", type=Path, default=MODELS_DIR / "match_winner.pkl")
     parser.add_argument(
+        "--train-start",
+        type=date.fromisoformat,
+        required=True,
+        help="YYYY-MM-DD; earlier rows are history warmup only",
+    )
+    parser.add_argument("--validation-start", type=date.fromisoformat, required=True)
+    parser.add_argument("--test-start", type=date.fromisoformat, required=True)
+    parser.add_argument(
         "--features",
         nargs="+",
         default=TRAINING_FEATURE_COLUMNS,
@@ -141,6 +188,9 @@ def main() -> None:
     metrics = train(
         arguments.training_matches,
         arguments.model_path,
+        train_start=arguments.train_start,
+        validation_start=arguments.validation_start,
+        test_start=arguments.test_start,
         feature_columns=tuple(arguments.features),
     )
     print(json.dumps(metrics, indent=2, sort_keys=True))

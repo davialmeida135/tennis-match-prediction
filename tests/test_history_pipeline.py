@@ -177,7 +177,13 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
 
     monkeypatch.setattr("ml.train._log_mlflow", lambda *_: None)
     model_path = tmp_path / "model.pkl"
-    metrics = train(tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME, model_path)
+    metrics = train(
+        tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME,
+        model_path,
+        train_start=date(2026, 1, 11),
+        validation_start=date(2026, 5, 1),
+        test_start=date(2026, 6, 1),
+    )
     assert 0 <= metrics["test_accuracy"] <= 1
     prediction = predict(
         FutureMatchRequest(

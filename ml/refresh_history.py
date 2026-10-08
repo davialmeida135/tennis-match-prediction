@@ -3,20 +3,35 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
-from pipelines.historical_matches.tennis_my_life import refresh_history
-from pipelines.shared.paths import HISTORICAL_MATCHES_RAW_DIR
+from dagster import materialize
+
+from pipelines.historical_matches.assets import raw_atp_matches
+from pipelines.historical_matches.config import RawMatchesCsv
+from pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 
 def main() -> None:
     """Refresh a requested set of annual ATP files."""
     parser = argparse.ArgumentParser()
     parser.add_argument("years", nargs="*", type=int)
+    parser.add_argument("--csv-path", type=Path)
     arguments = parser.parse_args()
-    years = set(arguments.years) if arguments.years else None
-    frame, downloaded = refresh_history(HISTORICAL_MATCHES_RAW_DIR, years)
-    changed = [str(item.year) for item in downloaded if item.changed]
-    print(f"Consolidated {len(frame)} matches; changed seasons: {', '.join(changed) or 'none'}")
+    source = RawMatchesCsv(refresh=True, years=arguments.years or None)
+    if arguments.csv_path is not None:
+        source = RawMatchesCsv(
+            csv_path=str(arguments.csv_path), refresh=True, years=arguments.years or None
+        )
+    result = materialize(
+        [raw_atp_matches],
+        resources={
+            "raw_matches_csv": source,
+            "io_manager": ParquetDataFrameIOManager(),
+        },
+    )
+    if not result.success:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

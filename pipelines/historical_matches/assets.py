@@ -78,13 +78,23 @@ DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
     description="Consolidated ATP source rows, including rows excluded during normalization.",
 )
 def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesCsv) -> pd.DataFrame:
-    """Read the raw match history CSV. Root of the pipeline: materialized by hand."""
+    """Refresh/consolidate source seasons when needed, then read the raw history."""
     csv_path = Path(raw_matches_csv.csv_path)
-    if not csv_path.exists():
-        raise FileNotFoundError(
-            f"Raw ATP match CSV not found at {csv_path}. Run `uv run python -m "
-            "ml.refresh_history` or point TENNIS_RAW_MATCHES_CSV somewhere else."
-        )
+    if raw_matches_csv.refresh or not csv_path.exists():
+        directory = csv_path.parent
+        years = set(raw_matches_csv.years) if raw_matches_csv.years is not None else None
+        if raw_matches_csv.refresh or not any(directory.glob("[0-9][0-9][0-9][0-9].csv")):
+            _, downloaded = raw_matches_csv.refresh_history(directory, years)
+            context.add_output_metadata(
+                {
+                    "downloaded_seasons": MetadataValue.json([item.year for item in downloaded]),
+                    "changed_seasons": MetadataValue.json(
+                        [item.year for item in downloaded if item.changed]
+                    ),
+                }
+            )
+        else:
+            raw_matches_csv.consolidate_seasons(directory)
 
     context.log.info(f"Reading raw matches from {csv_path}")
     # Seed columns combine integers (e.g. 6), CSV floats (6.0) and source codes

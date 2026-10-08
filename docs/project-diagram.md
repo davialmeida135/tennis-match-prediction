@@ -2,8 +2,8 @@
 
 ```mermaid
 flowchart TB
-    source["TennisMyLife annual ATP CSVs"] --> refresh["ml.refresh_history"]
-    refresh --> raw[("all_atp_matches.csv")]
+    source["TennisMyLife annual ATP CSVs"] --> refresh["Dagster raw_atp_matches<br/>Reuse / consolidate / refresh when needed"]
+    refresh --> raw[("all_atp_matches.csv + raw snapshot")]
     raw --> normalize["Dagster: normalize and order source dates / numeric match numbers"]
     normalize --> comparisons["12 pre-match comparisons<br/>Shared prior state for ambiguous order"]
     comparisons --> history[("player_history.parquet<br/>last_source_date + player states")]
@@ -11,7 +11,7 @@ flowchart TB
     extras --> curate["Impute → encode context → remove outcome statistics"]
     curate --> rows["Assign player0/player1 and target"]
     rows --> training[("training_atp_matches.csv<br/>tourney_date + features + target")]
-    training --> train["ml.train<br/>Chronological 70% / 15% / 15% split"]
+    training --> train["ml.train<br/>Warmup excluded from fitting<br/>Explicit training / validation / test dates"]
     train --> model[("Model + metadata")]
     train --> tracking["MLflow metrics and artifacts"]
     history --> predict["ml.predict<br/>Shared comparison formulas"]
