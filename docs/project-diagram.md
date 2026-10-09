@@ -7,13 +7,13 @@ flowchart TB
     raw --> normalize["Dagster: normalize and order source dates / numeric match numbers"]
     normalize --> comparisons["12 pre-match comparisons<br/>Shared prior state for ambiguous order"]
     comparisons --> history[("player_history.parquet<br/>last_source_date + player states")]
-    comparisons --> extras["Win rates → H2H → Elo<br/>Same history batches"]
+    comparisons --> extras["Win rates → Elo<br/>Same history batches"]
     extras --> curate["Impute → encode context → remove outcome statistics"]
     curate --> rows["Assign player0/player1 and target"]
     rows --> training[("training_atp_matches.csv<br/>tourney_date + features + target")]
-    training --> train["tennis_match_prediction.ml.train<br/>Warmup excluded from fitting<br/>Explicit training / validation / test dates"]
-    train --> model[("Model + metadata")]
-    train --> tracking["MLflow metrics and artifacts"]
+    training --> train["Shared experiment runner<br/>Logistic regression / random forest<br/>Warmup excluded from fitting<br/>Validation by default; explicit final test"]
+    train --> model[("Versioned model + metadata<br/>Unique experiment directory")]
+    train --> tracking["MLflow tracking server<br/>Compose: PostgreSQL + artifact volume"]
     history --> predict["tennis_match_prediction.ml.predict<br/>Shared comparison formulas"]
     model --> predict
     request["Player names + future date + surface"] --> predict

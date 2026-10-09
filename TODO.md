@@ -12,6 +12,10 @@ com features calculadas apenas a partir das informações disponíveis antes do 
 - [x] Prever com nomes, data e superfície usando o histórico salvo (`src/tennis_match_prediction/ml/predict.py`).
 - [x] Registrar métricas e artefatos de treinamento no MLflow (`src/tennis_match_prediction/ml/train.py`).
 - [x] Separar aquecimento, treino, validação e teste por datas explícitas.
+- [x] Compartilhar interface de modelos e runner entre regressão logística e random forest.
+- [x] Executar experimentos na validação; calcular métricas de teste apenas com avaliação final explícita.
+- [x] Configurar MLflow com modos server/local/disabled e Docker Compose com volumes persistentes.
+- [x] Salvar artefatos por experimento, configuração, hash do dataset e código/dependências.
 - [x] Calcular comparações antes de atualizar resultados dos grupos com ordem ambígua.
 - [x] Remover features de carga em 7/14 dias enquanto não houver datas reais das partidas.
 
@@ -72,7 +76,7 @@ o mesmo lote não altera o resultado.
 - [ ] Explicar a diferença entre o modelo aprendido, os estados dos jogadores e `last_source_date`.
 - [ ] Documentar que previsões históricas exigem o estado anterior ao confronto; o estado final não pode ser usado para avaliar o passado.
 - [ ] Versionar o schema do histórico e das features, com política de compatibilidade ou reconstrução.
-- [ ] Registrar hashes dos dados, commit, configuração, períodos e identificador do treinamento nos artefatos e no MLflow.
+- [x] Registrar hashes dos dados, commit, configuração, períodos e identificador do treinamento nos artefatos e no MLflow.
 - [ ] Identificar o snapshot de histórico usado em cada previsão e verificar compatibilidade com o modelo.
 - [ ] Salvar previsões com entradas, features, probabilidades, versão do modelo e referência ao histórico.
 - [ ] Avaliar o formato de persistência do histórico conforme volume e uso: JSON dentro de Parquet, tabelas estruturadas ou banco de dados.

@@ -1,52 +1,51 @@
 """Training selections must survive evaluation and model serialization."""
 
 import json
-import pickle
 from datetime import date
 
 import pandas as pd
 import pytest
 
 from tennis_match_prediction.ml import train as training
+from tennis_match_prediction.ml.artifacts import load_artifact
 
 
-def test_subset_preserves_feature_order_in_model_and_metadata(tmp_path, monkeypatch):
+def test_subset_preserves_feature_order_in_model_and_metadata(tmp_path):
     selected = ("surface_elo_diff", "overall_elo_diff")
     frame = pd.DataFrame({name: [float(i % 7) for i in range(60)] for name in selected})
     frame["winner"] = [i % 2 for i in range(60)]
     frame["tourney_date"] = pd.date_range("2024-01-01", periods=60)
     source = tmp_path / "matches.csv"
     frame.to_csv(source, index=False)
-    logged = []
-    monkeypatch.setattr(training, "_log_mlflow", lambda *args: logged.append(args))
     model_path = tmp_path / "model.pkl"
 
-    metrics = training.train(
+    result = training.train(
         source,
         model_path,
         feature_columns=selected,
         train_start=date(2024, 1, 11),
         validation_start=date(2024, 2, 1),
         test_start=date(2024, 2, 15),
+        tracking_mode="disabled",
     )
 
-    with model_path.open("rb") as file:
-        artifact = pickle.load(file)
-    assert artifact["feature_columns"] == selected
-    assert tuple(artifact["model"].feature_names_in_) == selected
+    artifact = load_artifact(model_path)
+    assert artifact.metadata.feature_columns == selected
+    assert tuple(artifact.model.estimator.feature_names_in_) == selected
     assert json.loads(model_path.with_suffix(".json").read_text(encoding="utf-8"))[
         "feature_columns"
     ] == list(selected)
-    assert logged == [(model_path, metrics, selected)]
-    assert len(metrics) == 6
-    assert artifact["model"].predict_proba(frame.loc[:, list(selected)]).shape == (60, 2)
-    assert artifact["model"][0].n_samples_seen_ == 21
-    assert artifact["split"]["periods"]["warmup"]["rows"] == 10
-    assert artifact["split"]["periods"]["validation"]["rows"] == 14
-    assert artifact["split"]["periods"]["test"]["rows"] == 15
+    assert result.run_id is None
+    assert len(result.metrics) == 6
+    assert all(name.startswith("validation_") for name in result.metrics)
+    assert artifact.model.predict_proba(frame.loc[:, list(selected)]).shape == (60,)
+    assert artifact.model.estimator[0].n_samples_seen_ == 21
+    assert artifact.metadata.split["periods"]["warmup"]["rows"] == 10
+    assert artifact.metadata.split["periods"]["validation"]["rows"] == 14
+    assert artifact.metadata.split["periods"]["test"]["rows"] == 15
 
 
-def test_date_boundaries_keep_tied_dates_together_and_exclude_warmup(tmp_path, monkeypatch):
+def test_date_boundaries_keep_tied_dates_together_and_exclude_warmup(tmp_path):
     feature = "overall_elo_diff"
     frame = pd.DataFrame(
         {
@@ -60,7 +59,6 @@ def test_date_boundaries_keep_tied_dates_together_and_exclude_warmup(tmp_path, m
     )
     source = tmp_path / "matches.csv"
     frame.to_csv(source, index=False)
-    monkeypatch.setattr(training, "_log_mlflow", lambda *_: None)
     model_path = tmp_path / "model.pkl"
     training.train(
         source,
@@ -69,11 +67,13 @@ def test_date_boundaries_keep_tied_dates_together_and_exclude_warmup(tmp_path, m
         train_start=date(2024, 1, 1),
         validation_start=date(2025, 1, 1),
         test_start=date(2026, 1, 1),
+        tracking_mode="disabled",
     )
-    with model_path.open("rb") as file:
-        artifact = pickle.load(file)
-    assert artifact["model"][0].mean_.tolist() == [2.0]
-    assert {name: period["rows"] for name, period in artifact["split"]["periods"].items()} == {
+    artifact = load_artifact(model_path)
+    assert artifact.model.estimator[0].mean_.tolist() == [2.0]
+    assert {
+        name: period["rows"] for name, period in artifact.metadata.split["periods"].items()
+    } == {
         "warmup": 10,
         "training": 20,
         "validation": 10,

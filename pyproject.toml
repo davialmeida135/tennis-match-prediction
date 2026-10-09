@@ -21,7 +21,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pydantic>=2,<3",
     # Experiment tracking and model artifacts.
-    "mlflow>=2.20",
+    "mlflow==3.16.1",
 ]
 
 [project.optional-dependencies]

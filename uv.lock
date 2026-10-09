@@ -2706,7 +2706,7 @@ requires-dist = [
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
     { name = "missingno", marker = "extra == 'notebooks'", specifier = ">=0.5" },
-    { name = "mlflow", specifier = ">=2.20" },
+    { name = "mlflow", specifier = "==3.16.1" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "polars", specifier = ">=1.29" },

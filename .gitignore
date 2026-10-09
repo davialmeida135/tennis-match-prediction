@@ -195,5 +195,7 @@ dagster_home/logs
 /mlflow.db
 /mlruns/
 /data/models/
+/data/mlflow/
+/mlartifacts/
 /data/state/
 /.pytest*
