@@ -109,6 +109,11 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
             column: "string" for column in ("winner_seed", "loser_seed", "winner_id", "loser_id")
         },
     )
+    if raw_matches_csv.first_year is not None:
+        frame = frame.loc[
+            pd.to_numeric(frame["tourney_date"], errors="raise")
+            >= raw_matches_csv.first_year * 10000
+        ].reset_index(drop=True)
     context.add_output_metadata(
         {"source_path": MetadataValue.path(str(csv_path)), **dataframe_metadata(frame)}
     )

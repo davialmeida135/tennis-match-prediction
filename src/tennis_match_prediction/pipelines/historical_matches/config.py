@@ -11,12 +11,12 @@ from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import Any, Self
 
 import pandas as pd
 import requests
 from dagster import ConfigurableResource
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from tennis_match_prediction.contracts import DownloadedSeason
 from tennis_match_prediction.paths import DEFAULT_HISTORICAL_MATCHES_CSV
@@ -70,8 +70,21 @@ class RawMatchesCsv(ConfigurableResource):
     )
     refresh: bool = True
     years: list[int] | None = None
+    first_year: int | None = Field(
+        default=None,
+        ge=1000,
+        le=9999,
+        description="Include every available season from this year onward (inclusive).",
+    )
     catalog_url: str = DATA_FILES_URL
     timeout: int = Field(default=60, gt=0)
+
+    @model_validator(mode="after")
+    def validate_year_selection(self) -> Self:
+        """Keep an explicit season list separate from an open-ended range."""
+        if self.first_year is not None and self.years is not None:
+            raise ValueError("Configure either first_year or years, not both")
+        return self
 
     def download_seasons(
         self, destination: Path, years: set[int] | None = None
@@ -93,13 +106,14 @@ class RawMatchesCsv(ConfigurableResource):
         self._write_manifest(destination, downloaded)
         return sorted(downloaded, key=lambda item: item.year)
 
-    @staticmethod
-    def _is_annual_atp_file(file: dict[str, Any], years: set[int] | None) -> bool:
+    def _is_annual_atp_file(self, file: dict[str, Any], years: set[int] | None) -> bool:
         name = str(file.get("name", ""))
         stem = Path(name).stem
         if not stem.isdigit() or len(stem) != 4 or not name.endswith(".csv"):
             return False
         year = int(stem)
+        if self.first_year is not None and year < self.first_year:
+            return False
         return years is None or year in years
 
     def _download_file(self, file: dict[str, Any], destination: Path) -> DownloadedSeason:
@@ -143,7 +157,11 @@ class RawMatchesCsv(ConfigurableResource):
 
     def load_seasons(self, raw_directory: Path) -> pd.DataFrame:
         """Load, validate, and deduplicate local annual ATP files into one chronological frame."""
-        paths = sorted(path for path in raw_directory.glob("[0-9][0-9][0-9][0-9].csv"))
+        paths = sorted(
+            path
+            for path in raw_directory.glob("[0-9][0-9][0-9][0-9].csv")
+            if self.first_year is None or int(path.stem) >= self.first_year
+        )
         if not paths:
             raise FileNotFoundError(f"No annual ATP files found in {raw_directory}")
         frames = []

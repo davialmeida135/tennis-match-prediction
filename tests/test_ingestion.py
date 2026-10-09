@@ -110,6 +110,63 @@ def test_selected_refresh_keeps_local_seasons_and_manifest(tmp_path, monkeypatch
     assert [item["year"] for item in manifest["seasons"]] == [2024, 2025]
 
 
+def test_first_year_refresh_includes_all_newer_available_seasons(tmp_path, monkeypatch):
+    (tmp_path / "2023.csv").write_bytes(_csv(2023))
+    calls = []
+    _mock_download(monkeypatch, [2023, 2024, 2026, 2027], calls)
+    source = RawMatchesCsv(
+        csv_path=str(tmp_path / "all_atp_matches.csv"),
+        catalog_url="https://example.test/catalog",
+        first_year=2024,
+    )
+    assert _materialize(tmp_path, source).success
+    assert calls == [
+        "https://example.test/catalog",
+        "https://example.test/2024.csv",
+        "https://example.test/2026.csv",
+        "https://example.test/2027.csv",
+    ]
+    assert pd.read_csv(source.csv_path)["tourney_date"].tolist() == [
+        20240101,
+        20260101,
+        20270101,
+    ]
+    assert (tmp_path / "2023.csv").exists()
+
+
+@pytest.mark.parametrize("cached", [True, False])
+def test_first_year_filters_cached_history_without_download(tmp_path, monkeypatch, cached):
+    output = tmp_path / "all_atp_matches.csv"
+    for year in [2023, 2024, 2025]:
+        (tmp_path / f"{year}.csv").write_bytes(_csv(year))
+    if cached:
+        RawMatchesCsv(csv_path=str(output)).consolidate_seasons(tmp_path)
+
+    def unexpected_download(*args, **kwargs):
+        pytest.fail("Local materialization must not contact the source")
+
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        unexpected_download,
+    )
+    source = RawMatchesCsv(csv_path=str(output), refresh=False, first_year=2024)
+    assert _materialize(tmp_path, source).success
+    frame = pd.read_parquet(tmp_path / "staging" / "raw_atp_matches.parquet")
+    assert frame["tourney_date"].tolist() == [20240101, 20250101]
+
+
+def test_first_year_with_no_available_seasons_fails(tmp_path, monkeypatch):
+    _mock_download(monkeypatch, [2023], [])
+    source = RawMatchesCsv(catalog_url="https://example.test/catalog", first_year=2024)
+    with pytest.raises(ValueError, match="did not contain requested ATP annual files"):
+        source.download_seasons(tmp_path)
+
+
+def test_first_year_and_explicit_years_are_mutually_exclusive():
+    with pytest.raises(ValueError, match="either first_year or years"):
+        RawMatchesCsv(first_year=2024, years=[2025])
+
+
 def test_invalid_local_season_does_not_replace_consolidated_csv(tmp_path):
     output = tmp_path / "all_atp_matches.csv"
     output.write_bytes(_csv(2024))

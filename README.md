@@ -88,10 +88,14 @@ resources:
   raw_matches_csv:
     config:
       refresh: true
-      years: [2025, 2026]
+      first_year: 2020
 ```
 
-Omit `years` to download all available seasons. `csv_path` overrides the output
+`first_year` includes that season and every newer season available in the source
+catalog, including new seasons as they appear. It also excludes older cached
+seasons from consolidation and the raw asset. Use `years: [2025, 2026]` instead
+to refresh specific seasons; configure either `first_year` or `years`, not both.
+Omit both to download all available seasons. `csv_path` overrides the output
 path and determines the directory containing annual files. The refresh CLI also
 accepts `--csv-path`. Run the full dataset job with refresh enabled to update
 source history and all downstream datasets together.
