@@ -8,6 +8,7 @@ from pydantic import JsonValue
 
 from tennis_match_prediction.contracts import ExperimentConfig
 from tennis_match_prediction.ml.config import TRAINING_MATCHES
+from tennis_match_prediction.ml.evaluation import BASELINE_COLUMNS
 
 
 @dataclass
@@ -30,27 +31,25 @@ def prepare_dataset(config: ExperimentConfig) -> PreparedDataset:
             "Expected Dagster training rows. Materialize materialize_historical_dataset first. "
             f"Missing columns: {sorted(missing)}"
         )
+    # Reference metrics must not depend on which features a model was fitted on.
+    baseline_columns = tuple(column for column in BASELINE_COLUMNS if column in matches.columns)
+    numeric = tuple(dict.fromkeys((*config.feature_columns, *baseline_columns)))
+    columns = (*numeric, "winner", "tourney_date")
     frame = matches.loc[:, list(columns)]
-    TRAINING_MATCHES.model_copy(
-        update={"required": columns, "numeric": config.feature_columns}
-    ).validate_frame(frame)
+    TRAINING_MATCHES.model_copy(update={"required": columns, "numeric": numeric}).validate_frame(
+        frame
+    )
 
     dates = pd.to_datetime(frame["tourney_date"], format="ISO8601").dt.date
     periods = {
         "warmup": frame.loc[dates < config.train_start],
-        "training": frame.loc[
-            (dates >= config.train_start) & (dates < config.validation_start)
-        ],
-        "validation": frame.loc[
-            (dates >= config.validation_start) & (dates < config.test_start)
-        ],
+        "training": frame.loc[(dates >= config.train_start) & (dates < config.validation_start)],
+        "validation": frame.loc[(dates >= config.validation_start) & (dates < config.test_start)],
         "test": frame.loc[dates >= config.test_start],
     }
     for name, period in periods.items():
         if period.empty:
-            raise ValueError(
-                f"The {name} period contains no matches; adjust the split dates"
-            )
+            raise ValueError(f"The {name} period contains no matches; adjust the split dates")
     if periods["training"]["winner"].nunique() != 2:
         raise ValueError("The training period must contain both target classes")
     split = {

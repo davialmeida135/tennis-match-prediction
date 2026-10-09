@@ -234,7 +234,14 @@ uv run python -m tennis_match_prediction.ml.train --model random_forest --params
 ```
 
 Select configurations using `validation_log_loss` (lower is better), with Brier and
-accuracy as supporting metrics. Every run includes constant-0.5 baseline metrics.
+accuracy as supporting metrics. Runs report accuracy for choosing the better-ranked
+player (lower numerical rank), the higher overall Elo player and the higher surface
+Elo player. Comparisons use pre-match features and remain available when those
+features are excluded from the model inputs. Ties/unavailable comparisons receive
+half credit, equivalent to a fair random tie-break; each baseline logs its neutral
+fraction. A custom CSV lacking a reference column omits that baseline.
+These winner-picking references have accuracy metrics; model probabilities retain
+Brier and log loss metrics.
 After selection, rerun the chosen settings with `--final-evaluation` to also score
 the test period. This still fits only on training rows. Keep the same dataset and
 dates for comparisons; use the logged SHA-256 fingerprint to confirm dataset identity.

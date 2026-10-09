@@ -111,7 +111,7 @@ def test_test_set_is_only_scored_when_explicit(experiment_data, monkeypatch):
     assert first.model_path != second.model_path
     assert "test_log_loss" not in first.metrics
     assert "test_log_loss" in second.metrics
-    assert first.metrics["validation_baseline_brier"] == 0.25
+    assert "validation_elo_baseline_accuracy" in first.metrics
 
 
 @pytest.mark.parametrize("name", ["logistic_regression", "random_forest"])

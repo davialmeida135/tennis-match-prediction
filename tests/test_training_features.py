@@ -36,7 +36,7 @@ def test_subset_preserves_feature_order_in_model_and_metadata(tmp_path):
         "feature_columns"
     ] == list(selected)
     assert result.run_id is None
-    assert len(result.metrics) == 6
+    assert len(result.metrics) == 7
     assert all(name.startswith("validation_") for name in result.metrics)
     assert artifact.model.predict_proba(frame.loc[:, list(selected)]).shape == (60,)
     assert artifact.model.estimator[0].n_samples_seen_ == 21
