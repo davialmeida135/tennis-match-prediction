@@ -62,18 +62,7 @@ def train(
     contract.validate_frame(frame)
     if len(frame) < 30:
         raise ValueError("At least 30 completed matches are required to train a model")
-    if not train_start < validation_start < test_start:
-        raise ValueError("Dates must satisfy train_start < validation_start < test_start")
-    dates = pd.to_datetime(frame["tourney_date"], format="ISO8601").dt.date
-    periods = {
-        "warmup": frame.loc[dates < train_start],
-        "training": frame.loc[(dates >= train_start) & (dates < validation_start)],
-        "validation": frame.loc[(dates >= validation_start) & (dates < test_start)],
-        "test": frame.loc[dates >= test_start],
-    }
-    for name, period in periods.items():
-        if period.empty:
-            raise ValueError(f"The {name} period contains no matches; adjust the split dates")
+    periods = _split_periods(frame, train_start, validation_start, test_start)
     training = periods["training"]
     validation = periods["validation"]
     testing = periods["test"]
@@ -100,26 +89,21 @@ def train(
     metrics = _metrics(model, validation, "validation", feature_columns) | _metrics(
         model, testing, "test", feature_columns
     )
+    artifact_metadata = {
+        "feature_columns": feature_columns,
+        "history_order": "source_date_match_num",
+        "split": split_metadata,
+    }
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with model_path.open("wb") as file:
-        pickle.dump(
-            {
-                "model": model,
-                "feature_columns": feature_columns,
-                "history_order": "source_date_match_num",
-                "split": split_metadata,
-            },
-            file,
-        )
+        pickle.dump({"model": model, **artifact_metadata}, file)
     metadata_path = model_path.with_suffix(".json")
     metadata_path.write_text(
         json.dumps(
             {
-                "feature_columns": feature_columns,
-                "history_order": "source_date_match_num",
+                **artifact_metadata,
                 "training_matches_path": str(training_matches_path),
                 "rows": len(frame),
-                "split": split_metadata,
                 "metrics": metrics,
             },
             indent=2,
@@ -129,6 +113,25 @@ def train(
     )
     _log_mlflow(model_path, metrics, feature_columns)
     return metrics
+
+
+def _split_periods(
+    frame: pd.DataFrame, train_start: date, validation_start: date, test_start: date
+) -> dict[str, pd.DataFrame]:
+    """Keep tied source dates together and require observations in every period."""
+    if not train_start < validation_start < test_start:
+        raise ValueError("Dates must satisfy train_start < validation_start < test_start")
+    dates = pd.to_datetime(frame["tourney_date"], format="ISO8601").dt.date
+    periods = {
+        "warmup": frame.loc[dates < train_start],
+        "training": frame.loc[(dates >= train_start) & (dates < validation_start)],
+        "validation": frame.loc[(dates >= validation_start) & (dates < test_start)],
+        "test": frame.loc[dates >= test_start],
+    }
+    for name, period in periods.items():
+        if period.empty:
+            raise ValueError(f"The {name} period contains no matches; adjust the split dates")
+    return periods
 
 
 def _metrics(
@@ -153,6 +156,9 @@ def _log_mlflow(
         import mlflow
     except ImportError:
         return
+    metadata_path = model_path.with_suffix(".json")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    split_params = {key: value for key, value in metadata["split"].items() if key != "periods"}
     mlflow.set_experiment("tennis-match-prediction")
     with mlflow.start_run():
         mlflow.log_params(
@@ -162,26 +168,18 @@ def _log_mlflow(
                 "random_state": RANDOM_STATE,
                 "feature_count": len(feature_columns),
                 "feature_columns": json.dumps(feature_columns),
-                **{
-                    key: value
-                    for key, value in json.loads(
-                        model_path.with_suffix(".json").read_text(encoding="utf-8")
-                    )["split"].items()
-                    if key != "periods"
-                },
+                **split_params,
             }
         )
         mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(model_path))
-        mlflow.log_artifact(str(model_path.with_suffix(".json")))
+        mlflow.log_artifact(str(metadata_path))
 
 
 def main() -> None:
     """Run chronological training from the command line."""
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "training_matches", type=Path, nargs="?", default=TRAINING_MATCHES_PATH
-    )
+    parser.add_argument("training_matches", type=Path, nargs="?", default=TRAINING_MATCHES_PATH)
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH)
     parser.add_argument(
         "--train-start",

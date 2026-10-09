@@ -47,43 +47,42 @@ def _update_player(
     *,
     won: bool,
 ) -> None:
-    """
-    Update a player's state based on the outcome of a match.
-    """
-    prefix = "w" if won else "l"
+    """Record the result, then update observed statistics and player attributes."""
     player.wins += int(won)
     player.losses += int(not won)
     player.h2h_wins[opponent.name] = player.h2h_wins.get(opponent.name, 0) + int(won)
-    player.history.insert(
-        0,
-        PlayedMatch(
-            tourney_date=source_date,
-            surface=surface,
-            won=won,
-        ),
-    )
+    result = PlayedMatch(tourney_date=source_date, surface=surface, won=won)
+    player.history.insert(0, result)
     player.history = player.history[:50]
-    player.surface_history.setdefault(surface, []).insert(0, player.history[0])
+    player.surface_history.setdefault(surface, []).insert(0, result)
     player.surface_history[surface] = player.surface_history[surface][:10]
-    points = _optional_number(match.get(f"{prefix}_svpt"))
-    if points is not None and points > 0:
-        player.serve_points += points
-        for numerator, denominator, fields in (
-            ("aces", "ace_serve_points", ("ace",)),
-            ("double_faults", "double_fault_serve_points", ("df",)),
-            ("service_points_won", "service_won_serve_points", ("1stWon", "2ndWon")),
-        ):
-            values = [_optional_number(match.get(f"{prefix}_{field}")) for field in fields]
-            if all(value is not None and value >= 0 for value in values):
-                total = sum(values)
-                if total <= points:
-                    setattr(player, numerator, getattr(player, numerator) + total)
-                    setattr(player, denominator, getattr(player, denominator) + points)
+    _update_serve_statistics(player, match, prefix="w" if won else "l")
     side = "winner" if won else "loser"
     for attribute in ("rank", "rank_points", "age"):
         value = _optional_number(match.get(f"{side}_{attribute}"))
         if value is not None and value >= 0 and (attribute != "rank" or value > 0):
             setattr(player, attribute, value)
+
+
+def _update_serve_statistics(player: PlayerState, match: pd.Series, *, prefix: str) -> None:
+    """Accumulate each rate only when its numerator and denominator are observed."""
+    points = _optional_number(match.get(f"{prefix}_svpt"))
+    if points is None or points <= 0:
+        return
+    player.serve_points += points
+    for numerator, denominator, fields in (
+        ("aces", "ace_serve_points", ("ace",)),
+        ("double_faults", "double_fault_serve_points", ("df",)),
+        ("service_points_won", "service_won_serve_points", ("1stWon", "2ndWon")),
+    ):
+        values = [_optional_number(match.get(f"{prefix}_{field}")) for field in fields]
+        if any(value is None or value < 0 for value in values):
+            continue
+        total = sum(values)
+        if total > points:
+            continue
+        setattr(player, numerator, getattr(player, numerator) + total)
+        setattr(player, denominator, getattr(player, denominator) + points)
 
 
 def attach_temporal_features(
@@ -150,7 +149,14 @@ def _temporal_features_by_row(
             )
         for _, match in batch.iterrows():
             _apply_result(state, match, prior)
-    columns = ["tourney_id", "match_num", "winner_id", "loser_id", *PLAYER_COMPARISON_FEATURE_COLUMNS, "tourney_date"]
+    columns = [
+        "tourney_id",
+        "match_num",
+        "winner_id",
+        "loser_id",
+        *PLAYER_COMPARISON_FEATURE_COLUMNS,
+        "tourney_date",
+    ]
     frame = pd.DataFrame(rows, columns=columns, index=source_rows)
     # Preserve missing source match numbers in the standalone temporal export.
     frame["match_num"] = frame["match_num"].astype("Int64")

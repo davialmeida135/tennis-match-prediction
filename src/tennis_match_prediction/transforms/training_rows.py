@@ -131,7 +131,7 @@ def build_training_rows(df: pd.DataFrame, *, random_seed: int | None = None) -> 
     """
     df = df.copy()
     df["tourney_date"] = pd.to_datetime(df["tourney_date"]).dt.strftime("%Y-%m-%d")
-    frame = df if isinstance(df, pl.DataFrame) else pl.from_pandas(df)
+    frame = pl.from_pandas(df)
 
     required_columns = _required_input_columns()
     missing_columns = [column for column in required_columns if column not in frame.columns]
@@ -144,16 +144,13 @@ def build_training_rows(df: pd.DataFrame, *, random_seed: int | None = None) -> 
     player1_is_winner = pl.col("swap") == 0
     expressions = [
         pl.when(player1_is_winner)
-        .then(pl.col(f"loser_{stem}"))
-        .otherwise(pl.col(f"winner_{stem}"))
-        .alias(f"player0_{stem}")
-        for stem in PLAYER_ATTRIBUTE_STEMS
-    ]
-    expressions += [
-        pl.when(player1_is_winner)
-        .then(pl.col(f"winner_{stem}"))
-        .otherwise(pl.col(f"loser_{stem}"))
-        .alias(f"player1_{stem}")
+        .then(pl.col(f"{when_player1_wins}_{stem}"))
+        .otherwise(pl.col(f"{when_player0_wins}_{stem}"))
+        .alias(f"{player}_{stem}")
+        for player, when_player1_wins, when_player0_wins in (
+            ("player0", "loser", "winner"),
+            ("player1", "winner", "loser"),
+        )
         for stem in PLAYER_ATTRIBUTE_STEMS
     ]
     # These features are stored from winner-minus-loser perspective. Reorient
