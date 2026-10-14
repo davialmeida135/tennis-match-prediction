@@ -135,23 +135,23 @@ def test_registry_startup_downloads_once_and_serves_predictions(
         history_path=web_files[0],
         models_dir=web_files[1],
         model_path=None,
-        registry_model=RegistryModel("tennis", "http://192.168.9.138:5000", version=version),
+        registry_model=RegistryModel("teninho", "http://192.168.9.138:5000", version=version),
     )
     with TestClient(application) as client:
         status = client.get("/api/status").json()
         assert status["registry_model"] == {
-            "name": "tennis",
+            "name": "teninho",
             "version": "7",
             "run_id": "run-123",
-            "model_uri": "models:/tennis/7",
+            "model_uri": "models:/teninho/7",
         }
         constructor.assert_called_once_with(
             tracking_uri="http://192.168.9.138:5000", registry_uri="http://192.168.9.138:5000"
         )
         if version is None:
-            remote.get_model_version_by_alias.assert_called_once_with("tennis", "champion")
+            remote.get_model_version_by_alias.assert_called_once_with("teninho", "champion")
         else:
-            remote.get_model_version.assert_called_once_with("tennis", "7")
+            remote.get_model_version.assert_called_once_with("teninho", "7")
             remote.get_model_version_by_alias.assert_not_called()
         path = next(iter(application.state.players.models.values()))[0]
         assert path.is_file()
