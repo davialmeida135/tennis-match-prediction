@@ -8,8 +8,7 @@ from tennis_match_prediction.ml.artifacts import save_artifact
 from tennis_match_prediction.ml.dataset import prepare_dataset
 from tennis_match_prediction.ml.evaluation import evaluate
 from tennis_match_prediction.ml.models.factory import create_model
-from tennis_match_prediction.ml.provenance import capture_provenance
-from tennis_match_prediction.ml.tracking import start_tracking
+from tennis_match_prediction.ml.tracking import capture_provenance, start_tracking
 
 
 def run_experiment(config: ExperimentConfig) -> ExperimentResult:
