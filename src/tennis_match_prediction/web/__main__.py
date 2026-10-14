@@ -24,7 +24,7 @@ def main() -> None:
         "--model-path", type=Path, help="serve only this compatible project model"
     )
     source.add_argument(
-        "--registry-model", default="teninho", help="registered MLflow model name"
+        "--registry-model", help="registered MLflow model name"
     )
     selector = parser.add_mutually_exclusive_group()
     selector.add_argument("--registry-alias", help="registry alias (default: champion)")

@@ -251,7 +251,17 @@ def test_web_cli_registry_environment_and_overrides(monkeypatch):
     cli.main()
     assert create.call_args.kwargs["registry_model"].version == "7"
     assert create.call_args.kwargs["registry_model"].alias is None
+    monkeypatch.setattr("sys.argv", ["web", "--registry-model", "other-model"])
+    cli.main()
+    assert create.call_args.kwargs["registry_model"] == RegistryModel(
+        "other-model", "http://192.168.9.138:5000", alias="champion"
+    )
     monkeypatch.setattr("sys.argv", ["web", "--model-path", "local.pkl"])
+    cli.main()
+    assert create.call_args.kwargs["registry_model"] is None
+    assert create.call_args.kwargs["model_path"] == Path("local.pkl")
+    monkeypatch.delenv("TENNIS_WEB_REGISTRY_MODEL")
+    monkeypatch.setattr("sys.argv", ["web"])
     cli.main()
     assert create.call_args.kwargs["registry_model"] is None
 
