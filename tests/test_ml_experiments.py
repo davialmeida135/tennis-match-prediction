@@ -51,15 +51,21 @@ def experiment_data(tmp_path):
     }
 
 
-@pytest.mark.parametrize("model_name", ["logistic_regression", "random_forest"])
+@pytest.mark.parametrize(
+    "model_name",
+    ["logistic_regression", "random_forest", "extra_trees", "hist_gradient_boosting", "xgboost"],
+)
 def test_model_round_trip_and_future_prediction(experiment_data, tmp_path, model_name):
     frame, options = experiment_data
-    parameters = {"n_estimators": 10} if model_name == "random_forest" else {}
+    parameters = (
+        {"n_estimators": 10} if model_name in {"random_forest", "extra_trees", "xgboost"} else {}
+    )
     result = train(**options, model_name=model_name, model_params=parameters)
     artifact = load_artifact(result.model_path)
     expected = create_model(model_name, parameters)
     features = list(options["feature_columns"])
     expected.fit(frame.loc[10:30, features], frame.loc[10:30, "winner"])
+    assert artifact.model.predict_proba(frame[features]).dtype == np.float64
     np.testing.assert_allclose(
         artifact.model.predict_proba(frame[features]), expected.predict_proba(frame[features])
     )
@@ -114,7 +120,10 @@ def test_test_set_is_only_scored_when_explicit(experiment_data, monkeypatch):
     assert "validation_elo_baseline_accuracy" in first.metrics
 
 
-@pytest.mark.parametrize("name", ["logistic_regression", "random_forest"])
+@pytest.mark.parametrize(
+    "name",
+    ["logistic_regression", "random_forest", "extra_trees", "hist_gradient_boosting", "xgboost"],
+)
 def test_models_reject_unknown_settings_and_unfitted_prediction(name):
     with pytest.raises(ValueError, match="Extra inputs"):
         create_model(name, {"typo": 1})
@@ -180,11 +189,16 @@ def test_tracking_precedence_and_explicit_local_mode(tmp_path, monkeypatch):
     assert local.experiment_name == "environment"
 
 
-def test_local_mlflow_round_trip_and_failed_run(experiment_data, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "model_name",
+    ["logistic_regression", "random_forest", "extra_trees", "hist_gradient_boosting", "xgboost"],
+)
+def test_local_mlflow_round_trip_and_failed_run(experiment_data, tmp_path, monkeypatch, model_name):
     frame, options = experiment_data
     monkeypatch.setenv("TENNIS_MLFLOW_LOCAL_DIR", str(tmp_path / "tracking"))
     options["tracking_mode"] = "local"
     options["experiment_name"] = "integration"
+    options["model_name"] = model_name
     previous_uri = mlflow.get_tracking_uri()
     previous_environment_uri = os.environ.get("MLFLOW_TRACKING_URI")
     # Restore all environment changes made by MLflow's fluent API after this test.
@@ -222,7 +236,7 @@ def test_local_mlflow_round_trip_and_failed_run(experiment_data, tmp_path, monke
     def fail_fit(*_):
         raise RuntimeError("deliberate fit failure")
 
-    monkeypatch.setattr(LogisticRegressionModel, "fit", fail_fit)
+    monkeypatch.setattr(type(create_model(model_name, {})), "fit", fail_fit)
     with pytest.raises(RuntimeError, match="deliberate fit failure"):
         train(**options)
     runs = client.search_runs([run.info.experiment_id])

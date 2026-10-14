@@ -33,6 +33,39 @@ class RandomForestSettings(ContractModel):
     class_weight: Literal["balanced", "balanced_subsample"] | None = None
 
 
+class ExtraTreesSettings(RandomForestSettings):
+    """Randomized tree thresholds with the same controls as the forest adapter."""
+
+
+class HistGradientBoostingSettings(ContractModel):
+    learning_rate: float = Field(default=0.1, gt=0)
+    max_iter: int = Field(default=200, gt=0, strict=True)
+    max_leaf_nodes: int = Field(default=15, ge=2, strict=True)
+    max_depth: int | None = Field(default=None, gt=0, strict=True)
+    min_samples_leaf: int = Field(default=20, gt=0, strict=True)
+    l2_regularization: float = Field(default=1.0, ge=0)
+    random_state: int = Field(default=42, ge=0, strict=True)
+    # Fit all requested iterations; never create a random internal validation split.
+    early_stopping: Literal[False] = False
+
+
+class XGBoostSettings(ContractModel):
+    n_estimators: int = Field(default=300, gt=0, strict=True)
+    max_depth: int = Field(default=3, gt=0, strict=True)
+    learning_rate: float = Field(default=0.05, gt=0)
+    min_child_weight: float = Field(default=5.0, ge=0)
+    subsample: float = Field(default=0.8, gt=0, le=1)
+    colsample_bytree: float = Field(default=0.8, gt=0, le=1)
+    reg_alpha: float = Field(default=0.0, ge=0)
+    reg_lambda: float = Field(default=1.0, ge=0)
+    random_state: int = Field(default=42, ge=0, strict=True)
+    n_jobs: int = Field(default=2, ge=1, strict=True)
+    objective: Literal["binary:logistic"] = "binary:logistic"
+    eval_metric: Literal["logloss"] = "logloss"
+    tree_method: Literal["hist"] = "hist"
+    device: Literal["cpu"] = "cpu"
+
+
 class TrackingSettings(ContractModel):
     mode: Literal["server", "local", "disabled"] = "server"
     uri: str = "http://127.0.0.1:5000"
@@ -78,9 +111,10 @@ class ExperimentConfig(ContractModel):
             raise ValueError("Select at least one training feature")
         if len(set(value)) != len(value):
             raise ValueError("Training features must not contain duplicates")
-        unknown = set(value).difference(PLAYER_COMPARISON_FEATURE_COLUMNS)
-        if unknown:
-            raise ValueError(f"Unknown training features: {sorted(unknown)}")
+        # Allow extra published numeric features, but never the target or split date.
+        reserved = set(value).intersection({"winner", "tourney_date"})
+        if reserved:
+            raise ValueError(f"Unknown training features (reserved columns): {sorted(reserved)}")
         return value
 
     @model_validator(mode="after")

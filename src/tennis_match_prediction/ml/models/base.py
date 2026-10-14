@@ -40,7 +40,7 @@ class SklearnMatchModel(BaseMatchModel):
         positive = np.flatnonzero(classes == 1)
         if len(positive) != 1 or set(classes) != {0, 1}:
             raise ValueError("Fitted estimator must have binary classes 0 and 1")
-        return self.estimator.predict_proba(features)[:, positive[0]]
+        return np.asarray(self.estimator.predict_proba(features)[:, positive[0]], dtype=np.float64)
 
     def get_params(self) -> dict[str, JsonValue]:
         # Pipeline steps themselves are objects; their scalar parameters are reproducible.

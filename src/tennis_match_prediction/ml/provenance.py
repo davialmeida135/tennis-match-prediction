@@ -13,7 +13,7 @@ from tennis_match_prediction.paths import PROJECT_ROOT
 
 
 def capture_provenance(directory: Path) -> dict[str, JsonValue]:
-    packages = ("mlflow", "scikit-learn", "numpy", "pandas", "scipy", "cloudpickle")
+    packages = ("mlflow", "scikit-learn", "xgboost", "numpy", "pandas", "scipy", "cloudpickle")
     versions = {name: version(name) for name in packages}
     (directory / "requirements.txt").write_text(
         "\n".join(f"{name}=={value}" for name, value in versions.items()) + "\n", encoding="utf-8"

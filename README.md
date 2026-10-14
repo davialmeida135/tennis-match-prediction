@@ -2,7 +2,8 @@
 
 Predict an ATP match from two player names, a date, and a surface. Historical
 results come from TennisMyLife; experiments use chronological splits with logistic
-regression or random forest. A Dagster player-history asset supplies each player's pre-match history.
+regression, random forest, Extra Trees, histogram boosting or XGBoost. A Dagster
+player-history asset supplies each player's pre-match history.
 
 ## Start here
 
@@ -231,7 +232,27 @@ Compare models on the same published CSV, feature order and split dates:
 uv run python -m tennis_match_prediction.ml.train --model logistic_regression --run-name logistic-baseline
 uv run python -m tennis_match_prediction.ml.train --model random_forest --run-name forest-baseline
 uv run python -m tennis_match_prediction.ml.train --model random_forest --params-file examples/random-forest.json
+uv run python -m tennis_match_prediction.ml.train --model extra_trees --run-name extra-trees-baseline
+uv run python -m tennis_match_prediction.ml.train --model hist_gradient_boosting --run-name boosting-baseline
+uv run python -m tennis_match_prediction.ml.train --model xgboost --params-file examples/xgboost.json --run-name xgboost-baseline
 ```
+
+Run the fixed 12-configuration grid across these five model families with:
+
+```powershell
+uv run python -m tennis_match_prediction.ml.compare --tracking-mode server --tracking-uri http://127.0.0.1:5000
+```
+
+Add `--final-evaluation` to score only the configuration selected by validation
+log loss on the held-out test period. The comparison JSON is saved under
+`data/experiments/<comparison-id>/` and attached to the selected MLflow runs.
+Use `--tracking-mode server` for the configured HTTP tracking service.
+Histogram boosting disables internal random early-stopping splits.
+XGBoost uses CPU histogram trees and a fixed iteration count, with validated
+parameters and its dependency version captured in MLflow provenance.
+It uses the [XGBoost sklearn classifier](https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBClassifier)
+through the shared model adapter and MLflow sklearn flavor.
+See [the October 13 comparison](docs/ml-model-comparison-2026-10-13.md) for results.
 
 Select configurations using `validation_log_loss` (lower is better), with Brier and
 accuracy as supporting metrics. Runs report accuracy for choosing the better-ranked
