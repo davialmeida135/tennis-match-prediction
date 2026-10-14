@@ -2,6 +2,10 @@
 
 from datetime import date
 from hashlib import sha256
+from pathlib import Path
+from shutil import copyfile
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -20,6 +24,7 @@ from tennis_match_prediction.ml.artifacts import load_artifact, save_artifact
 from tennis_match_prediction.ml.models.logistic_regression import LogisticRegressionModel
 from tennis_match_prediction.ml.predict import predict, probability_for
 from tennis_match_prediction.web.app import create_app
+from tennis_match_prediction.web.registry import RegistryModel
 from tennis_match_prediction.web.service import PlayerService
 
 
@@ -90,6 +95,165 @@ def client(web_files):
     )
     with TestClient(application) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def registry_client(web_files, tmp_path, monkeypatch):
+    from tennis_match_prediction.web import registry
+
+    artifact = load_artifact(web_files[2])
+    path = tmp_path / "remote" / "model.pkl"
+    save_artifact(path, artifact.model, artifact.metadata.model_copy(update={"run_id": "run-123"}))
+    client = MagicMock()
+    version = SimpleNamespace(status="READY", run_id="run-123", version="7")
+    client.get_model_version_by_alias.return_value = version
+    client.get_model_version.return_value = version
+    client.get_run.return_value.info.status = "FINISHED"
+    client.list_artifacts.return_value = [
+        SimpleNamespace(path="project_model/model.pkl", is_dir=False),
+        SimpleNamespace(path="project_model/model.json", is_dir=False),
+    ]
+
+    def download(run_id, artifact_path, directory):
+        destination = Path(directory) / artifact_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        copyfile(path.parent / Path(artifact_path).name, destination)
+        return str(destination)
+
+    client.download_artifacts.side_effect = download
+    constructor = MagicMock(return_value=client)
+    monkeypatch.setattr(registry, "MlflowClient", constructor)
+    return client, constructor
+
+
+@pytest.mark.parametrize("version", [None, "7"])
+def test_registry_startup_downloads_once_and_serves_predictions(
+    web_files, registry_client, version
+):
+    remote, constructor = registry_client
+    application = create_app(
+        history_path=web_files[0],
+        models_dir=web_files[1],
+        model_path=None,
+        registry_model=RegistryModel("tennis", "http://192.168.9.138:5000", version=version),
+    )
+    with TestClient(application) as client:
+        status = client.get("/api/status").json()
+        assert status["registry_model"] == {
+            "name": "tennis",
+            "version": "7",
+            "run_id": "run-123",
+            "model_uri": "models:/tennis/7",
+        }
+        constructor.assert_called_once_with(
+            tracking_uri="http://192.168.9.138:5000", registry_uri="http://192.168.9.138:5000"
+        )
+        if version is None:
+            remote.get_model_version_by_alias.assert_called_once_with("tennis", "champion")
+        else:
+            remote.get_model_version.assert_called_once_with("tennis", "7")
+            remote.get_model_version_by_alias.assert_not_called()
+        path = next(iter(application.state.players.models.values()))[0]
+        assert path.is_file()
+        calls = remote.mock_calls.copy()
+        assert client.post("/api/predict", json=matchup(client)).status_code == 200
+        assert client.post("/api/predict", json=matchup(client)).status_code == 200
+        assert remote.mock_calls == calls
+    assert not path.exists()
+
+
+@pytest.mark.parametrize(
+    "failure,message",
+    [
+        ("unavailable", "Cannot download registry model"),
+        ("not-ready", "READY"),
+        ("missing-run", "originating run"),
+        ("failed-run", "FINISHED"),
+        ("missing-pickle", "exactly one"),
+        ("missing-json", "matching JSON"),
+        ("wrong-run", "run ID"),
+        ("wrong-json", "Model changed since startup"),
+    ],
+)
+def test_registry_startup_failures_do_not_fall_back_to_local_models(
+    web_files, registry_client, failure, message
+):
+    from mlflow.exceptions import MlflowException
+
+    remote, _ = registry_client
+    if failure == "unavailable":
+        remote.get_model_version_by_alias.side_effect = MlflowException("offline")
+    elif failure == "not-ready":
+        remote.get_model_version_by_alias.return_value.status = "PENDING_REGISTRATION"
+    elif failure == "missing-run":
+        remote.get_model_version_by_alias.return_value.run_id = None
+    elif failure == "failed-run":
+        remote.get_run.return_value.info.status = "FAILED"
+    elif failure == "missing-pickle":
+        remote.list_artifacts.return_value = []
+    elif failure == "missing-json":
+        remote.list_artifacts.return_value = remote.list_artifacts.return_value[:1]
+    else:
+        original_download = remote.download_artifacts.side_effect
+
+        def invalid_download(run_id, artifact_path, directory):
+            result = original_download(run_id, artifact_path, directory)
+            if failure == "wrong-run" and artifact_path.endswith(".pkl"):
+                copyfile(web_files[2], result)
+            if failure == "wrong-json" and artifact_path.endswith(".json"):
+                metadata = ModelMetadata.model_validate_json(Path(result).read_text("utf-8"))
+                Path(result).write_text(
+                    metadata.model_copy(update={"metrics": {}}).model_dump_json(), "utf-8"
+                )
+            return result
+
+        remote.download_artifacts.side_effect = invalid_download
+    application = create_app(
+        history_path=web_files[0],
+        models_dir=web_files[1],
+        model_path=None,
+        registry_model=RegistryModel("tennis", "http://registry:5000"),
+    )
+    with pytest.raises((ValueError, RuntimeError), match=message), TestClient(application):
+        pass
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"alias": "champion", "version": "1"},
+        {"version": "0"},
+        {"version": "latest"},
+        {"alias": " "},
+    ],
+)
+def test_invalid_registry_selectors(options):
+    with pytest.raises(ValueError):
+        RegistryModel("tennis", "http://registry:5000", **options)
+
+
+def test_web_cli_registry_environment_and_overrides(monkeypatch):
+    from tennis_match_prediction.web import __main__ as cli
+
+    monkeypatch.setenv("TENNIS_WEB_REGISTRY_MODEL", "tennis")
+    monkeypatch.setenv("TENNIS_WEB_REGISTRY_ALIAS", "champion")
+    monkeypatch.setenv("TENNIS_WEB_REGISTRY_VERSION", "")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://192.168.9.138:5000")
+    create = MagicMock()
+    monkeypatch.setattr(cli, "create_app", create)
+    monkeypatch.setattr(cli.uvicorn, "run", MagicMock())
+    monkeypatch.setattr("sys.argv", ["web"])
+    cli.main()
+    assert create.call_args.kwargs["registry_model"] == RegistryModel(
+        "tennis", "http://192.168.9.138:5000", alias="champion"
+    )
+    monkeypatch.setattr("sys.argv", ["web", "--registry-version", "7"])
+    cli.main()
+    assert create.call_args.kwargs["registry_model"].version == "7"
+    assert create.call_args.kwargs["registry_model"].alias is None
+    monkeypatch.setattr("sys.argv", ["web", "--model-path", "local.pkl"])
+    cli.main()
+    assert create.call_args.kwargs["registry_model"] is None
 
 
 def matchup(client, **overrides):

@@ -1,8 +1,9 @@
 """Same-origin HTTP API and static frontend for personal use."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
@@ -11,23 +12,42 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import JsonValue
 
 from tennis_match_prediction.web.contracts import MatchupRequest
+from tennis_match_prediction.web.registry import RegistryModel, download_registry_model
 from tennis_match_prediction.web.service import PlayerService
 
 
-def create_app(*, history_path: Path, models_dir: Path, model_path: Path | None) -> FastAPI:
+def create_app(
+    *,
+    history_path: Path,
+    models_dir: Path,
+    model_path: Path | None,
+    registry_model: RegistryModel | None = None,
+) -> FastAPI:
     """Load history once at startup, never run ingestion or training in requests."""
+
+    if model_path is not None and registry_model is not None:
+        raise ValueError("Choose a local model path or a registry model, not both")
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        application.state.players = PlayerService(history_path, models_dir, model_path)
-        yield
+        with ExitStack() as stack:
+            selected_path = model_path
+            application.state.registry_model = None
+            if registry_model is not None:
+                directory = stack.enter_context(TemporaryDirectory(prefix="tennis-web-model-"))
+                selected_path, provenance = download_registry_model(registry_model, Path(directory))
+                application.state.registry_model = provenance
+            application.state.players = PlayerService(history_path, models_dir, selected_path)
+            yield
 
     application = FastAPI(title="Court Report", lifespan=lifespan)
     static = Path(__file__).parent / "static"
 
     @application.get("/api/status")
     def status() -> dict[str, JsonValue]:
-        return application.state.players.status()
+        return application.state.players.status() | {
+            "registry_model": application.state.registry_model
+        }
 
     @application.get("/api/players")
     def search(

@@ -41,6 +41,46 @@ rebuilding history or adding model artifacts. It binds to localhost for personal
 use and does not require Docker or a running MLflow server. Model selection uses
 trusted local project pickles; there is no model-upload endpoint.
 
+### Load a web model from MLflow Model Registry
+
+The web app can resolve an existing registered model on startup and download its
+originating run's `project_model/*.pkl` and matching JSON metadata:
+
+```bash
+uv run python -m tennis_match_prediction.web --registry-model tennis-match-prediction --registry-alias champion --tracking-uri http://192.168.9.138:5000
+```
+
+Replace the model name with the name already in your registry. The alias defaults
+to `champion`; use `--registry-version 3` instead to pin a numeric version.
+To configure a systemd deployment without changing its command, set these in the
+project `.env` (or the service environment):
+
+```dotenv
+MLFLOW_TRACKING_URI=http://192.168.9.138:5000
+TENNIS_WEB_REGISTRY_MODEL=tennis-match-prediction
+TENNIS_WEB_REGISTRY_ALIAS=champion
+```
+
+For a pinned version, leave the alias empty and set `TENNIS_WEB_REGISTRY_VERSION`.
+CLI selectors override environment selectors. An explicit `--model-path` overrides
+environment registry selection. An empty registry model name keeps local discovery.
+
+The registered version must be READY, reference a FINISHED training run from this
+project, and that run must retain its project pickle and matching JSON metadata.
+Registering the separately logged sklearn model is supported through its originating
+run ID; a standalone sklearn model without project artifacts cannot serve this app.
+This feature does not create registrations or move aliases. Registry reads and
+artifact downloads must be accessible from the web host; server-local artifact
+paths are insufficient without shared storage or MLflow artifact serving.
+
+The app validates the downloaded model using the same compatibility checks as
+local models. It downloads once per startup into a temporary directory retained
+until shutdown; predictions make no MLflow calls. Restart to pick up alias changes.
+Startup fails if resolution, download or validation fails, without substituting
+another local model. `/api/status` includes the resolved registry name, numeric
+version, run ID and version URI. Only load pickles from a trusted MLflow server.
+The player-history Parquet remains a separately deployed local file.
+
 The selected date must follow the history source date. Changing an allowed future
 date does not project age, form or ranking changes. Historical as-of predictions,
 upcoming fixture feeds and automatic result ingestion are not implemented. Recent
@@ -52,6 +92,11 @@ been established.
 ## Start here
 
 Use Python 3.12 and `uv`:
+
+The example environment points to the remote MLflow server at
+`http://192.168.9.138:5000`. For the local Docker tracking setup below, override
+`MLFLOW_TRACKING_URI` with `http://127.0.0.1:5000` in `.env` first. The registry
+web startup example above uses the remote server explicitly.
 
 ```powershell
 uv sync
