@@ -176,8 +176,7 @@ cython_debug/
 *.json.gz
 
 # Raw inputs are small enough to be versioned, so keep them explicit.
-!data/raw/historical_matches/all_atp_matches.csv
-!data/raw/historical_matches/atp_matches_2023.csv
+!data/curated/player_history.parquet
 
 # Dagster instance home (local development)
 .tmp_dagster_home_*
@@ -195,5 +194,9 @@ dagster_home/logs
 /mlflow.db
 /mlruns/
 /data/models/
+/data/mlflow/
+/data/experiments/
+/data/tmp/
+/mlartifacts/
 /data/state/
 /.pytest*

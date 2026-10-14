@@ -1,29 +1,122 @@
 # Tennis match prediction
 
 Predict an ATP match from two player names, a date, and a surface. Historical
-results come from TennisMyLife; training uses a chronological split and logistic
-regression. A Dagster player-history asset supplies each player's pre-match history.
+results come from TennisMyLife; experiments use chronological splits with logistic
+regression, random forest, Extra Trees, histogram boosting or XGBoost. A Dagster
+player-history asset supplies each player's pre-match history.
+
+## Personal web application
+
+After building player history and training at least one compatible model, start:
+
+```powershell
+uv sync
+uv run python -m tennis_match_prediction.web
+```
+
+Open http://127.0.0.1:8000. The local application includes:
+
+- A searchable player directory and profiles with observed ranking, Elo, surface
+  form, career record, serving rates and recent source-dated results.
+- Two-player selection by stable history ID, court surface and future date.
+- Win probabilities, fair decimal odds, recorded head-to-head and feature inspection.
+- Model selection, data freshness and a downloadable prediction JSON containing
+  inputs, features, creation time and model/history hashes.
+
+The default is the most recently written compatible model under `data/models/`,
+not an automatic claim that it is the best model. Choose another in **Model & data
+details**, or pin one at startup:
+
+```powershell
+uv run python -m tennis_match_prediction.web --model-path data/models/<experiment-id>/model.pkl --port 8000
+```
+
+Only models using a subset of the shared comparison features are listed. Models
+requiring additional training-only columns are excluded. Profiles work without a
+model; prediction is disabled until one is available. `--history-path` and
+`--models-dir` override the default artifact locations.
+
+History is loaded once; selected models are cached. Restart the application after
+rebuilding history or adding model artifacts. It binds to localhost for personal
+use and does not require Docker or a running MLflow server. Model selection uses
+trusted local project pickles; there is no model-upload endpoint.
+
+### Load a web model from MLflow Model Registry
+
+The web app can resolve an existing registered model on startup and download its
+originating run's `project_model/*.pkl` and matching JSON metadata:
+
+```bash
+uv run python -m tennis_match_prediction.web --registry-model tennis-match-prediction --registry-alias champion --tracking-uri http://192.168.9.138:5000
+```
+
+Replace the model name with the name already in your registry. The alias defaults
+to `champion`; use `--registry-version 3` instead to pin a numeric version.
+To configure a systemd deployment without changing its command, set these in the
+project `.env` (or the service environment):
+
+```dotenv
+MLFLOW_TRACKING_URI=http://192.168.9.138:5000
+TENNIS_WEB_REGISTRY_MODEL=tennis-match-prediction
+TENNIS_WEB_REGISTRY_ALIAS=champion
+```
+
+For a pinned version, leave the alias empty and set `TENNIS_WEB_REGISTRY_VERSION`.
+CLI selectors override environment selectors. An explicit `--model-path` overrides
+environment registry selection. An empty registry model name keeps local discovery.
+
+The registered version must be READY, reference a FINISHED training run from this
+project, and that run must retain its project pickle and matching JSON metadata.
+Registering the separately logged sklearn model is supported through its originating
+run ID; a standalone sklearn model without project artifacts cannot serve this app.
+This feature does not create registrations or move aliases. Registry reads and
+artifact downloads must be accessible from the web host; server-local artifact
+paths are insufficient without shared storage or MLflow artifact serving.
+
+The app validates the downloaded model using the same compatibility checks as
+local models. It downloads once per startup into a temporary directory retained
+until shutdown; predictions make no MLflow calls. Restart to pick up alias changes.
+Startup fails if resolution, download or validation fails, without substituting
+another local model. `/api/status` includes the resolved registry name, numeric
+version, run ID and version URI. Only load pickles from a trusted MLflow server.
+The player-history Parquet remains a separately deployed local file.
+
+The selected date must follow the history source date. Changing an allowed future
+date does not project age, form or ranking changes. Historical as-of predictions,
+upcoming fixture feeds and automatic result ingestion are not implemented. Recent
+profile rows come from the player snapshot, which stores result/surface/source date
+but not opponents or scores. Fair odds are `1 / probability`, without bookmaker
+margin; a zero probability displays infinite odds. Probability calibration has not
+been established.
 
 ## Start here
 
 Use Python 3.12 and `uv`:
 
+The example environment points to the remote MLflow server at
+`http://192.168.9.138:5000`. For the local Docker tracking setup below, override
+`MLFLOW_TRACKING_URI` with `http://127.0.0.1:5000` in `.env` first. The registry
+web startup example above uses the remote server explicitly.
+
 ```powershell
 uv sync
 Copy-Item .env.example .env
+docker compose -f compose.mlflow.yaml up -d --build --wait
 uv run dagster job execute -m tennis_match_prediction.pipelines.historical_matches.defs -j materialize_historical_dataset
 uv run python -m tennis_match_prediction.ml.train
 ```
 
-Then predict a match on a date **after the latest source date in the player-history asset**:
+Training prints a JSON result with `model_path`, metrics and MLflow run/model identifiers.
+Use that path to predict a match on a date **after the latest source date in the player-history asset**:
 
 ```powershell
-uv run python -m tennis_match_prediction.ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard
+uv run python -m tennis_match_prediction.ml.predict "Carlos Alcaraz" "Jannik Sinner" 2027-01-01 Hard --model-path "data/models/<experiment-id>/model.pkl"
 ```
 
 Both players must be present in the history. The prediction returns win
 probabilities, the latest history source date, and the model path. Training also records
-validation/test metrics and logs the model artifact to local MLflow.
+validation metrics and logs artifacts to MLflow at http://127.0.0.1:5000.
+Test metrics require `--final-evaluation` after choosing a configuration.
 
 To refresh selected seasons instead of downloading all seasons:
 
@@ -55,7 +148,7 @@ Read these files in this order:
 3. `src/tennis_match_prediction/contracts.py` — Pydantic models, feature names, and DataFrame validation.
 4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the model features.
 5. `src/tennis_match_prediction/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
-6. `src/tennis_match_prediction/ml/train.py` — read the published training dataset, exclude warmup from fitting, split by explicit source dates, train, and save.
+6. `src/tennis_match_prediction/ml/experiment.py` — prepare published rows, fit a model adapter, evaluate, track and save; `ml/train.py` provides the CLI and Python entry point.
 7. `src/tennis_match_prediction/ml/predict.py` — load the model and player-history asset to predict a future match.
 
 The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `src/tennis_match_prediction/ml/config.py`. Edit that tuple to select or reorder model inputs; `PLAYER_COMPARISON_FEATURE_COLUMNS` defines the generated dataset schema.
@@ -166,8 +259,9 @@ This workflow is the single source of features for training and prediction.
 CSV path) and requires only the configured training features, target and
 chronological date. Override the defaults for one run with
 `uv run python -m tennis_match_prediction.ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
-Edit `src/tennis_match_prediction/ml/config.py` to change the training CSV, model path, selected features,
-iteration limit, random seed, and split dates without passing CLI arguments.
+Edit `src/tennis_match_prediction/ml/config.py` to change the training CSV, selected features
+and split dates. Model settings are validated by contracts in `contracts.py`; override
+them with `model_params` in Python or a JSON `--params-file` on the CLI.
 The default dates are `TRAIN_START = date(2017, 1, 1)`,
 `VALIDATION_START = date(2024, 1, 1)`, and `TEST_START = date(2025, 1, 1)`.
 You can also train directly from Python:
@@ -175,11 +269,13 @@ You can also train directly from Python:
 ```python
 from tennis_match_prediction.ml.train import train
 
-metrics = train()
+result = train(model_name="logistic_regression", model_params={"C": 0.5})
+print(result.model_path, result.metrics, result.run_id)
 ```
 
 The Python API accepts overrides for paths, dates (`datetime.date` values), and
 `feature_columns`; CLI arguments override the same defaults for a single run.
+It returns `ExperimentResult`, including metrics and the saved model path.
 All three dates must be strictly increasing. The periods are:
 
 - Warmup: `tourney_date < train_start`; retained by Dagster for history/features,
@@ -206,6 +302,22 @@ It rejects raw history and unordered training rows instead of rebuilding feature
 `tennis_match_prediction.ml.predict` reads `data/curated/player_history.parquet`, produced together with
 `player_comparison_atp_matches` in one chronological pass. Prediction uses the
 same comparison formulas and requires a date after the asset's latest source date.
+Choose a local model with `--model-path`, or a finished MLflow run with `--run-id`:
+
+```powershell
+uv run python -m tennis_match_prediction.ml.predict "Carlos Alcaraz" "Jannik Sinner" 2026-10-10 Clay --run-id 762835ed7ac849d98e68fbcb25d2520b --tracking-mode local
+```
+
+For server runs, use `--tracking-mode server` and optionally `--tracking-uri http://127.0.0.1:5000`.
+Tracking settings follow the training CLI's environment and project defaults. Run IDs must be looked
+up in the same tracking backend used for training. Prediction downloads the run's `project_model`
+pickle temporarily, preserving its feature order and metadata; it still reads the current local
+player-history asset (override with `--history-path`). The prediction response includes `run_id` and
+a stable `runs:/<run-id>/project_model/<filename>.pkl` reference in `model_path`.
+The Python entry point `predict_from_run(request, run_id, tracking_mode="local")` supports the same
+selection for a future web API. MLflow's separately logged sklearn model URI is not a project pickle
+and is not accepted by this selector.
+
 The history asset contains a validated JSON payload inside Parquet, persisted by
 the existing Dagster IO manager; there is no separate checkpoint writer or engine.
 The wider exported columns remain available for inspection and experiments.
@@ -216,6 +328,113 @@ old snapshots and CSV files are not migrated or deleted automatically.
 
 To run downstream assets automatically after inputs change, enable the default
 automation condition sensor in Dagster. The root asset is triggered manually.
+
+## Model experiments and MLflow
+
+Compare models on the same published CSV, feature order and split dates:
+
+```powershell
+uv run python -m tennis_match_prediction.ml.train --model logistic_regression --run-name logistic-baseline
+uv run python -m tennis_match_prediction.ml.train --model random_forest --run-name forest-baseline
+uv run python -m tennis_match_prediction.ml.train --model random_forest --params-file examples/random-forest.json
+uv run python -m tennis_match_prediction.ml.train --model extra_trees --run-name extra-trees-baseline
+uv run python -m tennis_match_prediction.ml.train --model hist_gradient_boosting --run-name boosting-baseline
+uv run python -m tennis_match_prediction.ml.train --model xgboost --params-file examples/xgboost.json --run-name xgboost-baseline
+```
+
+Run the fixed 12-configuration grid across these five model families with:
+
+```powershell
+uv run python -m tennis_match_prediction.ml.compare --tracking-mode server --tracking-uri http://127.0.0.1:5000
+```
+
+Add `--final-evaluation` to score only the configuration selected by validation
+log loss on the held-out test period. The comparison JSON is saved under
+`data/experiments/<comparison-id>/` and attached to the selected MLflow runs.
+Use `--tracking-mode server` for the configured HTTP tracking service.
+Histogram boosting disables internal random early-stopping splits.
+XGBoost uses CPU histogram trees and a fixed iteration count, with validated
+parameters and its dependency version captured in MLflow provenance.
+It uses the [XGBoost sklearn classifier](https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBClassifier)
+through the shared model adapter and MLflow sklearn flavor.
+See [the October 13 comparison](docs/ml-model-comparison-2026-10-13.md) for results.
+
+Select configurations using `validation_log_loss` (lower is better), with Brier and
+accuracy as supporting metrics. Runs report accuracy for choosing the better-ranked
+player (lower numerical rank), the higher overall Elo player and the higher surface
+Elo player. Comparisons use pre-match features and remain available when those
+features are excluded from the model inputs. Ties/unavailable comparisons receive
+half credit, equivalent to a fair random tie-break; each baseline logs its neutral
+fraction. A custom CSV lacking a reference column omits that baseline.
+These winner-picking references have accuracy metrics; model probabilities retain
+Brier and log loss metrics.
+After selection, rerun the chosen settings with `--final-evaluation` to also score
+the test period. This still fits only on training rows. Keep the same dataset and
+dates for comparisons; use the logged SHA-256 fingerprint to confirm dataset identity.
+
+Every run writes `data/models/<experiment-id>/model.pkl`, JSON metadata and a provenance
+directory containing configuration, splits, runtime dependencies, source code and a
+Git diff. An explicit `--model-path` must be unused. Artifacts include schema version,
+feature order, target convention and history-order marker. Retrain older artifacts;
+the old pickle format is rejected. Prediction requires an explicit `--model-path`.
+
+The `BaseMatchModel` contract is `fit`, `predict_proba` and `get_params`, plus a stable
+name. `predict_proba` returns one P(player1 wins) per row. Models own preprocessing;
+the shared runner owns splitting, metrics, artifacts and tracking. To add a model,
+implement the contract and register its validated settings/constructor in
+`ml/models/factory.py`. The current sklearn adapters also log their full fitted
+estimator with an MLflow signature and input example. Its sklearn/pyfunc flavor
+accepts feature rows and returns two class probabilities; the project artifact
+supports prediction from player names through the history API.
+
+Tracking modes are explicit:
+
+| Mode | Use |
+| --- | --- |
+| `server` (default) | `MLFLOW_TRACKING_URI`, default `http://127.0.0.1:5000`; failure never falls back silently |
+| `local` | SQLite and artifacts under `data/mlflow/`, or `TENNIS_MLFLOW_LOCAL_DIR`; ignores the server URI in `.env` |
+| `disabled` | Intentional untracked runs and tests; local model artifacts are still written |
+
+Use `--tracking-mode local` to work without Docker, or `--tracking-mode disabled`
+for an untracked run. `--tracking-uri` and `--experiment-name` override environment
+settings. `MLFLOW_EXPERIMENT_NAME` defaults to `tennis-match-prediction`. Tracked fit
+or evaluation failures produce failed runs. Server tracking must be reachable before
+fitting begins. One runner invocation owns one MLflow run; finish any active notebook
+run before calling `train()`.
+
+The Compose stack pins MLflow 3.16.1 to match `uv.lock`. PostgreSQL stores run metadata,
+and MLflow proxies uploads/downloads to a named artifact volume. Clients on Windows
+need only the HTTP URI. Containers on the same network use `http://mlflow:5000`.
+Only the MLflow port is published, bound to localhost. Change `MLFLOW_PORT` and
+`MLFLOW_TRACKING_URI` together if port 5000 is occupied.
+
+```powershell
+docker compose -f compose.mlflow.yaml logs --tail 50 mlflow
+docker compose -f compose.mlflow.yaml down
+docker compose -f compose.mlflow.yaml up -d --wait
+```
+
+Normal `down` preserves both named volumes. `down -v` deletes their contents.
+Back up both the PostgreSQL database (using `pg_dump`) and the artifact volume;
+restore them together. Existing local MLflow experiments are a separate store and
+are not automatically migrated. This milestone logs experiments and models without
+automatic registry promotion or deployment.
+
+The opt-in integration test starts an isolated Compose project on port 5501, trains
+both models, downloads their artifacts and recreates the containers to verify
+persistence. It leaves containers stopped and volumes intact:
+
+```powershell
+$env:TENNIS_TEST_MLFLOW_DOCKER = "1"
+uv run pytest tests/test_mlflow_integration.py -q -k docker
+```
+
+For the same HTTP artifact and restart checks with a temporary SQLite-backed server,
+set `TENNIS_TEST_MLFLOW_HTTP=1` and run that test file with `-k http`.
+
+See [the implementation plan](docs/ml-experimentation-plan.md) for scope and follow-ups.
+The [initial comparison](docs/ml-baseline-results.md) records both default models on
+the published dataset, with run IDs and validation metrics.
 
 ## Files and configuration
 

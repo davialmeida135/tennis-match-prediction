@@ -186,16 +186,17 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     from tennis_match_prediction.ml.predict import predict
     from tennis_match_prediction.ml.train import train
 
-    monkeypatch.setattr("tennis_match_prediction.ml.train._log_mlflow", lambda *_: None)
     model_path = tmp_path / "model.pkl"
-    metrics = train(
+    experiment = train(
         tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME,
         model_path,
         train_start=date(2026, 1, 11),
         validation_start=date(2026, 5, 1),
         test_start=date(2026, 6, 1),
+        tracking_mode="disabled",
+        final_evaluation=True,
     )
-    assert 0 <= metrics["test_accuracy"] <= 1
+    assert 0 <= experiment.metrics["test_accuracy"] <= 1
     prediction = predict(
         FutureMatchRequest(
             player0_name="Alice", player1_name="Bob", match_date="2027-01-01", surface="Hard"

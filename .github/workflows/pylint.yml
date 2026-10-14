@@ -1,8 +1,24 @@
-name: Lint
+name: Checks
 
 on: [push, pull_request]
 
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Run regression tests
+        run: uv run pytest -q
+      - name: Validate Dagster definitions
+        run: >-
+          uv run python -c "from dagster import Definitions;
+          from tennis_match_prediction.pipelines.historical_matches.defs import defs;
+          Definitions.validate_loadable(defs)"
   ruff:
     runs-on: ubuntu-latest
     steps:
