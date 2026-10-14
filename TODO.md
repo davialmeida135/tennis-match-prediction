@@ -5,6 +5,10 @@ com features calculadas apenas a partir das informações disponíveis antes do 
 
 ## Base implementada
 
+- [x] Criar página local de uso pessoal com diretório/perfis de jogadores e predição manual por IDs, superfície e data.
+- [x] Exibir probabilidades, odds decimais justas, referência do histórico e seleção de modelos compatíveis.
+- [x] Exportar previsão em JSON com entradas, features, timestamp e hashes do modelo/histórico.
+- [x] Testar API e controles da interface; executar pytest e validação das definições do Dagster na CI.
 - [x] Definir features e contratos de dados com Pydantic (`src/tennis_match_prediction/contracts.py`).
 - [x] Implementar download de temporadas e consolidação dos dados históricos.
 - [x] Compartilhar as fórmulas das features entre processamento histórico e predição.
@@ -88,7 +92,7 @@ artefatos e configurações identificados, mesmo após novas atualizações.
 
 - [ ] Definir uma fonte para buscar partidas futuras, com IDs, superfície e data prevista.
 - [ ] Resolver jogadores por ID e manter aliases de nomes, tratando ambiguidades explicitamente.
-- [ ] Rejeitar confrontos do jogador consigo mesmo.
+- [x] Rejeitar confrontos do jogador consigo mesmo.
 - [ ] Definir comportamento para jogadores ausentes do histórico e histórico insuficiente.
 - [ ] Informar a referência temporal do histórico e sua possível defasagem na saída da predição.
 - [ ] Implementar predição em lote para a programação de partidas.
@@ -99,8 +103,8 @@ artefatos e configurações identificados, mesmo após novas atualizações.
 - [ ] Revisar dependências e artefatos do Dagster para conectar ingestão, atualização das features e predição em lote.
 - [ ] Definir automação da ingestão e atualização do histórico, com frequência de treinamento independente.
 - [ ] Evitar recomputação dos dados quando a fonte não tiver mudanças.
-- [ ] Adicionar `pytest` à CI e ampliar Ruff para `pipelines`, `ml` e `tests`.
-- [ ] Validar carregamento das definições do Dagster na CI.
+- [x] Adicionar `pytest` à CI e ampliar Ruff para `pipelines`, `ml` e `tests`.
+- [x] Validar carregamento das definições do Dagster na CI.
 - [ ] Atualizar `docs/project-diagram.md`, removendo referências ao antigo `feature_state.py` e ao treino direto dos dados brutos.
 - [ ] Manter README, comandos de treinamento, schema das features e diagrama consistentes com o código atual.
 

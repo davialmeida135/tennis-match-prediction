@@ -1,0 +1,337 @@
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const state = { status: null, players: [null, null], surface: "Hard", offset: 0, total: 0,
+  directorySequence: 0, predictionSequence: 0, profileSequence: 0, predicting: false };
+const searches = [0, 1].map(() => ({ sequence: 0, selectionSequence: 0, timer: null, options: [], active: -1 }));
+const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const number = (value, decimals = 0) => value == null ? "—" : Number(value).toLocaleString(undefined,
+  { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+const percent = (value, decimals = 0) => value == null ? "—" : `${number(value * 100, decimals)}%`;
+const dateLabel = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString(undefined,
+  { day: "numeric", month: "short", year: "numeric" }) : "Unknown";
+const initials = (name) => escapeHTML(name.split(/\s+/).filter(Boolean).map((s) => s[0]).slice(0, 2).join(""));
+const modelLabel = (name) => ({ logistic_regression: "Logistic regression", random_forest: "Random forest",
+  extra_trees: "Extra trees", hist_gradient_boosting: "Histogram boosting", xgboost: "XGBoost" })[name] || name;
+
+async function api(path, options = {}) {
+  let response;
+  try { response = await fetch(path, options); }
+  catch { throw new Error("Cannot reach the local server. Check that the application is running."); }
+  if (!response.ok) {
+    let message = `Request failed (${response.status}).`;
+    try {
+      const data = await response.json();
+      message = typeof data.detail === "string" ? data.detail
+        : Array.isArray(data.detail) ? data.detail.map((item) => item.msg).join(" · ") : message;
+    } catch { /* Preserve the HTTP status when a response is not JSON. */ }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+function showError(id, message) { $(id).textContent = message; $(id).hidden = !message; }
+function updatePredictButton() {
+  $("predict-button").disabled = state.predicting || !state.players[0] || !state.players[1]
+    || state.players[0]?.id === state.players[1]?.id || !$("model-select").value;
+}
+function invalidatePrediction() {
+  state.predictionSequence += 1;
+  state.predicting = false;
+  $("predict-button").innerHTML = 'Predict matchup <span aria-hidden="true">↗</span>';
+  $("result").hidden = true;
+  $("empty-result").hidden = false;
+  showError("prediction-error", "");
+  updatePredictButton();
+}
+function stat(label, value) {
+  return `<div><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`;
+}
+function formBadges(matches) {
+  return matches.slice(0, 10).map((m) => `<span class="form-badge${m.won ? "" : " loss"}"
+    title="${m.won ? "Win" : "Loss"} · ${escapeHTML(m.surface)} · ${escapeHTML(m.tourney_date)}">${m.won ? "W" : "L"}</span>`).join("");
+}
+function identity(player) {
+  return `<div class="player-identity"><div class="avatar" aria-hidden="true">${initials(player.name)}</div>
+    <div><h3 class="player-name">${escapeHTML(player.name)}</h3><p class="player-meta">Observed rank ${player.rank == null ? "unavailable" : `#${number(player.rank)}`}
+    <span aria-hidden="true"> · </span> ${number(player.wins + player.losses)} matches</p></div></div>`;
+}
+function renderCard(slot) {
+  const player = state.players[slot];
+  if (!player) {
+    $(`player-detail-${slot}`).innerHTML = '<div class="player-placeholder"><span>◎</span><p>Select a player to see their profile</p></div>';
+    return;
+  }
+  $(`player-detail-${slot}`).innerHTML = `${identity(player)}<div class="stat-row">
+    ${stat("Overall Elo", number(player.elo))}${stat(`${state.surface} Elo`, number(player.surface_ratings[state.surface]))}
+    ${stat("Last 10 win rate", percent(player.recent_win_rate))}</div><div class="card-bottom"><div>
+    <div class="form-badges" aria-label="Recent form, newest first">${formBadges(player.recent_matches)}</div>
+    <div class="form-caption">LATEST RESULTS · NEWEST FIRST</div></div>
+    <button type="button" class="text-button" data-profile="${escapeHTML(player.id)}">Full profile ↗</button></div>`;
+}
+function closeSuggestions(slot) {
+  $(`suggestions-${slot}`).hidden = true;
+  const input = $(`player-search-${slot}`);
+  input.setAttribute("aria-expanded", "false");
+  input.removeAttribute("aria-activedescendant");
+  searches[slot].active = -1;
+}
+async function selectPlayer(slot, playerId) {
+  searches[slot].sequence += 1;
+  const sequence = ++searches[slot].selectionSequence;
+  clearTimeout(searches[slot].timer);
+  closeSuggestions(slot);
+  state.players[slot] = null;
+  renderCard(slot);
+  invalidatePrediction();
+  try {
+    const player = await api(`/api/players/${encodeURIComponent(playerId)}`);
+    if (sequence !== searches[slot].selectionSequence) return;
+    state.players[slot] = player;
+    $(`player-search-${slot}`).value = player.name;
+    renderCard(slot);
+    updatePredictButton();
+    if (state.players[0]?.id === state.players[1]?.id) showError("prediction-error", "Choose two different players.");
+  } catch (error) {
+    if (sequence === searches[slot].selectionSequence) showError("prediction-error", error.message);
+  }
+}
+async function suggest(slot) {
+  const sequence = ++searches[slot].sequence;
+  const input = $(`player-search-${slot}`);
+  const list = $(`suggestions-${slot}`);
+  const query = input.value.trim();
+  searches[slot].options = [];
+  searches[slot].active = -1;
+  list.hidden = false;
+  input.setAttribute("aria-expanded", "true");
+  list.innerHTML = '<div class="no-results">Searching…</div>';
+  try {
+    const data = await api(`/api/players?q=${encodeURIComponent(query)}&limit=8`);
+    if (sequence !== searches[slot].sequence) return;
+    searches[slot].options = data.players;
+    searches[slot].active = -1;
+    list.innerHTML = data.players.length ? data.players.map((p, index) => `<button type="button"
+      role="option" aria-selected="false" id="option-${slot}-${index}" data-slot="${slot}"
+      data-pick="${escapeHTML(p.id)}"><span>${escapeHTML(p.name)}</span><small>${p.rank ? `#${number(p.rank)}` : "Unranked"}</small></button>`).join("")
+      : '<div class="no-results">No players found in this history.</div>';
+  } catch (error) {
+    if (sequence === searches[slot].sequence) list.innerHTML = `<div class="no-results">${escapeHTML(error.message)}</div>`;
+  }
+}
+function showView(view) {
+  const players = view === "players";
+  $("matchup-view").hidden = players;
+  $("players-view").hidden = !players;
+  $("breadcrumb").textContent = players ? "Player explorer" : "Match predictor";
+  $("page-title").textContent = players ? "Get to know the game makers." : "Every matchup tells a story.";
+  $("page-description").textContent = players ? "Career records, surface strength, and the form behind the numbers." : "Explore the players. Set the conditions. See how they compare.";
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
+    if (button.dataset.view === view) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  if (players) loadDirectory();
+}
+
+async function loadDirectory() {
+  const sequence = ++state.directorySequence;
+  $("directory-grid").innerHTML = '<div class="loading">Loading player profiles…</div>';
+  $("previous-page").disabled = true;
+  $("next-page").disabled = true;
+  showError("directory-error", "");
+  try {
+    const data = await api(`/api/players?q=${encodeURIComponent($("directory-search").value)}&limit=24&offset=${state.offset}`);
+    if (sequence !== state.directorySequence) return;
+    state.total = data.total;
+    $("directory-total").textContent = `${number(data.total)} PLAYERS`;
+    $("directory-grid").innerHTML = data.players.length ? data.players.map((player) => `<article class="directory-card">${identity(player)}
+      <div class="stat-row">${stat("Overall Elo", number(player.elo))}${stat("Career wins", number(player.wins))}${stat("Win rate", percent(player.wins / (player.wins + player.losses)))}</div>
+      <div class="card-bottom"><span class="player-meta">Last result ${escapeHTML(dateLabel(player.last_source_date))}</span>
+      <button type="button" class="text-button" data-profile="${escapeHTML(player.id)}" aria-label="View ${escapeHTML(player.name)} profile">View profile ↗</button></div></article>`).join("")
+      : '<div class="loading">No players match your search.</div>';
+    $("page-info").textContent = data.total ? `${state.offset + 1}–${Math.min(state.offset + 24, data.total)} of ${number(data.total)}` : "0 players";
+    $("previous-page").disabled = state.offset === 0;
+    $("next-page").disabled = state.offset + 24 >= data.total;
+  } catch (error) {
+    if (sequence === state.directorySequence) {
+      $("directory-grid").innerHTML = "";
+      showError("directory-error", error.message);
+    }
+  }
+}
+
+async function openProfile(playerId) {
+  const sequence = ++state.profileSequence;
+  $("profile-dialog-content").innerHTML = '<h2 id="profile-dialog-title">Player profile</h2><div class="loading">Loading profile…</div>';
+  if (!$("profile-dialog").open) $("profile-dialog").showModal();
+  try {
+    const player = await api(`/api/players/${encodeURIComponent(playerId)}`);
+    if (sequence !== state.profileSequence) return;
+    const surfaces = Object.entries(player.surface_ratings).map(([surface, elo]) => {
+      const form = player.surface_form[surface];
+      return `<tr><td>${escapeHTML(surface)}</td><td>${number(elo)}</td><td>${percent(form?.win_rate)} <span class="muted">(${form?.matches ?? 0})</span></td></tr>`;
+    }).join("");
+    $("profile-dialog-content").innerHTML = `<h2 id="profile-dialog-title">${escapeHTML(player.name)}</h2><div class="profile-stats">
+      ${stat("Observed rank", player.rank ? `#${number(player.rank)}` : "—")}${stat("Overall Elo", number(player.elo))}
+      ${stat("Career record", `${number(player.wins)}<small>–${number(player.losses)}</small>`)}${stat("Career win rate", percent(player.win_rate))}</div>
+      <p class="context-note">Last player result ${escapeHTML(dateLabel(player.last_source_date))}. Age ${number(player.age, 1)} and ranking points ${number(player.rank_points)} are last observed values.</p>
+      <div class="profile-section"><div><h3>Surface strength</h3><table class="surface-table"><thead><tr><th>Surface</th><th>Elo</th><th>Recent form</th></tr></thead><tbody>${surfaces}</tbody></table>
+      <p class="context-note">Form uses up to 10 results per surface.</p></div><div><h3>Serving, over observed history</h3><table class="surface-table"><tbody>
+      <tr><td>Aces / serve points</td><td>${percent(player.serve.ace_rate, 1)}</td></tr><tr><td>Double faults / serve points</td><td>${percent(player.serve.double_fault_rate, 1)}</td></tr>
+      <tr><td>Service points won</td><td>${percent(player.serve.service_points_won_rate, 1)}</td></tr></tbody></table><p class="context-note">${number(player.serve.observed_points)} observed serve points. Rates use valid observations; missing values display as —.</p></div></div>
+      <h3>Recent results <span class="muted">· newest first</span></h3><div class="form-badges">${formBadges(player.recent_matches)}</div>
+      <p class="context-note">Dates are source dates, which may represent a tournament week. Opponents and scores are not stored in this player snapshot.</p>
+      <table class="recent-table"><thead><tr><th>Source date</th><th>Surface</th><th>Result</th></tr></thead><tbody>${player.recent_matches.slice(0, 15).map((m) => `<tr><td>${escapeHTML(dateLabel(m.tourney_date))}</td><td>${escapeHTML(m.surface)}</td><td><span class="form-badge${m.won ? "" : " loss"}">${m.won ? "W" : "L"}</span></td></tr>`).join("")}</tbody></table>
+      <div class="profile-actions"><button type="button" class="primary-button" data-use-player="${escapeHTML(player.id)}" data-slot="0">Use as player one ↗</button><button type="button" class="secondary-button" data-use-player="${escapeHTML(player.id)}" data-slot="1">Use as player two ↗</button></div>`;
+  } catch (error) {
+    if (sequence === state.profileSequence) $("profile-dialog-content").innerHTML = `<h2 id="profile-dialog-title">Player profile</h2><div class="notice error" role="alert">${escapeHTML(error.message)}</div>`;
+  }
+}
+
+function renderResult(result) {
+  const p0 = result.player0_win_probability;
+  const p1 = result.player1_win_probability;
+  $("result").innerHTML = `<div class="result-heading"><div><div class="eyebrow">THE MATCHUP FORECAST</div><h2>A look at the odds.</h2></div><small>${escapeHTML(result.request.surface)} · ${escapeHTML(dateLabel(result.request.match_date))}</small></div>
+    <div class="forecast"><div class="forecast-side"><h3>${escapeHTML(result.player0.name)}</h3><div class="probability">${percent(p0, 1)}</div><div class="fair-odds">Fair decimal odds <strong>${result.player0_decimal_odds == null ? "∞" : number(result.player0_decimal_odds, 2)}</strong></div></div>
+    <div class="forecast-side"><h3>${escapeHTML(result.player1.name)}</h3><div class="probability">${percent(p1, 1)}</div><div class="fair-odds">Fair decimal odds <strong>${result.player1_decimal_odds == null ? "∞" : number(result.player1_decimal_odds, 2)}</strong></div></div></div>
+    <div class="probability-bar" role="img" aria-label="${escapeHTML(result.player0.name)} ${percent(p0, 1)}, ${escapeHTML(result.player1.name)} ${percent(p1, 1)}"><span style="width:${p0 * 100}%"></span></div>
+    <div class="result-bottom"><span>Recorded head-to-head <strong>${result.head_to_head.player0_wins} – ${result.head_to_head.player1_wins}</strong></span><span>${escapeHTML(modelLabel(result.model_name))} · History ${escapeHTML(dateLabel(result.history_source_date))}</span></div>
+    <p class="context-note">These are model probabilities and fair odds, with no bookmaker margin. Probability calibration has not been established.</p>
+    <details><summary>Inspect features & prediction provenance</summary><table class="feature-table"><tbody>${Object.entries(result.features).map(([feature, value]) => `<tr><td>${escapeHTML(feature.replaceAll("_", " "))}</td><td>${number(value, 4)}</td></tr>`).join("")}</tbody></table>
+    <p class="context-note">Signed comparisons favor player two when positive, except age and serving rates, whose interpretation depends on the feature.</p>
+    <p class="mono">Model SHA-256: ${escapeHTML(result.model_version)}<br>History SHA-256: ${escapeHTML(result.history_version)}<br>MLflow run: ${escapeHTML(result.run_id || "Untracked")}</p>
+    <button type="button" id="download-prediction" class="secondary-button">Download prediction JSON ↓</button></details>`;
+  $("result").hidden = false;
+  $("empty-result").hidden = true;
+  $("download-prediction").addEventListener("click", () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `court-report-${result.request.match_date}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+}
+
+function updateModelInformation() {
+  const model = state.status?.models.find((m) => m.id === $("model-select").value);
+  $("model-information").innerHTML = model ? `<div class="profile-stats">${stat("Features", model.feature_count)}${stat("Validation log loss", number(model.validation_log_loss, 4))}</div>
+    <p class="context-note">Training observations through ${escapeHTML(dateLabel(model.trained_through))}. This model is compatible with player-history predictions.</p><p class="mono">MLflow run: ${escapeHTML(model.run_id || "Untracked")}<br>History SHA-256: ${escapeHTML(state.status.history_version)}</p>` : '<p class="context-note">No compatible trained model was found. Train a model with the default comparison features, then restart the application.</p>';
+}
+
+async function initialize() {
+  try {
+    state.status = await api("/api/status");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const cutoff = new Date(`${state.status.history_source_date}T12:00:00`);
+    const localToday = new Date(`${today}T12:00:00`);
+    const lag = Math.max(0, Math.round((localToday - cutoff) / 86400000));
+    $("snapshot-label").textContent = `History through ${dateLabel(state.status.history_source_date)}${lag ? ` · ${lag} days before today` : ""}`;
+    $("player-count").textContent = `${number(state.status.player_count)} player profiles`;
+    $("match-date").min = state.status.minimum_prediction_date;
+    $("match-date").value = today > state.status.minimum_prediction_date ? today : state.status.minimum_prediction_date;
+    $("model-select").innerHTML = state.status.models.map((m) => `<option value="${escapeHTML(m.id)}">${escapeHTML(modelLabel(m.name))} · ${m.run_id ? escapeHTML(m.run_id.slice(0, 8)) : m.id}</option>`).join("");
+    $("model-select").value = state.status.default_model_id || "";
+    updateModelInformation();
+    if (!state.status.models.length) showError("startup-error", "Player profiles are ready. Train a compatible model and restart the application to enable predictions.");
+    const defaults = await Promise.all(["Carlos Alcaraz", "Jannik Sinner"].map((name) => api(`/api/players?q=${encodeURIComponent(name)}&limit=8`)));
+    await Promise.all(defaults.map((data, slot) => data.players[0] ? selectPlayer(slot, data.players[0].id) : Promise.resolve()));
+    updatePredictButton();
+  } catch (error) { showError("startup-error", error.message); $("snapshot-label").textContent = "History unavailable"; }
+}
+
+for (const slot of [0, 1]) {
+  const input = $(`player-search-${slot}`);
+  input.addEventListener("input", () => {
+    searches[slot].sequence += 1;
+    searches[slot].selectionSequence += 1;
+    state.players[slot] = null;
+    renderCard(slot); invalidatePrediction();
+    clearTimeout(searches[slot].timer);
+    closeSuggestions(slot);
+    searches[slot].timer = setTimeout(() => suggest(slot), 180);
+  });
+  input.addEventListener("focus", () => { if (!state.players[slot]) suggest(slot); });
+  input.addEventListener("keydown", (event) => {
+    const search = searches[slot];
+    const list = $(`suggestions-${slot}`);
+    if (event.key === "Escape") { search.sequence += 1; closeSuggestions(slot); }
+    if (!list.hidden && search.options.length && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+      event.preventDefault();
+      search.active = (search.active + (event.key === "ArrowDown" ? 1 : -1) + search.options.length) % search.options.length;
+      list.querySelectorAll("button").forEach((button, i) => {
+        button.classList.toggle("focused", i === search.active);
+        button.setAttribute("aria-selected", i === search.active ? "true" : "false");
+      });
+      input.setAttribute("aria-activedescendant", `option-${slot}-${search.active}`);
+      $(`option-${slot}-${search.active}`).scrollIntoView({ block: "nearest" });
+    }
+    if (!list.hidden && event.key === "Enter") {
+      event.preventDefault();
+      if (search.options[search.active]) selectPlayer(slot, search.options[search.active].id);
+    }
+  });
+}
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".search-wrap")) [0, 1].forEach((slot) => {
+    searches[slot].sequence += 1; clearTimeout(searches[slot].timer); closeSuggestions(slot);
+  });
+  const target = event.target.closest("button");
+  if (target?.dataset.pick) selectPlayer(Number(target.dataset.slot), target.dataset.pick);
+  if (target?.dataset.profile) openProfile(target.dataset.profile);
+  if (target?.dataset.view) showView(target.dataset.view);
+  if (target?.dataset.closeDialog) $(target.dataset.closeDialog).close();
+  if (target?.dataset.usePlayer) {
+    selectPlayer(Number(target.dataset.slot), target.dataset.usePlayer);
+    $("profile-dialog").close(); showView("matchup");
+  }
+});
+document.querySelectorAll("[data-surface]").forEach((button) => button.addEventListener("click", () => {
+  state.surface = button.dataset.surface;
+  document.querySelectorAll("[data-surface]").forEach((b) => {
+    b.classList.toggle("active", b === button); b.setAttribute("aria-pressed", b === button ? "true" : "false");
+  });
+  [0, 1].forEach(renderCard); invalidatePrediction();
+}));
+$("swap-players").addEventListener("click", () => {
+  for (const slot of [0, 1]) {
+    searches[slot].sequence += 1; searches[slot].selectionSequence += 1;
+    clearTimeout(searches[slot].timer); closeSuggestions(slot);
+  }
+  state.players.reverse();
+  [0, 1].forEach((slot) => { $(`player-search-${slot}`).value = state.players[slot]?.name || ""; renderCard(slot); });
+  invalidatePrediction();
+});
+$("match-date").addEventListener("input", invalidatePrediction);
+$("model-select").addEventListener("change", () => { updateModelInformation(); invalidatePrediction(); });
+$("model-details-button").addEventListener("click", () => $("settings-dialog").showModal());
+let directoryTimer;
+$("directory-search").addEventListener("input", () => {
+  clearTimeout(directoryTimer); state.offset = 0; state.directorySequence += 1;
+  directoryTimer = setTimeout(loadDirectory, 200);
+});
+$("previous-page").addEventListener("click", () => { state.offset = Math.max(0, state.offset - 24); loadDirectory(); });
+$("next-page").addEventListener("click", () => { state.offset += 24; loadDirectory(); });
+$("prediction-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.players[0] || !state.players[1] || state.predicting) return;
+  const sequence = ++state.predictionSequence;
+  state.predicting = true; updatePredictButton();
+  $("predict-button").textContent = "Reading the matchup…";
+  showError("prediction-error", "");
+  try {
+    const result = await api("/api/predict", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ player0_id: state.players[0].id, player1_id: state.players[1].id,
+        surface: state.surface, match_date: $("match-date").value, model_id: $("model-select").value }) });
+    if (sequence === state.predictionSequence) renderResult(result);
+  } catch (error) { if (sequence === state.predictionSequence) showError("prediction-error", error.message); }
+  finally {
+    if (sequence === state.predictionSequence) {
+      state.predicting = false;
+      $("predict-button").innerHTML = 'Predict matchup <span aria-hidden="true">↗</span>';
+      updatePredictButton();
+    }
+  }
+});
+initialize();

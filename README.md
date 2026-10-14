@@ -5,6 +5,50 @@ results come from TennisMyLife; experiments use chronological splits with logist
 regression, random forest, Extra Trees, histogram boosting or XGBoost. A Dagster
 player-history asset supplies each player's pre-match history.
 
+## Personal web application
+
+After building player history and training at least one compatible model, start:
+
+```powershell
+uv sync
+uv run python -m tennis_match_prediction.web
+```
+
+Open http://127.0.0.1:8000. The local application includes:
+
+- A searchable player directory and profiles with observed ranking, Elo, surface
+  form, career record, serving rates and recent source-dated results.
+- Two-player selection by stable history ID, court surface and future date.
+- Win probabilities, fair decimal odds, recorded head-to-head and feature inspection.
+- Model selection, data freshness and a downloadable prediction JSON containing
+  inputs, features, creation time and model/history hashes.
+
+The default is the most recently written compatible model under `data/models/`,
+not an automatic claim that it is the best model. Choose another in **Model & data
+details**, or pin one at startup:
+
+```powershell
+uv run python -m tennis_match_prediction.web --model-path data/models/<experiment-id>/model.pkl --port 8000
+```
+
+Only models using a subset of the shared comparison features are listed. Models
+requiring additional training-only columns are excluded. Profiles work without a
+model; prediction is disabled until one is available. `--history-path` and
+`--models-dir` override the default artifact locations.
+
+History is loaded once; selected models are cached. Restart the application after
+rebuilding history or adding model artifacts. It binds to localhost for personal
+use and does not require Docker or a running MLflow server. Model selection uses
+trusted local project pickles; there is no model-upload endpoint.
+
+The selected date must follow the history source date. Changing an allowed future
+date does not project age, form or ranking changes. Historical as-of predictions,
+upcoming fixture feeds and automatic result ingestion are not implemented. Recent
+profile rows come from the player snapshot, which stores result/surface/source date
+but not opponents or scores. Fair odds are `1 / probability`, without bookmaker
+margin; a zero probability displays infinite odds. Probability calibration has not
+been established.
+
 ## Start here
 
 Use Python 3.12 and `uv`:

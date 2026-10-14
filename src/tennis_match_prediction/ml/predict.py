@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory, Prediction
+    from tennis_match_prediction.ml.artifacts import ModelArtifact
 
 
 def predict(
@@ -23,7 +24,6 @@ def predict(
 
     from tennis_match_prediction.contracts import PlayerHistory, Prediction
     from tennis_match_prediction.ml.artifacts import load_artifact
-    from tennis_match_prediction.ml.evaluation import validate_probabilities
     from tennis_match_prediction.paths import PLAYER_HISTORY_PATH
 
     if history_path is None:
@@ -34,12 +34,7 @@ def predict(
     snapshot = pd.read_parquet(history_path)
     history = PlayerHistory.model_validate_json(snapshot.loc[0, "history"])
     features = features_for(history, request)
-    columns = artifact.metadata.feature_columns
-    probability = float(
-        validate_probabilities(
-            artifact.model.predict_proba(pd.DataFrame([features], columns=columns)), 1
-        )[0]
-    )
+    probability = probability_for(artifact, features)
     return Prediction(
         player0_name=request.player0_name,
         player1_name=request.player1_name,
@@ -49,6 +44,19 @@ def predict(
         model_path=str(model_path),
         run_id=artifact.metadata.run_id,
     )
+
+
+def probability_for(artifact: ModelArtifact, features: dict[str, float]) -> float:
+    """Score shared features with an already loaded artifact, preserving its input order."""
+    import pandas as pd
+
+    from tennis_match_prediction.ml.evaluation import validate_probabilities
+
+    missing = set(artifact.metadata.feature_columns).difference(features)
+    if missing:
+        raise ValueError(f"Model requires unavailable prediction features: {sorted(missing)}")
+    frame = pd.DataFrame([features], columns=artifact.metadata.feature_columns)
+    return float(validate_probabilities(artifact.model.predict_proba(frame), 1)[0])
 
 
 def predict_from_run(
@@ -98,17 +106,38 @@ def predict_from_run(
 
 def features_for(history: PlayerHistory, request: FutureMatchRequest) -> dict[str, float]:
     """Calculate a future matchup from the persisted Dagster history asset."""
-    from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
-
-    if history.last_source_date is None or request.match_date <= history.last_source_date:
-        raise ValueError("Prediction date must be after the persisted history source date")
     players = []
     for name in (request.player0_name, request.player1_name):
-        matches = [p for p in history.players.values() if p.name.casefold() == name.casefold()]
+        matches = [
+            player_id
+            for player_id, player in history.players.items()
+            if player.name.casefold() == name.casefold()
+        ]
         if len(matches) != 1:
             raise ValueError(f"Could not resolve exactly one player named '{name}'")
         players.append(matches[0])
-    return calculate_player_comparison(players[0], players[1], request.surface)
+    return features_for_players(
+        history, players[0], players[1], request.match_date, request.surface
+    )
+
+
+def features_for_players(
+    history: PlayerHistory, player0_id: str, player1_id: str, match_date: date, surface: str
+) -> dict[str, float]:
+    """Calculate a matchup by stable history IDs without ambiguous name resolution."""
+    from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
+
+    if history.last_source_date is None or match_date <= history.last_source_date:
+        raise ValueError("Prediction date must be after the persisted history source date")
+    if player0_id == player1_id:
+        raise ValueError("Choose two different players")
+    if player0_id not in history.players or player1_id not in history.players:
+        raise ValueError("Player is absent from the persisted history")
+    if surface not in {"Hard", "Clay", "Grass", "Carpet"}:
+        raise ValueError("surface must be Hard, Clay, Grass, or Carpet")
+    return calculate_player_comparison(
+        history.players[player0_id], history.players[player1_id], surface
+    )
 
 
 def _match_date(value: str) -> date:

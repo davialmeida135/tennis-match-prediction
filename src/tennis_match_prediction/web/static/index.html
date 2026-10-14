@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Your personal tennis player explorer and match prediction workspace.">
+  <title>Court Report · Tennis workspace</title>
+  <link rel="icon" href="/static/court.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Court Report home"><span class="brand-ball">◒</span><span>court<span class="brand-light">report</span><small>YOUR TENNIS WORKSPACE</small></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Workspace">
+      <button class="nav-item active" data-view="matchup" aria-current="page"><span aria-hidden="true">↗</span> Match predictor</button>
+      <button class="nav-item" data-view="players"><span aria-hidden="true">◎</span> Player explorer</button>
+    </nav>
+    <div class="sidebar-court" aria-hidden="true"><img src="/static/court.svg" alt=""><p>Know the players.<br>Read the matchup.</p></div>
+    <div class="sidebar-bottom"><span class="status-dot"></span> Personal workspace<small>Powered by your historical data</small></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>ATP SINGLES <span class="topbar-divider">/</span> <span id="breadcrumb">Match predictor</span></span><span class="local-badge"><span class="status-dot"></span> LOCAL</span></header>
+    <div class="content">
+      <section class="page-heading"><div><div class="eyebrow">A CLOSER LOOK AT THE GAME</div><h1 id="page-title">Every matchup tells a story.</h1><p id="page-description">Explore the players. Set the conditions. See how they compare.</p></div><div class="heading-mark" aria-hidden="true">↗</div></section>
+      <section class="snapshot-strip" aria-label="Data status"><div><span class="status-dot"></span><span id="snapshot-label">Loading your player history…</span></div><span id="player-count"></span></section>
+      <div id="startup-error" class="notice error" role="alert" hidden></div>
+      <section id="matchup-view">
+        <form id="prediction-form">
+          <div class="section-heading"><h2>Build a matchup</h2><span>01 <span class="muted">/ SELECT YOUR PLAYERS</span></span></div>
+          <div class="matchup-grid">
+            <article class="player-card" id="player-card-0"><div class="card-top"><span class="eyebrow">PLAYER ONE</span><span class="player-color green"></span></div><div class="search-wrap"><label class="sr-only" for="player-search-0">Search player one</label><span class="search-icon" aria-hidden="true">⌕</span><input id="player-search-0" placeholder="Search a player…" autocomplete="off" aria-controls="suggestions-0" aria-expanded="false" role="combobox"><div id="suggestions-0" class="suggestions" role="listbox" hidden></div></div><div id="player-detail-0" class="player-detail"><div class="player-placeholder"><span>◎</span><p>Select a player to see their profile</p></div></div></article>
+            <div class="versus"><button type="button" id="swap-players" title="Swap players" aria-label="Swap players">⇄</button><span>VS</span></div>
+            <article class="player-card" id="player-card-1"><div class="card-top"><span class="eyebrow">PLAYER TWO</span><span class="player-color gold"></span></div><div class="search-wrap"><label class="sr-only" for="player-search-1">Search player two</label><span class="search-icon" aria-hidden="true">⌕</span><input id="player-search-1" placeholder="Search a player…" autocomplete="off" aria-controls="suggestions-1" aria-expanded="false" role="combobox"><div id="suggestions-1" class="suggestions" role="listbox" hidden></div></div><div id="player-detail-1" class="player-detail"><div class="player-placeholder"><span>◎</span><p>Select a player to see their profile</p></div></div></article>
+          </div>
+          <section class="conditions"><div class="condition-group"><label class="eyebrow">COURT SURFACE</label><div class="surface-options" role="group" aria-label="Court surface"><button type="button" class="surface active" data-surface="Hard" aria-pressed="true"><span class="surface-dot hard"></span>Hard</button><button type="button" class="surface" data-surface="Clay" aria-pressed="false"><span class="surface-dot clay"></span>Clay</button><button type="button" class="surface" data-surface="Grass" aria-pressed="false"><span class="surface-dot grass"></span>Grass</button><button type="button" class="surface" data-surface="Carpet" aria-pressed="false"><span class="surface-dot carpet"></span>Carpet</button></div></div><div class="condition-group date-group"><label class="eyebrow" for="match-date">MATCH DATE</label><input type="date" id="match-date" required></div><button type="submit" id="predict-button" class="primary-button" disabled>Predict matchup <span aria-hidden="true">↗</span></button></section>
+          <p class="context-note">Predictions use the latest player history. The date must follow that history; future dates do not project changes in player form.</p>
+          <div id="prediction-error" class="notice error" role="alert" hidden></div>
+        </form>
+        <section id="result" class="result-panel" aria-live="polite" hidden></section>
+        <section id="empty-result" class="empty-result"><img src="/static/court.svg" alt="" aria-hidden="true"><div><h3>Your next matchup, in focus.</h3><p>Choose two players above to compare their win probabilities and fair odds.</p></div><span class="empty-arrow" aria-hidden="true">↗</span></section>
+      </section>
+      <section id="players-view" hidden><div class="section-heading"><h2>The player directory</h2><span id="directory-total"></span></div><div class="directory-toolbar"><div class="search-wrap"><label class="sr-only" for="directory-search">Search the player directory</label><span class="search-icon" aria-hidden="true">⌕</span><input id="directory-search" placeholder="Search by player name…" autocomplete="off"></div><span class="muted">Sorted by latest activity, then observed rank</span></div><div id="directory-error" class="notice error" role="alert" hidden></div><div id="directory-grid" class="directory-grid"></div><div class="pagination"><button id="previous-page" class="secondary-button" type="button">← Previous</button><span id="page-info"></span><button id="next-page" class="secondary-button" type="button">Next →</button></div></section>
+      <footer><span>COURT REPORT <span class="footer-dot">·</span> A personal view of tennis</span><button type="button" id="model-details-button">Model & data details ↗</button></footer>
+    </div>
+  </main>
+  <dialog id="profile-dialog" aria-labelledby="profile-dialog-title"><div class="dialog-top"><span class="eyebrow">PLAYER PROFILE</span><button type="button" data-close-dialog="profile-dialog" class="close-button" aria-label="Close player profile">×</button></div><div id="profile-dialog-content"></div></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-top"><span class="eyebrow">YOUR WORKSPACE</span><button type="button" data-close-dialog="settings-dialog" class="close-button" aria-label="Close model details">×</button></div><h2 id="settings-title">Model & data</h2><label for="model-select">Prediction model</label><select id="model-select"></select><div id="model-information"></div><p class="context-note">Models and history are loaded from your local files. Restart the application after rebuilding history or adding models.</p><p class="context-note">Fair odds are derived from model probabilities and contain no bookmaker margin. Calibration has not been established.</p></dialog>
+</body>
+</html>

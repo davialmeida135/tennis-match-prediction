@@ -2676,6 +2676,7 @@ source = { editable = "." }
 dependencies = [
     { name = "dagster" },
     { name = "dagster-webserver" },
+    { name = "fastapi" },
     { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
@@ -2685,6 +2686,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "scikit-learn" },
+    { name = "uvicorn" },
     { name = "xgboost" },
 ]
 
@@ -2702,6 +2704,7 @@ notebooks = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "pylint" },
     { name = "pytest" },
     { name = "ruff" },
@@ -2712,6 +2715,7 @@ requires-dist = [
     { name = "dagster", specifier = ">=1.13.25,<1.14" },
     { name = "dagster-mysql", marker = "extra == 'mysql'", specifier = ">=0.29.25,<0.30" },
     { name = "dagster-webserver", specifier = ">=1.13.25,<1.14" },
+    { name = "fastapi", specifier = ">=0.142,<1" },
     { name = "ipython", marker = "extra == 'notebooks'", specifier = ">=8.20" },
     { name = "jupyterlab", marker = "extra == 'notebooks'", specifier = ">=4" },
     { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.8" },
@@ -2726,12 +2730,14 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
     { name = "scikit-learn", specifier = ">=1.4" },
     { name = "seaborn", marker = "extra == 'notebooks'", specifier = ">=0.13" },
+    { name = "uvicorn", specifier = ">=0.54,<1" },
     { name = "xgboost", specifier = ">=3.1,<4" },
 ]
 provides-extras = ["mysql", "notebooks"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pylint", specifier = ">=3.1" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
