@@ -24,7 +24,7 @@ from tennis_match_prediction.ml.config import tracking_settings
 from tennis_match_prediction.ml.evaluation import validate_probabilities
 from tennis_match_prediction.ml.models.factory import create_model
 from tennis_match_prediction.ml.models.logistic_regression import LogisticRegressionModel
-from tennis_match_prediction.ml.predict import predict
+from tennis_match_prediction.ml.predict import predict, predict_from_run
 from tennis_match_prediction.ml.train import train
 
 
@@ -255,3 +255,44 @@ def test_server_failure_does_not_fall_back(experiment_data, monkeypatch):
     with pytest.raises(RuntimeError, match="MLflow tracking is unavailable"):
         train(**options)
     assert not options["output_dir"].exists()
+
+
+def test_prediction_from_mlflow_run_without_local_model(experiment_data, tmp_path, monkeypatch):
+    _, options = experiment_data
+    monkeypatch.setenv("TENNIS_MLFLOW_LOCAL_DIR", str(tmp_path / "tracking"))
+    options["tracking_mode"] = "local"
+    # The uploaded project artifact may have a custom filename.
+    result = train(**options, model_path=tmp_path / "selected.pkl")
+    history = PlayerHistory(
+        last_source_date=date(2024, 3, 1),
+        players={"a": PlayerState(name="Alice"), "b": PlayerState(name="Bob")},
+    )
+    history_path = tmp_path / "history.parquet"
+    pd.DataFrame({"history": [history.model_dump_json()]}).to_parquet(history_path)
+    request = FutureMatchRequest(
+        player0_name="Alice", player1_name="Bob", match_date="2024-03-02", surface="Hard"
+    )
+    expected = predict(request, result.model_path, history_path)
+    result.model_path.unlink()
+    result.model_path.with_suffix(".json").unlink()
+    settings = tracking_settings(mode="local", uri=None, experiment_name=None)
+    previous_uri = mlflow.get_tracking_uri()
+    previous_environment_uri = os.environ.get("MLFLOW_TRACKING_URI")
+    actual = predict_from_run(
+        request, result.run_id, history_path, tracking_mode="local", tracking_uri=settings.uri
+    )
+    assert actual.player1_win_probability == expected.player1_win_probability
+    assert actual.run_id == result.run_id
+    assert actual.model_path == f"runs:/{result.run_id}/project_model/selected.pkl"
+    assert mlflow.get_tracking_uri() == previous_uri
+    assert os.environ.get("MLFLOW_TRACKING_URI") == previous_environment_uri
+    client = MlflowClient(tracking_uri=settings.uri)
+    client.set_terminated(result.run_id, status="FAILED")
+    with pytest.raises(ValueError, match="select a FINISHED run"):
+        predict_from_run(request, result.run_id, history_path, tracking_mode="local")
+    missing = client.create_run(client.get_run(result.run_id).info.experiment_id)
+    client.set_terminated(missing.info.run_id, status="FINISHED")
+    with pytest.raises(ValueError, match="exactly one project_model"):
+        predict_from_run(request, missing.info.run_id, history_path, tracking_mode="local")
+    with pytest.raises(RuntimeError, match="Cannot load MLflow run"):
+        predict_from_run(request, "f" * 32, history_path, tracking_mode="local")

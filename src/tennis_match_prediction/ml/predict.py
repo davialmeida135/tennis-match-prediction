@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -46,7 +47,53 @@ def predict(
         player1_win_probability=probability,
         history_source_date=history.last_source_date,
         model_path=str(model_path),
+        run_id=artifact.metadata.run_id,
     )
+
+
+def predict_from_run(
+    request: FutureMatchRequest,
+    run_id: str,
+    history_path: Path | None = None,
+    *,
+    tracking_uri: str | None = None,
+    tracking_mode: str | None = None,
+) -> Prediction:
+    """Predict with a finished MLflow run's project artifact and current player history."""
+    if not run_id.strip():
+        raise ValueError("MLflow run ID must not be blank")
+    # MLflow is needed only when selecting a tracked model, after CLI validation.
+    from mlflow import MlflowClient
+    from mlflow.exceptions import MlflowException
+
+    from tennis_match_prediction.ml.config import tracking_settings
+
+    settings = tracking_settings(mode=tracking_mode, uri=tracking_uri, experiment_name=None)
+    if settings.mode == "disabled":
+        raise ValueError("MLflow model selection requires local or server tracking")
+    client = MlflowClient(tracking_uri=settings.uri)
+    try:
+        run = client.get_run(run_id)
+        if run.info.status != "FINISHED":
+            raise ValueError(f"MLflow run {run_id} is {run.info.status}; select a FINISHED run")
+        models = [
+            item
+            for item in client.list_artifacts(run_id, "project_model")
+            if not item.is_dir and item.path.endswith(".pkl")
+        ]
+        if len(models) != 1:
+            raise ValueError(f"MLflow run {run_id} must contain exactly one project_model/*.pkl")
+        artifact_path = models[0].path
+        with TemporaryDirectory(prefix="tennis-predict-") as directory:
+            downloaded = client.download_artifacts(run_id, artifact_path, directory)
+            result = predict(request, Path(downloaded), history_path)
+        if result.run_id != run_id:
+            raise ValueError("Project artifact run ID does not match the selected MLflow run")
+        return result.model_copy(update={"model_path": f"runs:/{run_id}/{artifact_path}"})
+    except MlflowException as error:
+        raise RuntimeError(
+            f"Cannot load MLflow run {run_id} from {settings.uri}: {error}"
+        ) from error
 
 
 def features_for(history: PlayerHistory, request: FutureMatchRequest) -> dict[str, float]:
@@ -87,13 +134,21 @@ def main() -> None:
         type=lambda value: value.strip().title(),
         choices=("Hard", "Clay", "Grass", "Carpet"),
     )
-    parser.add_argument("--model-path", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--model-path", type=Path, help="local project model pickle")
+    source.add_argument("--run-id", help="MLflow run containing the project model")
+    parser.add_argument("--tracking-mode", choices=("server", "local"))
+    parser.add_argument("--tracking-uri", help="MLflow server URL or local SQLite URI")
     parser.add_argument(
         "--history-path",
         type=Path,
         help="player history parquet (default: data/curated/player_history.parquet)",
     )
     arguments = parser.parse_args()
+    if arguments.run_id is None and (
+        arguments.tracking_mode is not None or arguments.tracking_uri is not None
+    ):
+        parser.error("--tracking-mode and --tracking-uri require --run-id")
     # Argument parsing must finish before importing the contracts' dataframe dependencies.
     from pydantic import ValidationError
 
@@ -108,7 +163,21 @@ def main() -> None:
         )
     except ValidationError as error:
         parser.error(str(error))
-    print(predict(request, arguments.model_path, arguments.history_path).model_dump_json(indent=2))
+    try:
+        result = (
+            predict_from_run(
+                request,
+                arguments.run_id,
+                arguments.history_path,
+                tracking_uri=arguments.tracking_uri,
+                tracking_mode=arguments.tracking_mode,
+            )
+            if arguments.run_id is not None
+            else predict(request, arguments.model_path, arguments.history_path)
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as error:
+        parser.error(str(error))
+    print(result.model_dump_json(indent=2))
 
 
 if __name__ == "__main__":

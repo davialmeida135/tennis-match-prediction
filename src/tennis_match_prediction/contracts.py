@@ -186,6 +186,7 @@ class Prediction(ContractModel):
     player1_win_probability: float = Field(ge=0, le=1)
     history_source_date: date
     model_path: str
+    run_id: str | None = None
 
 
 INITIAL_ELO = 1500.0

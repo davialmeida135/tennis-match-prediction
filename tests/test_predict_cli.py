@@ -7,16 +7,30 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    ("arguments", "exit_code", "message"),
+    ("arguments", "selector", "exit_code", "message"),
     [
-        (["--help"], 0, "YYYY-MM-DD"),
-        (["10/10/2026", "Clay"], 2, "YYYY-MM-DD"),
-        (["2026-02-30", "Clay"], 2, "YYYY-MM-DD"),
-        (["20261010", "Clay"], 2, "YYYY-MM-DD"),
-        (["2026-10-10", "Sand"], 2, "invalid choice"),
+        (["--help"], [], 0, "YYYY-MM-DD"),
+        (["10/10/2026", "Clay"], ["--model-path", "model.pkl"], 2, "YYYY-MM-DD"),
+        (["2026-02-30", "Clay"], ["--model-path", "model.pkl"], 2, "YYYY-MM-DD"),
+        (["20261010", "Clay"], ["--model-path", "model.pkl"], 2, "YYYY-MM-DD"),
+        (["2026-10-10", "Sand"], ["--model-path", "model.pkl"], 2, "invalid choice"),
+        (["10/10/2026", "Clay"], ["--run-id", "abc"], 2, "YYYY-MM-DD"),
+        (["2026-10-10", "Clay"], [], 2, "required"),
+        (
+            ["2026-10-10", "Clay"],
+            ["--model-path", "model.pkl", "--run-id", "abc"],
+            2,
+            "not allowed",
+        ),
+        (
+            ["2026-10-10", "Clay"],
+            ["--model-path", "model.pkl", "--tracking-mode", "local"],
+            2,
+            "require --run-id",
+        ),
     ],
 )
-def test_help_and_invalid_arguments_do_not_import_ml_stack(arguments, exit_code, message):
+def test_help_and_invalid_arguments_do_not_import_ml_stack(arguments, selector, exit_code, message):
     script = """
 import importlib.abc
 import runpy
@@ -34,7 +48,7 @@ runpy.run_module('tennis_match_prediction.ml.predict', run_name='__main__')
     cli_arguments = (
         arguments
         if arguments == ["--help"]
-        else ["Carlos Alcaraz", "Jannik Sinner", *arguments, "--model-path", "model.pkl"]
+        else ["Carlos Alcaraz", "Jannik Sinner", *arguments, *selector]
     )
     result = subprocess.run(
         [sys.executable, "-c", script, *cli_arguments],

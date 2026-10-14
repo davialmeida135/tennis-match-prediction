@@ -213,6 +213,22 @@ It rejects raw history and unordered training rows instead of rebuilding feature
 `tennis_match_prediction.ml.predict` reads `data/curated/player_history.parquet`, produced together with
 `player_comparison_atp_matches` in one chronological pass. Prediction uses the
 same comparison formulas and requires a date after the asset's latest source date.
+Choose a local model with `--model-path`, or a finished MLflow run with `--run-id`:
+
+```powershell
+uv run python -m tennis_match_prediction.ml.predict "Carlos Alcaraz" "Jannik Sinner" 2026-10-10 Clay --run-id 762835ed7ac849d98e68fbcb25d2520b --tracking-mode local
+```
+
+For server runs, use `--tracking-mode server` and optionally `--tracking-uri http://127.0.0.1:5000`.
+Tracking settings follow the training CLI's environment and project defaults. Run IDs must be looked
+up in the same tracking backend used for training. Prediction downloads the run's `project_model`
+pickle temporarily, preserving its feature order and metadata; it still reads the current local
+player-history asset (override with `--history-path`). The prediction response includes `run_id` and
+a stable `runs:/<run-id>/project_model/<filename>.pkl` reference in `model_path`.
+The Python entry point `predict_from_run(request, run_id, tracking_mode="local")` supports the same
+selection for a future web API. MLflow's separately logged sklearn model URI is not a project pickle
+and is not accepted by this selector.
+
 The history asset contains a validated JSON payload inside Parquet, persisted by
 the existing Dagster IO manager; there is no separate checkpoint writer or engine.
 The wider exported columns remain available for inspection and experiments.
