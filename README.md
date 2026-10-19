@@ -331,6 +331,36 @@ automation condition sensor in Dagster. The root asset is triggered manually.
 
 ## Model experiments and MLflow
 
+### Train from Dagster Launchpad
+
+After materializing `materialize_historical_dataset`, open **Jobs → train_model →
+Launchpad**, or select the `trained_model` asset and choose **Open launchpad**.
+Scaffold the config and launch a candidate experiment. The training job reads the
+existing `training_atp_matches_csv` export without rerunning ingestion or dataset
+construction; the historical dataset job continues to publish data only.
+
+Paste [examples/dagster-training.yaml](examples/dagster-training.yaml) for a random
+forest example. Launchpad exposes model choice, model-specific parameter overrides,
+ordered feature columns, split dates, optional final test evaluation, input/output
+locations, and MLflow tracking mode, URI, experiment name and run name. Date strings
+must use `YYYY-MM-DD`; the shared training runner validates split order, features
+and model parameters. Omitted values match the Python/CLI defaults; null tracking
+settings use the usual environment/default resolution. Use `tracking_mode: local`
+without a server, or `disabled` for an intentional untracked run.
+
+Each materialization writes a unique candidate artifact and reports its path,
+metadata sidecar, MLflow run ID and artifact/model URIs, configuration overrides
+and evaluation metrics in Dagster. MLflow continues to own experiment tracking.
+Training is manual and does not register a model or move a registry alias. A web
+app pinned to a registry version/alias or explicit local path keeps that selection.
+Local discovery may select the newest compatible candidate on the next app startup;
+pin the serving model to keep candidate training separate from model selection.
+Keep `final_evaluation: false` while comparing candidates and enable it only for
+the selected configuration. If relocating the published export, override
+`training_matches_path` to match its location on the Dagster worker.
+
+### Train from Python or the CLI
+
 Compare models on the same published CSV, feature order and split dates:
 
 ```powershell

@@ -1,0 +1,16 @@
+# Paste into the train_model job's Launchpad. Omitted fields use project defaults.
+ops:
+  trained_model:
+    config:
+      model_name: random_forest
+      model_params:
+        n_estimators: 200
+        max_depth: 8
+        min_samples_leaf: 5
+      train_start: "2017-01-01"
+      validation_start: "2024-01-01"
+      test_start: "2025-01-01"
+      final_evaluation: false
+      tracking_mode: server
+      experiment_name: tennis-match-prediction
+      run_name: dagster-forest-baseline

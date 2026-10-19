@@ -2,6 +2,7 @@
 
 Running it builds chronological history features, curated and training datasets,
 then publishes curated and training CSVs on separate branches.
+The separate train_model job fits a candidate from the published training CSV.
 """
 
 from dagster import AssetSelection, Definitions, define_asset_job
@@ -34,6 +35,7 @@ from tennis_match_prediction.pipelines.historical_matches.checks import (
     winrate_features_are_probabilities,
 )
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.model_training.assets import trained_model
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 ASSETS = [
@@ -74,10 +76,19 @@ materialize_historical_dataset = define_asset_job(
     selection=AssetSelection.assets(*ASSETS),
 )
 
+train_model = define_asset_job(
+    name="train_model",
+    description=(
+        "Train a candidate from the existing published CSV. Configure model, features, "
+        "date splits and MLflow tracking in Launchpad; ingestion is not rerun."
+    ),
+    selection=AssetSelection.assets(trained_model),
+)
+
 defs = Definitions(
-    assets=ASSETS,
+    assets=[*ASSETS, trained_model],
     asset_checks=ASSET_CHECKS,
-    jobs=[materialize_historical_dataset],
+    jobs=[materialize_historical_dataset, train_model],
     resources={
         # Intermediate snapshots go to staging; prediction history goes to curated.
         "io_manager": ParquetDataFrameIOManager(),
