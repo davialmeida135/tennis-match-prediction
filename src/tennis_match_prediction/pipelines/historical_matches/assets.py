@@ -12,6 +12,7 @@ from dagster import (
     AssetExecutionContext,
     AssetOut,
     AutomationCondition,
+    Config,
     MetadataValue,
     asset,
     multi_asset,
@@ -72,6 +73,12 @@ from tennis_match_prediction.transforms.winrate import (
 WHEN_INPUT_CHANGES = AutomationCondition.eager()
 
 DOMAIN_TAGS = {"domain": "tennis", "source": "tennis_my_life"}
+
+
+class CsvExportConfig(Config):
+    """Allow a full refresh to validate exports before publishing them."""
+
+    output_dir: str | None = None
 
 
 @asset(
@@ -297,10 +304,14 @@ def training_atp_matches(
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def curated_atp_matches_csv(
-    context: AssetExecutionContext, curated_atp_matches: pd.DataFrame
+    context: AssetExecutionContext, config: CsvExportConfig, curated_atp_matches: pd.DataFrame
 ) -> pd.DataFrame:
     """Publish the readable curated dataset independently of training construction."""
-    csv_path = write_curated_csv(curated_atp_matches, CURATED_MATCHES_CSV_NAME)
+    csv_path = write_curated_csv(
+        curated_atp_matches,
+        CURATED_MATCHES_CSV_NAME,
+        output_dir=Path(config.output_dir) if config.output_dir is not None else None,
+    )
     context.log.info(f"Wrote {len(curated_atp_matches)} rows to {csv_path}")
     context.add_output_metadata(
         {
@@ -318,10 +329,14 @@ def curated_atp_matches_csv(
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def training_atp_matches_csv(
-    context: AssetExecutionContext, training_atp_matches: pd.DataFrame
+    context: AssetExecutionContext, config: CsvExportConfig, training_atp_matches: pd.DataFrame
 ) -> pd.DataFrame:
     """Publish training rows to data/curated/training_atp_matches.csv."""
-    csv_path = write_curated_csv(training_atp_matches, TRAINING_MATCHES_CSV_NAME)
+    csv_path = write_curated_csv(
+        training_atp_matches,
+        TRAINING_MATCHES_CSV_NAME,
+        output_dir=Path(config.output_dir) if config.output_dir is not None else None,
+    )
     context.add_output_metadata(
         {
             "csv_path": MetadataValue.path(str(csv_path)),

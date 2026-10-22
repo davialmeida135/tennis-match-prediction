@@ -3,6 +3,11 @@
 Objetivo: validar o ciclo de histórico → resultados novos → previsão reproduzível,
 com features calculadas apenas a partir das informações disponíveis antes do confronto.
 
+Plano proposto para o próximo ciclo: [resultados novos e predições de partidas
+futuras](docs/results-and-predictions-plan.md). A sequência prioriza atualização
+confiável com reconstrução completa, programação, predição em lote e avaliação
+prospectiva. O processamento incremental dos estados fica como otimização posterior.
+
 ## Base implementada
 
 - [x] Criar página local de uso pessoal com diretório/perfis de jogadores e predição manual por IDs, superfície e data.
@@ -61,6 +66,10 @@ no treino; qualquer calibrador deve respeitar a separação temporal.
 
 ## 3. Resultados novos e processamento incremental
 
+- [x] Executar atualização de temporadas e reconstrução completa de features, datasets e histórico em um comando, sem retreinar.
+- [x] Isolar as saídas de cada tentativa, verificar qualidade antes de publicar e registrar tempos por etapa/total e hashes.
+- [x] Testar reconstrução após inclusões, correções e exclusões, repetição da atualização e preservação das saídas publicadas quando checks falham.
+- [x] Medir reconstrução com o volume real: 200.888 linhas brutas / 199.313 normalizadas, 533,16 s; manter reconstrução completa inicialmente e acompanhar o custo nas próximas atualizações.
 - [ ] Identificar partidas novas por uma chave estável e evitar reaplicar resultados já processados.
 - [ ] Atualizar os estados dos jogadores a partir do histórico persistido, sem reconstruir tudo em cada atualização.
 - [ ] Garantir que grupos ambíguos sejam processados completos; uma atualização parcial não deve quebrar o congelamento do estado anterior.

@@ -1,12 +1,15 @@
+import json
 from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 import pytest
-from dagster import DagsterInstance, Definitions, materialize
+from dagster import AssetCheckResult, DagsterInstance, Definitions, asset_check, materialize
 
 from tennis_match_prediction import paths
 from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS, PlayerHistory
 from tennis_match_prediction.pipelines.historical_matches import assets
+from tennis_match_prediction.pipelines.historical_matches import refresh_history as refresh_module
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
@@ -71,6 +74,93 @@ def _history(count: int = 4) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatch):
+    """Repeated refreshes replay the full corrected input without reapplying results."""
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    output = tmp_path / "curated"
+    downloaded = _history(200)
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"files": [{"name": "2026.csv", "url": "https://example.test/2026.csv"}]}
+
+        @property
+        def content(self):
+            return downloaded.to_csv(index=False).encode()
+
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        lambda *args, **kwargs: Response(),
+    )
+    source = RawMatchesCsv(
+        csv_path=str(raw_dir / "all_atp_matches.csv"),
+        catalog_url="https://example.test/catalog",
+        years=[2026],
+    )
+    initial = refresh_module.refresh_history(source, output_dir=output)
+    downloaded = _history(220).drop(index=10).reset_index(drop=True)
+    # Correct the winner of an earlier match without creating another match.
+    for stem in ("id", "name"):
+        downloaded.loc[0, [f"winner_{stem}", f"loser_{stem}"]] = ["Bob", "Alice"]
+    updated = refresh_module.refresh_history(source, output_dir=output)
+    assert initial["raw_sha256"] != updated["raw_sha256"]
+    assert updated["status"] == "success"
+    assert updated["total_seconds"] > 0
+    assert updated["step_seconds"]["player_comparison_atp_matches"] > 0
+    attempt = Path(updated["report_path"]).parent
+    assert json.loads(Path(updated["report_path"]).read_text()) == updated
+    normalized = pd.read_parquet(attempt / "staging" / "normalized_atp_matches.parquet")
+    _, expected_features, expected_history = attach_temporal_features(normalized)
+    actual_features = pd.read_parquet(attempt / "staging" / "player_comparison_atp_matches.parquet")
+    columns = list(PLAYER_COMPARISON_FEATURE_COLUMNS)
+    pd.testing.assert_frame_equal(actual_features[columns], expected_features[columns])
+    actual_history = PlayerHistory.model_validate_json(
+        pd.read_parquet(output / "player_history.parquet").loc[0, "history"]
+    )
+    assert actual_history == expected_history
+    assert sum(player.wins for player in actual_history.players.values()) == 219
+    assert len(pd.read_csv(output / paths.TRAINING_MATCHES_CSV_NAME)) == 219
+    repeated = refresh_module.refresh_history(source, output_dir=output)
+    assert updated["raw_sha256"] == repeated["raw_sha256"]
+    for name in updated["artifacts"]:
+        assert updated["artifacts"][name]["sha256"] == repeated["artifacts"][name]["sha256"]
+
+
+def test_failed_checks_preserve_published_history_and_exports(tmp_path, monkeypatch):
+    raw = tmp_path / "raw.csv"
+    _history(200).to_csv(raw, index=False)
+    output = tmp_path / "curated"
+    output.mkdir()
+    names = [
+        "player_history.parquet",
+        paths.TRAINING_MATCHES_CSV_NAME,
+        paths.CURATED_MATCHES_CSV_NAME,
+    ]
+    for name in names:
+        (output / name).write_bytes(b"previous published version")
+
+    @asset_check(asset=assets.training_atp_matches, name="reject_refresh")
+    def reject_refresh():
+        return AssetCheckResult(passed=False)
+
+    monkeypatch.setattr(refresh_module, "ASSET_CHECKS", [*ASSET_CHECKS, reject_refresh])
+    with pytest.raises(RuntimeError, match="quality checks failed"):
+        refresh_module.refresh_history(
+            RawMatchesCsv(csv_path=str(raw), refresh=False), output_dir=output
+        )
+    for name in names:
+        assert (output / name).read_bytes() == b"previous published version"
+    (report_path,) = (output / ".refreshes").glob("*/report.json")
+    report = json.loads(report_path.read_text())
+    assert report["status"] == "failed"
+    assert "training_atp_matches:reject_refresh" in report["failed_checks"]
+    assert not (output / ".refresh.lock").exists()
 
 
 def test_history_paths_share_order_filtering_surface_and_elo() -> None:

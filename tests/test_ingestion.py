@@ -167,6 +167,35 @@ def test_first_year_and_explicit_years_are_mutually_exclusive():
         RawMatchesCsv(first_year=2024, years=[2025])
 
 
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        _csv(2026).splitlines(keepends=True)[0],
+        _csv(2026) + b'2026-1,20260102,2,001,002,"unterminated\n',
+    ],
+)
+def test_invalid_download_preserves_valid_annual_file(tmp_path, monkeypatch, invalid):
+    previous = _csv(2026)
+    annual = tmp_path / "2026.csv"
+    annual.write_bytes(previous)
+
+    class Response:
+        content = invalid
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        lambda *args, **kwargs: Response(),
+    )
+    with pytest.raises((ValueError, pd.errors.ParserError)):
+        RawMatchesCsv()._download_file(
+            {"name": "2026.csv", "url": "https://example.test/2026.csv"}, tmp_path
+        )
+    assert annual.read_bytes() == previous
+
+
 def test_invalid_local_season_does_not_replace_consolidated_csv(tmp_path):
     output = tmp_path / "all_atp_matches.csv"
     output.write_bytes(_csv(2024))

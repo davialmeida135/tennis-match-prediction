@@ -45,9 +45,11 @@ CURATED_MATCHES_CSV_NAME = "curated_atp_matches.csv"
 TRAINING_MATCHES_CSV_NAME = "training_atp_matches.csv"
 
 
-def write_curated_csv(frame: pd.DataFrame, file_name: str) -> Path:
+def write_curated_csv(
+    frame: pd.DataFrame, file_name: str, *, output_dir: Path | None = None
+) -> Path:
     """Write `frame` under data/curated as `file_name` and return the path."""
-    path = CURATED_DIR / file_name
+    path = (CURATED_DIR if output_dir is None else output_dir) / file_name
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(path, index=False)
     return path

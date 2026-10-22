@@ -124,10 +124,13 @@ class RawMatchesCsv(ConfigurableResource):
         digest = hashlib.sha256(content).hexdigest()
         path = destination / f"{year}.csv"
         changed = not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest() != digest
-        frame = pd.read_csv(BytesIO(content), nrows=1)
+        # Parse the entire response before replacing a valid local season.
+        frame = pd.read_csv(BytesIO(content), low_memory=False)
         missing = REQUIRED_COLUMNS.difference(frame.columns)
         if missing:
             raise ValueError(f"{path.name} is incompatible; missing columns: {sorted(missing)}")
+        if frame.empty:
+            raise ValueError(f"{path.name} contains no matches")
         if changed:
             with _atomic_output(path) as temporary:
                 temporary.write_bytes(content)

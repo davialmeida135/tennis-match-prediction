@@ -83,7 +83,7 @@ The player-history Parquet remains a separately deployed local file.
 
 The selected date must follow the history source date. Changing an allowed future
 date does not project age, form or ranking changes. Historical as-of predictions,
-upcoming fixture feeds and automatic result ingestion are not implemented. Recent
+upcoming fixture feeds and scheduled result ingestion are not implemented. Recent
 profile rows come from the player snapshot, which stores result/surface/source date
 but not opponents or scores. Fair odds are `1 / probability`, without bookmaker
 margin; a zero probability displays infinite odds. Probability calibration has not
@@ -124,9 +124,43 @@ To refresh selected seasons instead of downloading all seasons:
 uv run python -m tennis_match_prediction.pipelines.historical_matches.refresh_history 2025 2026
 ```
 
-This materializes `raw_atp_matches` in Dagster, updates annual files, then
-consolidates all locally available seasons and persists the raw Parquet snapshot.
-Re-materialize the Dagster dataset after refreshing history, then retrain.
+This downloads the selected annual files, consolidates **all locally available
+seasons**, and rebuilds the full Dagster historical graph, including features,
+training/curated CSVs and `player_history.parquet`. Omit the years to refresh all
+available seasons. Older local seasons remain in the rebuild as warmup/history.
+Corrected and removed rows in a refreshed annual file are reflected in the replay.
+The model is not retrained: refreshing player states and training a new model are
+independent operations.
+
+Rebuild from the existing consolidated input without downloading:
+
+```powershell
+uv run python -m tennis_match_prediction.pipelines.historical_matches.refresh_history --local-only
+```
+
+`--csv-path` selects the raw input; if the consolidated input is absent,
+`--local-only` consolidates local annual files. `--output-dir` selects the published
+curated directory. This command retains isolated intermediate Parquets, exports,
+an exact consolidated source copy and `report.json` under
+`<output-dir>/.refreshes/<attempt-id>/`. The report includes total elapsed time,
+successful step durations in seconds, checks, run ID and artifact hashes/sizes.
+These measurements include snapshot I/O and are intended to establish the cost of
+full rebuilding before introducing incremental player-state updates.
+
+Execution and quality checks must pass before consumer files are published.
+Each file replacement is atomic; publishing the three files is not a single
+transaction. A publication I/O failure can leave files from different runs: consult
+the failed report and rerun before using them together. The command prevents
+concurrent refresh commands targeting the same output directory; direct Dagster
+runs should not publish there concurrently. If the process is forcibly terminated,
+remove `.refresh.lock` only after verifying that no refresh is running.
+
+The source cache is updated separately; a later failure does not roll back annual
+downloads. Historical snapshots are retained and consume disk space; delete old
+attempt directories only when they are no longer needed for reproduction/debugging.
+Restart the web application after publishing to load the updated player history.
+This flow currently uses annual ATP files; ingestion of `ongoing_tourneys.csv` and
+automatic scheduling remain planned work.
 
 ## How the code fits together
 
@@ -170,9 +204,10 @@ uv run dagster dev
 
 Set `DAGSTER_HOME` in `.env` to the absolute path of this checkout's `dagster_home`
 directory. Open `materialize_historical_dataset` in the UI to build the dataset.
-The raw asset reuses an existing consolidated CSV. If it is missing, it
+With `refresh: false`, the raw asset reuses an existing consolidated CSV. If it is missing, it
 consolidates annual CSVs in the same directory; if none exist, it downloads
-available seasons first. Existing CSVs are not refreshed automatically by age.
+available seasons first. The resource defaults to `refresh: true`, which downloads
+selected annual files on execution. Refresh is not based on cache age.
 
 To request an update directly in the Dagster Launchpad, configure the resource:
 
