@@ -24,3 +24,7 @@ class MatchupRequest(ContractModel):
         if self.player0_id == self.player1_id:
             raise ValueError("Choose two different players")
         return self
+
+
+class BatchPredictionRequest(ContractModel):
+    model_id: str = Field(min_length=1, max_length=100)

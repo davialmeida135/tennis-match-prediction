@@ -15,6 +15,7 @@
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Workspace">
       <button class="nav-item active" data-view="matchup" aria-current="page"><span aria-hidden="true">↗</span> Match predictor</button>
+      <button class="nav-item" data-view="upcoming"><span aria-hidden="true">▦</span> Upcoming matches</button>
       <button class="nav-item" data-view="players"><span aria-hidden="true">◎</span> Player explorer</button>
     </nav>
     <div class="sidebar-court" aria-hidden="true"><img src="/static/court.svg" alt=""><p>Know the players.<br>Read the matchup.</p></div>
@@ -26,6 +27,17 @@
       <section class="page-heading"><div><div class="eyebrow">A CLOSER LOOK AT THE GAME</div><h1 id="page-title">Every matchup tells a story.</h1><p id="page-description">Explore the players. Set the conditions. See how they compare.</p></div><div class="heading-mark" aria-hidden="true">↗</div></section>
       <section class="snapshot-strip" aria-label="Data status"><div><span class="status-dot"></span><span id="snapshot-label">Loading your player history…</span></div><span id="player-count"></span></section>
       <div id="startup-error" class="notice error" role="alert" hidden></div>
+      <section id="upcoming-view" hidden>
+        <div class="upcoming-toolbar">
+          <div><h2>Next on court</h2><p id="upcoming-model" class="context-note"></p></div>
+          <button id="refresh-upcoming" class="primary-button" type="button" disabled>Refresh & predict <span aria-hidden="true">↗</span></button>
+        </div>
+        <p class="context-note">ATP singles · Times shown in your local timezone. Postponed matches and players missing from your history are skipped.</p>
+        <div id="upcoming-error" class="notice error" role="alert" hidden></div>
+        <div id="upcoming-summary" class="upcoming-summary" aria-live="polite"></div>
+        <div id="upcoming-grid" class="upcoming-grid" aria-live="polite"></div>
+        <div class="upcoming-download"><a id="download-batch" class="secondary-button" hidden>Download prediction batch ↓</a></div>
+      </section>
       <section id="matchup-view">
         <form id="prediction-form">
           <div class="section-heading"><h2>Build a matchup</h2><span>01 <span class="muted">/ SELECT YOUR PLAYERS</span></span></div>

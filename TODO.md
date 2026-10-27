@@ -99,6 +99,10 @@ artefatos e configurações identificados, mesmo após novas atualizações.
 
 ## 5. Partidas futuras e uso cotidiano
 
+- [x] Gerar predições em lote pela Live Tennis API e exibir próximos jogos no frontend, ignorando jogadores não encontrados/ambíguos e partidas adiadas.
+- [x] Preservar fonte, modelo, histórico e features por lote; disponibilizar download JSON e ocultar jogos cujo horário previsto já passou.
+- [x] Testar a Live Tennis API com chave gratuita em branch separada; registrar cobertura, diferenças de IDs/ordenação e candidatos de identidade. [Resultado](docs/live-tennis-api-test.md).
+- [x] Investigar o TennisMyLife: validar CSV em andamento, JSON de programação e amostras das APIs. [Evidências e lacunas](docs/upcoming-matches-source-investigation.md).
 - [ ] Definir uma fonte para buscar partidas futuras, com IDs, superfície e data prevista.
 - [ ] Resolver jogadores por ID e manter aliases de nomes, tratando ambiguidades explicitamente.
 - [x] Rejeitar confrontos do jogador consigo mesmo.

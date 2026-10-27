@@ -1,5 +1,6 @@
 """Same-origin HTTP API and static frontend for personal use."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager
 from pathlib import Path
@@ -7,13 +8,14 @@ from tempfile import TemporaryDirectory
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import JsonValue
 
-from tennis_match_prediction.web.contracts import MatchupRequest
+from tennis_match_prediction.web.contracts import BatchPredictionRequest, MatchupRequest
 from tennis_match_prediction.web.registry import RegistryModel, download_registry_model
 from tennis_match_prediction.web.service import PlayerService
+from tennis_match_prediction.web.upcoming import UpcomingService
 
 
 def create_app(
@@ -22,6 +24,7 @@ def create_app(
     models_dir: Path,
     model_path: Path | None,
     registry_model: RegistryModel | None = None,
+    predictions_dir: Path | None = None,
 ) -> FastAPI:
     """Load history once at startup, never run ingestion or training in requests."""
 
@@ -38,6 +41,13 @@ def create_app(
                 selected_path, provenance = download_registry_model(registry_model, Path(directory))
                 application.state.registry_model = provenance
             application.state.players = PlayerService(history_path, models_dir, selected_path)
+            application.state.upcoming = UpcomingService(
+                application.state.players,
+                predictions_dir
+                if predictions_dir is not None
+                else history_path.parent / "upcoming_predictions",
+                os.getenv("LIVE_TENNIS_API_KEY"),
+            )
             yield
 
     application = FastAPI(title="Court Report", lifespan=lifespan)
@@ -76,6 +86,34 @@ def create_app(
     @application.get("/", include_in_schema=False)
     def index() -> FileResponse:
         return FileResponse(static / "index.html")
+
+    @application.get("/api/upcoming")
+    def upcoming(model_id: Annotated[str | None, Query(max_length=100)] = None) -> dict:
+        return application.state.upcoming.latest(
+            model_id or application.state.players.default_model_id
+        )
+
+    @application.post("/api/upcoming/refresh")
+    def refresh_upcoming(request: BatchPredictionRequest) -> dict:
+        try:
+            return application.state.upcoming.refresh(request.model_id)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except (RuntimeError, OSError) as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+
+    @application.get("/api/upcoming/batches/{batch_id}")
+    def download_batch(batch_id: str) -> JSONResponse:
+        try:
+            batch = application.state.upcoming.read_batch(batch_id)
+        except FileNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return JSONResponse(
+            batch,
+            headers={
+                "Content-Disposition": f'attachment; filename="predictions-{batch_id[:12]}.json"'
+            },
+        )
 
     application.mount("/static", StaticFiles(directory=static), name="static")
     return application

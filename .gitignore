@@ -199,6 +199,8 @@ dagster_home/logs
 /data/tmp/
 /mlartifacts/
 /data/state/
+/data/predictions/
+upcoming_predictions/
 # Full-rebuild attempts and the local publication lock (also for custom output dirs).
 .refreshes/
 .refresh.lock

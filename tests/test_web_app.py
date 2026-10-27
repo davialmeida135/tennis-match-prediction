@@ -1,6 +1,7 @@
 """HTTP behavior, ID resolution, cached inference and model compatibility."""
 
-from datetime import date
+import json
+from datetime import UTC, date, datetime
 from hashlib import sha256
 from pathlib import Path
 from shutil import copyfile
@@ -26,6 +27,159 @@ from tennis_match_prediction.ml.predict import predict, probability_for
 from tennis_match_prediction.web.app import create_app
 from tennis_match_prediction.web.registry import RegistryModel
 from tennis_match_prediction.web.service import PlayerService
+
+
+def _upcoming_match(match_id=100):
+    return {
+        "id": match_id,
+        "status": "upcoming",
+        "event_status": None,
+        "tour": "atp",
+        "draw": "singles",
+        "is_qualifying": False,
+        "surface": "hard",
+        "tournament": "Example Open",
+        "round_code": "R32",
+        "scheduled_time": "2099-01-01T14:00:00Z",
+        "players": {
+            "p1": {"id": 10, "name": "Alice Example"},
+            "p2": {"id": 20, "name": "Bob Example"},
+        },
+    }
+
+
+@pytest.fixture
+def upcoming_client(web_files, tmp_path, monkeypatch):
+    history_path, models_dir, model_path = web_files
+    frame = pd.read_parquet(history_path)
+    history = json.loads(frame.loc[0, "history"])
+    del history["players"]["alice-two"]
+    frame.loc[0, "history"] = json.dumps(history)
+    frame.to_parquet(history_path, index=False)
+    monkeypatch.setenv("LIVE_TENNIS_API_KEY", "test-key")
+    application = create_app(
+        history_path=history_path,
+        models_dir=models_dir,
+        model_path=model_path,
+        predictions_dir=tmp_path / "predictions",
+    )
+    with TestClient(application) as client:
+        yield client, application, tmp_path / "predictions"
+
+
+def test_upcoming_batch_skips_unavailable_and_postponed_and_is_reproducible(
+    upcoming_client, monkeypatch, web_files
+):
+    client, application, directory = upcoming_client
+    rows = [_upcoming_match(i) for i in range(100, 106)]
+    rows[1]["event_status"] = "Postponed"
+    rows[2]["players"]["p2"]["name"] = "Unknown Player"
+    rows[3]["status"] = "live"
+    rows[4]["scheduled_time"] = "2000-01-01T14:00:00Z"
+    rows[5]["surface"] = None
+    calls = []
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"data": rows, "meta": {"has_more": False}}
+
+    def get(url, **kwargs):
+        calls.append(kwargs["params"])
+        assert kwargs["headers"]["X-API-Key"] == "test-key"
+        return Response()
+
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming.requests.get", get)
+    model_id = client.get("/api/status").json()["default_model_id"]
+    assert client.get("/api/upcoming").json()["batch"] is None
+    original_history = web_files[0].read_bytes()
+    original_model = web_files[2].read_bytes()
+    # The running service must archive what it actually loaded, not later changed files.
+    web_files[0].write_bytes(b"changed after startup")
+    web_files[2].write_bytes(b"changed after startup")
+    response = client.post("/api/upcoming/refresh", json={"model_id": model_id})
+    assert response.status_code == 200, response.text
+    batch = response.json()["batch"]
+    assert len(batch["predictions"]) == 1
+    assert len(batch["skipped"]) == 5
+    assert batch["skip_counts"]["postponed_or_cancelled"] == 1
+    assert batch["skip_counts"]["player_not_found_or_ambiguous"] == 1
+    row = batch["predictions"][0]
+    manual = client.post("/api/predict", json=row["request"]).json()
+    assert manual["features"] == row["features"]
+    assert manual["player1_win_probability"] == row["player1_win_probability"]
+    saved = directory / batch["id"]
+    assert (saved / "player_history.parquet").read_bytes() == original_history
+    assert (saved / "model.pkl").read_bytes() == original_model
+    artifact = load_artifact(saved / "model.pkl")
+    assert probability_for(artifact, row["features"]) == row["player1_win_probability"]
+    replay = PlayerService(saved / "player_history.parquet", saved, saved / "model.pkl")
+    assert replay.default_model_id == model_id
+    assert replay.model_version(model_id) == batch["model_version"]
+    assert sha256(original_history).hexdigest() == batch["history_version"]
+    assert sha256(original_model).hexdigest() == batch["model_version"]
+    assert json.loads((saved / "source.json").read_text())["data"] == rows
+    second = client.post("/api/upcoming/refresh", json={"model_id": model_id}).json()["batch"]
+    assert second["id"] == batch["id"]
+    assert len(calls) == 1
+    download = client.get(f"/api/upcoming/batches/{batch['id']}")
+    assert download.json()["id"] == batch["id"]
+    assert "attachment" in download.headers["content-disposition"]
+    assert "test-key" not in download.text
+
+    # Subsequent reads hide a match after kickoff, preserving the archived prediction.
+    class AfterKickoff(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2099, 1, 2, tzinfo=UTC)
+
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming.datetime", AfterKickoff)
+    assert client.get("/api/upcoming").json()["batch"]["predictions"] == []
+    assert len(client.get(f"/api/upcoming/batches/{batch['id']}").json()["predictions"]) == 1
+
+
+def test_upcoming_provider_failure_and_pagination_are_not_silent(upcoming_client, monkeypatch):
+    client, application, directory = upcoming_client
+    model_id = client.get("/api/status").json()["default_model_id"]
+    calls = []
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"data": [_upcoming_match(len(calls))], "meta": {"has_more": True}}
+
+    def get(*args, **kwargs):
+        calls.append(kwargs["params"]["offset"])
+        return Response()
+
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming.requests.get", get)
+    result = client.post("/api/upcoming/refresh", json={"model_id": model_id})
+    assert result.status_code == 503
+    assert calls == [0, 100, 200, 300, 400]
+    assert not list(directory.glob("*/batch.json"))
+    Response.status_code = 429
+    assert client.post("/api/upcoming/refresh", json={"model_id": model_id}).status_code == 503
+    assert client.post("/api/upcoming/refresh", json={"model_id": "unknown"}).status_code == 422
+    assert client.get("/api/upcoming/batches/invalid").status_code == 404
+
+
+def test_upcoming_rejects_ambiguous_players_and_untrusted_states():
+    from tennis_match_prediction.web.upcoming import UpcomingService
+
+    names = {"alice example": ["one", "two"], "bob example": ["bob"]}
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    reason, _, _ = UpcomingService._eligible(_upcoming_match(), now, names)
+    assert reason == "player_not_found_or_ambiguous"
+    for field, value in [
+        ("event_status", "Delayed"),
+        ("reason", "cancelled"),
+        ("event_status", "Interrupted"),
+    ]:
+        row = _upcoming_match()
+        row[field] = value
+        assert UpcomingService._eligible(row, now, names)[0] == "postponed_or_cancelled"
 
 
 @pytest.fixture
