@@ -2,7 +2,8 @@
 
 const $ = (id) => document.getElementById(id);
 const state = { status: null, players: [null, null], surface: "Hard", offset: 0, total: 0,
-  directorySequence: 0, predictionSequence: 0, profileSequence: 0, predicting: false };
+  directorySequence: 0, predictionSequence: 0, profileSequence: 0, predicting: false,
+  upcomingSequence: 0, upcomingBusy: false, upcomingBatch: null, upcomingConfigured: false };
 const searches = [0, 1].map(() => ({ sequence: 0, selectionSequence: 0, timer: null, options: [], active: -1 }));
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -120,19 +121,144 @@ async function suggest(slot) {
     if (sequence === searches[slot].sequence) list.innerHTML = `<div class="no-results">${escapeHTML(error.message)}</div>`;
   }
 }
-function showView(view) {
+function showView(view, updateLocation = true) {
   const players = view === "players";
-  $("matchup-view").hidden = players;
+  const upcoming = view === "upcoming";
+  const performance = view === "performance";
+  $("matchup-view").hidden = players || upcoming || performance;
   $("players-view").hidden = !players;
-  $("breadcrumb").textContent = players ? "Player explorer" : "Match predictor";
-  $("page-title").textContent = players ? "Get to know the game makers." : "Every matchup tells a story.";
-  $("page-description").textContent = players ? "Career records, surface strength, and the form behind the numbers." : "Explore the players. Set the conditions. See how they compare.";
+  $("upcoming-view").hidden = !upcoming;
+  $("performance-view").hidden = !performance;
+  $("breadcrumb").textContent = performance ? "Performance" : upcoming ? "Upcoming matches" : players ? "Player explorer" : "Match predictor";
+  $("page-title").textContent = performance ? "The results behind the forecasts." : upcoming ? "The next match starts here." : players ? "Get to know the game makers." : "Every matchup tells a story.";
+  $("page-description").textContent = performance ? "See how saved forecasts compare with results, and which matches are still pending." : upcoming ? "Upcoming ATP matches, with a forecast from your player history." : players ? "Career records, surface strength, and the form behind the numbers." : "Explore the players. Set the conditions. See how they compare.";
+  const path = performance ? "/performance" : "/";
+  if (updateLocation && location.pathname !== path) history.pushState({ view }, "", path);
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
     if (button.dataset.view === view) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
   if (players) loadDirectory();
+  if (upcoming) loadUpcoming();
+  if (performance) loadPerformance();
+}
+
+const performanceReasons = {
+  result_not_collected: "Awaiting result collection", result_unavailable: "Result unavailable",
+  match_id_conflict: "Match identity changed", participant_conflict: "Participants changed",
+  cancelled: "Cancelled matches", not_completed: "Matches still to finish",
+  excluded_outcome: "Retirements, walkovers or other excluded outcomes", unknown_winner: "Winner not confirmed",
+  unproven_timing: "Match timing not confirmed", not_pre_match: "Forecast outside the pre-match window",
+  incompatible_history_date: "History too recent for evaluation", invalid_probability: "Invalid forecast probabilities",
+  superseded_forecast: "Earlier forecasts replaced by a later eligible forecast"
+};
+
+function renderPerformance(report) {
+  $("performance-updated").textContent = `Report updated ${kickoffLabel(report.generated_at)}`;
+  const rows = report.models.map((model) => `<tr><td><strong>${escapeHTML(modelLabel(model.model_name))}</strong><small>Version ${escapeHTML(model.model_version.slice(0, 12))}</small></td>
+    <td>${number(model.count)} <span class="muted">/ ${number(model.forecast_matches)}</span></td><td>${percent(model.accuracy, 1)}</td><td>${number(model.brier, 4)}</td><td>${number(model.log_loss, 4)}</td></tr>`).join("");
+  const reasons = Object.entries(report.reason_counts).map(([reason, count]) => `<li><span>${escapeHTML(performanceReasons[reason] || "Other excluded forecasts")}</span><strong>${number(count)}</strong></li>`).join("");
+  $("performance-content").innerHTML = `<div class="performance-stats">
+    <article class="performance-stat">${stat("Matches forecast", number(report.forecast_match_count))}</article>
+    <article class="performance-stat">${stat("Matches evaluated", number(report.evaluated_match_count))}</article>
+    <article class="performance-stat">${stat("Forecast coverage", percent(report.prediction_coverage, 1))}</article>
+    <article class="performance-stat">${stat("Saved batches", number(report.batch_count))}</article></div>
+    <section class="performance-panel"><div class="section-heading"><h2>Results by model</h2><span>PROSPECTIVE EVALUATION</span></div>
+      <div class="performance-table-wrap" role="region" aria-label="Model performance" tabindex="0"><table class="performance-table"><thead><tr><th>Model</th><th>Evaluated / forecast</th><th>Accuracy</th><th>Brier</th><th>Log loss</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${!report.evaluated_count ? '<div class="performance-waiting"><span class="status-dot"></span>No eligible completed matches yet. Metrics will appear as results become available.</div>' : ""}
+      <p class="context-note">Lower Brier and log loss indicate better probability estimates. A neutral 50% forecast has Brier 0.25 and log loss 0.6931. Models may cover different matches.</p></section>
+    <div class="performance-details"><section class="performance-panel"><div class="section-heading"><h2>Excluded or pending forecasts</h2></div><ul class="performance-reasons">${reasons || '<li>No excluded forecasts.</li>'}</ul><p class="context-note">Counts refer to individual saved forecasts. A match can appear in more than one batch.</p></section>
+    <section class="performance-panel"><div class="section-heading"><h2>What counts in the report</h2></div><p class="performance-policy">The last eligible forecast for each match and model version. Only normal completions are scored; retirements, walkovers and cancellations are excluded.</p><p class="context-note">Forecasts must precede both saved schedules and the provider’s recorded live time. That observation can change and is not an official start time. Pending matches remain in coverage totals. Small samples do not establish calibration.</p></section></div>
+    <div class="performance-download"><a class="secondary-button" href="/api/performance/download">Download report ↓</a><a class="text-button" href="/api/performance">View full data ↗</a></div>`;
+}
+
+async function loadPerformance() {
+  $("reload-performance").disabled = true;
+  showError("performance-error", "");
+  try {
+    const response = await fetch("/api/performance");
+    if (response.status === 404) {
+      $("performance-updated").textContent = "Your forecast record starts here.";
+      $("performance-content").innerHTML = '<div class="upcoming-empty"><span aria-hidden="true">↗</span><h3>No performance report yet.</h3><p>Once saved forecasts have been checked against results, your report will appear here.</p></div>';
+      return;
+    }
+    if (!response.ok) throw new Error("Cannot load the performance report. Try again later.");
+    renderPerformance(await response.json());
+  } catch (error) { showError("performance-error", error.message); }
+  finally { $("reload-performance").disabled = false; }
+}
+
+window.addEventListener("popstate", (event) => showView(event.state?.view || (location.pathname === "/performance" ? "performance" : "upcoming"), false));
+
+const kickoffLabel = (value) => new Date(value).toLocaleString(undefined,
+  { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+
+function renderUpcoming(data) {
+  const batch = data.batch;
+  state.upcomingBatch = batch;
+  state.upcomingConfigured = data.configured;
+  $("refresh-upcoming").disabled = state.upcomingBusy || !data.configured || !$("model-select").value;
+  $("upcoming-model").textContent = `Model: ${$("model-select").selectedOptions[0]?.textContent || "No model selected"}`;
+  $("download-batch").hidden = !batch;
+  if (!batch) {
+    $("upcoming-summary").textContent = "";
+    $("upcoming-grid").innerHTML = `<div class="upcoming-empty"><span aria-hidden="true">▦</span><h3>Your next matches, in focus.</h3><p>${!data.configured ? "Configure the match provider on the server to load upcoming games." : !$("model-select").value ? "Choose a compatible model to generate forecasts." : "Refresh the schedule to generate forecasts for the available matches."}</p></div>`;
+    return;
+  }
+  const matches = batch.predictions.filter((row) => new Date(row.match.scheduled_time) > new Date());
+  const skipped = batch.skipped.length;
+  $("upcoming-summary").textContent = `${matches.length} upcoming forecasts · ${skipped} skipped · Schedule checked ${kickoffLabel(batch.source_fetched_at)} · Predictions ${kickoffLabel(batch.created_at)}`;
+  $("download-batch").href = `/api/upcoming/batches/${encodeURIComponent(batch.id)}`;
+  $("download-batch").setAttribute("download", `predictions-${batch.id.slice(0, 12)}.json`);
+  $("upcoming-grid").innerHTML = matches.length ? matches.map((row) => {
+    const p0 = row.player0_win_probability, p1 = row.player1_win_probability;
+    return `<article class="upcoming-card">
+      <div class="upcoming-context"><span>${escapeHTML(row.match.tournament)} · ${escapeHTML(row.match.round)}</span><span class="upcoming-surface">${escapeHTML(row.match.surface)}</span></div>
+      <time datetime="${escapeHTML(row.match.scheduled_time)}">${escapeHTML(kickoffLabel(row.match.scheduled_time))}</time>
+      <div class="upcoming-player"><button type="button" data-profile="${escapeHTML(row.player0.id)}">${escapeHTML(row.player0.name)}</button><strong>${percent(p0, 1)}</strong></div>
+      <div class="upcoming-player"><button type="button" data-profile="${escapeHTML(row.player1.id)}">${escapeHTML(row.player1.name)}</button><strong>${percent(p1, 1)}</strong></div>
+      <div class="probability-bar" role="img" aria-label="${escapeHTML(row.player0.name)} ${percent(p0, 1)}, ${escapeHTML(row.player1.name)} ${percent(p1, 1)}"><span style="width:${p0 * 100}%"></span></div>
+      <p class="upcoming-history">${escapeHTML(modelLabel(row.model_name))} · History ${escapeHTML(dateLabel(row.history_source_date))}</p>
+      <details><summary>Prediction details</summary><p class="context-note">Player one: ${escapeHTML(row.player0.name)} · Player two: ${escapeHTML(row.player1.name)}</p>
+        <table class="feature-table"><tbody>${Object.entries(row.features).map(([name, value]) => `<tr><td>${escapeHTML(name.replaceAll("_", " "))}</td><td>${number(value, 4)}</td></tr>`).join("")}</tbody></table>
+        <p class="context-note">Fair decimal odds: ${number(row.player0_decimal_odds, 2)} / ${number(row.player1_decimal_odds, 2)}. Probabilities are estimates; calibration has not been established.</p></details>
+    </article>`;
+  }).join("") : '<div class="upcoming-empty"><h3>No eligible upcoming matches.</h3><p>Unavailable players, postponements and matches that have started are excluded. Refresh the schedule later.</p></div>';
+}
+
+async function loadUpcoming(refresh = false) {
+  if (refresh && state.upcomingBusy) return;
+  const sequence = ++state.upcomingSequence;
+  state.upcomingBusy = refresh;
+  $("refresh-upcoming").disabled = true;
+  $("refresh-upcoming").textContent = refresh ? "Updating forecasts…" : "Refresh & predict ↗";
+  showError("upcoming-error", "");
+  if (!refresh) {
+    state.upcomingBatch = null;
+    $("upcoming-summary").textContent = "";
+    $("download-batch").hidden = true;
+    $("upcoming-grid").innerHTML = '<div class="loading">Loading upcoming forecasts…</div>';
+  }
+  try {
+    const modelId = $("model-select").value;
+    const data = refresh ? await api("/api/upcoming/refresh", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model_id: modelId })
+    }) : await api(`/api/upcoming?model_id=${encodeURIComponent(modelId)}`);
+    if (sequence !== state.upcomingSequence) return;
+    state.upcomingBusy = false;
+    renderUpcoming(data);
+  } catch (error) {
+    if (sequence !== state.upcomingSequence) return;
+    showError("upcoming-error", error.message);
+    if (!refresh) { $("upcoming-grid").innerHTML = ""; $("upcoming-summary").textContent = ""; $("download-batch").hidden = true; }
+    $("refresh-upcoming").disabled = !$("model-select").value;
+  } finally {
+    if (sequence === state.upcomingSequence) {
+      state.upcomingBusy = false;
+      $("refresh-upcoming").textContent = "Refresh & predict ↗";
+    }
+  }
 }
 
 async function loadDirectory() {
@@ -239,6 +365,8 @@ async function initialize() {
     await Promise.all(defaults.map((data, slot) => data.players[0] ? selectPlayer(slot, data.players[0].id) : Promise.resolve()));
     updatePredictButton();
   } catch (error) { showError("startup-error", error.message); $("snapshot-label").textContent = "History unavailable"; }
+  if (location.pathname === "/performance") showView("performance", false);
+  else if (state.status) showView("upcoming", false);
 }
 
 for (const slot of [0, 1]) {
@@ -304,7 +432,14 @@ $("swap-players").addEventListener("click", () => {
   invalidatePrediction();
 });
 $("match-date").addEventListener("input", invalidatePrediction);
-$("model-select").addEventListener("change", () => { updateModelInformation(); invalidatePrediction(); });
+$("model-select").addEventListener("change", () => { updateModelInformation(); invalidatePrediction(); loadUpcoming(); });
+$("refresh-upcoming").addEventListener("click", () => loadUpcoming(true));
+$("reload-performance").addEventListener("click", loadPerformance);
+setInterval(() => {
+  if (state.upcomingBatch && !$("upcoming-view").hidden && !state.upcomingBusy) {
+    renderUpcoming({ configured: state.upcomingConfigured, batch: state.upcomingBatch });
+  }
+}, 30000);
 $("model-details-button").addEventListener("click", () => $("settings-dialog").showModal());
 let directoryTimer;
 $("directory-search").addEventListener("input", () => {

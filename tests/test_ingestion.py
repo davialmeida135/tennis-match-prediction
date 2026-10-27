@@ -206,7 +206,7 @@ def test_invalid_local_season_does_not_replace_consolidated_csv(tmp_path):
     assert output.read_bytes() == _csv(2024)
 
 
-@pytest.mark.parametrize("failures,winerror", [(2, 32), (5, 32), (1, 5)])
+@pytest.mark.parametrize("failures,winerror", [(2, 32), (5, 32), (1, 5), (5, 5)])
 def test_consolidation_handles_file_locks(tmp_path, monkeypatch, failures, winerror):
     output = tmp_path / "all_atp_matches.csv"
     previous = _csv(2023)
@@ -232,21 +232,16 @@ def test_consolidation_handles_file_locks(tmp_path, monkeypatch, failures, winer
         "tennis_match_prediction.pipelines.historical_matches.config.time.sleep", delays.append
     )
     source = RawMatchesCsv(csv_path=str(output))
-    if failures == 2:
+    if failures < 5:
         source.consolidate_seasons(tmp_path)
         assert pd.read_csv(output)["tourney_date"].tolist() == [20240101]
-        assert len(attempts) == 3
-        assert delays == [0.25, 0.5]
+        assert len(attempts) == failures + 1
+        assert delays == [0.25 * 2**index for index in range(failures)]
     else:
         with pytest.raises(PermissionError) as caught:
             source.consolidate_seasons(tmp_path)
         assert output.read_bytes() == previous
-        if winerror == 32:
-            assert "Close applications" in str(caught.value)
-            assert len(attempts) == 5
-        else:
-            assert caught.value.winerror == 5
-            assert len(attempts) == 1
-            assert delays == []
+        assert "Check file permissions" in str(caught.value)
+        assert len(attempts) == 5
     assert shared_temporary.read_bytes() == b"other run"
     assert not list(tmp_path.glob(".all_atp_matches.csv.*.tmp"))

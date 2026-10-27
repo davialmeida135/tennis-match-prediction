@@ -82,6 +82,7 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
     raw_dir.mkdir()
     output = tmp_path / "curated"
     downloaded = _history(200)
+    calls = []
 
     class Response:
         def raise_for_status(self):
@@ -94,9 +95,12 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
         def content(self):
             return downloaded.to_csv(index=False).encode()
 
+    def get(*args, **kwargs):
+        calls.append(args[0])
+        return Response()
+
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
-        lambda *args, **kwargs: Response(),
+        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
     )
     source = RawMatchesCsv(
         csv_path=str(raw_dir / "all_atp_matches.csv"),
@@ -104,6 +108,7 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
         years=[2026],
     )
     initial = refresh_module.refresh_history(source, output_dir=output)
+    assert len(calls) == 2  # catalog and annual file, never a second fetch inside Dagster
     downloaded = _history(220).drop(index=10).reset_index(drop=True)
     # Correct the winner of an earlier match without creating another match.
     for stem in ("id", "name"):
@@ -126,10 +131,42 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
     assert actual_history == expected_history
     assert sum(player.wins for player in actual_history.players.values()) == 219
     assert len(pd.read_csv(output / paths.TRAINING_MATCHES_CSV_NAME)) == 219
-    repeated = refresh_module.refresh_history(source, output_dir=output)
+
+    def unexpected_rebuild(*args, **kwargs):
+        pytest.fail("Unchanged data and implementation must not rebuild the history")
+
+    with monkeypatch.context() as unchanged:
+        unchanged.setattr(refresh_module, "materialize", unexpected_rebuild)
+        repeated = refresh_module.refresh_history(source, output_dir=output)
+    assert repeated["status"] == "unchanged"
     assert updated["raw_sha256"] == repeated["raw_sha256"]
     for name in updated["artifacts"]:
         assert updated["artifacts"][name]["sha256"] == repeated["artifacts"][name]["sha256"]
+
+
+def test_publication_failure_restores_exports_and_keeps_previous_pointer(tmp_path, monkeypatch):
+    attempt = tmp_path / "attempt"
+    output = tmp_path / "published"
+    stage = attempt / "curated"
+    stage.mkdir(parents=True)
+    output.mkdir()
+    names = ("curated.csv", "training.csv", "history.parquet")
+    for name in names:
+        (output / name).write_bytes(b"old")
+        (stage / name).write_bytes(b"new")
+    (output / "latest_refresh.json").write_bytes(b"old pointer")
+    copyfile = refresh_module.shutil.copyfile
+
+    def fail_second_export(source, destination):
+        if source == stage / "training.csv":
+            raise OSError("publication interrupted")
+        return copyfile(source, destination)
+
+    monkeypatch.setattr(refresh_module.shutil, "copyfile", fail_second_export)
+    with pytest.raises(OSError, match="publication interrupted"):
+        refresh_module._publish_exports(attempt, output, {"artifacts": dict.fromkeys(names)})
+    assert all((output / name).read_bytes() == b"old" for name in names)
+    assert (output / "latest_refresh.json").read_bytes() == b"old pointer"
 
 
 def test_failed_checks_preserve_published_history_and_exports(tmp_path, monkeypatch):

@@ -36,8 +36,8 @@ requiring additional training-only columns are excluded. Profiles work without a
 model; prediction is disabled until one is available. `--history-path` and
 `--models-dir` override the default artifact locations.
 
-History is loaded once; selected models are cached. Restart the application after
-rebuilding history or adding model artifacts. It binds to localhost for personal
+Validated history publications reload on the next API request; selected models
+are cached. Restart the application after adding model artifacts. It binds to localhost for personal
 use and does not require Docker or a running MLflow server. Model selection uses
 trusted local project pickles; there is no model-upload endpoint.
 
@@ -82,14 +82,70 @@ version, run ID and version URI. Only load pickles from a trusted MLflow server.
 The player-history Parquet remains a separately deployed local file.
 
 The selected date must follow the history source date. Changing an allowed future
-date does not project age, form or ranking changes. Historical as-of predictions,
-upcoming fixture feeds and scheduled result ingestion are not implemented. Recent
+date does not project age, form or ranking changes. Historical as-of predictions
+are not implemented. Scheduled result ingestion is available through the daily
+maintenance job described below. Recent
 profile rows come from the player snapshot, which stores result/surface/source date
 but not opponents or scores. Fair odds are `1 / probability`, without bookmaker
 margin; a zero probability displays infinite odds. Probability calibration has not
 been established.
 
 ## Start here
+
+### Daily update and forecast performance
+
+```powershell
+uv run python -m tennis_match_prediction.maintenance
+```
+
+Refresh recent annual seasons and ongoing results, publish validated player history,
+then reconcile archived batch forecasts with observed results without retraining.
+Unchanged input/code and intact outputs skip the expensive history rebuild.
+The web app loads a newly published history snapshot on its next API request.
+Open **Performance** for accuracy, Brier, log loss, coverage and pending/excluded
+forecasts. Reports and result revisions are retained as Markdown/JSON.
+
+Dagster registers `daily_update` and `daily_history_and_performance` at 06:00
+America/Sao_Paulo (default RUNNING; requires a running Dagster daemon).
+For report-only collection, run `uv run python -m tennis_match_prediction.performance`;
+add `--offline` to reuse saved results. See [policies, commands and operational
+limits](docs/daily-update-and-performance.md), including conservative timing,
+excluded outcomes, bounded provider requests and snapshot publication.
+
+### Upcoming matches and batch predictions
+
+With `LIVE_TENNIS_API_KEY` set in the local `.env`, start the web app and open
+**Upcoming matches**. **Refresh & predict** loads ATP singles main-draw matches
+from Live Tennis API using the model selected under **Model & data details**.
+Local and MLflow registry models use the same inference engine as manual predictions.
+
+The batch skips missing/ambiguous players, postponed/cancelled or started matches,
+unknown surfaces, missing/non-future timestamps and dates incompatible with the
+loaded history. Players are resolved only by a unique normalized full name; there
+is no fuzzy match or alias guessing. Probabilities follow the match endpoint's
+participant IDs and ordering. Refresh fetches at most five pages; incomplete
+pagination or provider errors leave the previous published batch available.
+
+The screen shows tournament/round, local start time, surface, player probabilities,
+the history date and an expandable feature table. Download the batch JSON for all
+inputs, features, model/history hashes, skip reasons and provenance. Saved reads
+make no provider calls; refresh requests within one minute reuse the same source
+snapshot. Games disappear from the current view at their scheduled start time.
+Provider changes are picked up on the next refresh; the last check time is displayed.
+
+Each batch is retained under `data/predictions/<batch-id>/`, including `batch.json`,
+`source.json`, the exact `model.pkl` and `model.json`, and `player_history.parquet`.
+These files reproduce the forecast after source/model/history updates, including
+after temporary registry downloads are removed. Identical source/model/history
+and eligible matches reuse the saved batch. Restarting with another history hides
+old batches from the current view while preserving their downloads on disk.
+Use `--predictions-dir` to override storage. Preserve these files while predictions
+need to remain reproducible; their snapshots consume disk space.
+
+API: `GET /api/upcoming?model_id=...`, `POST /api/upcoming/refresh` with
+`{"model_id": "..."}`, and `GET /api/upcoming/batches/<batch-id>` for the JSON download.
+
+### Build history and train
 
 Use Python 3.12 and `uv`:
 
@@ -161,6 +217,22 @@ attempt directories only when they are no longer needed for reproduction/debuggi
 Restart the web application after publishing to load the updated player history.
 This flow currently uses annual ATP files; ingestion of `ongoing_tourneys.csv` and
 automatic scheduling remain planned work.
+
+## Live Tennis API experiment
+
+An isolated probe tests ATP singles main-draw fixtures without changing historical
+datasets or generating predictions. Set `LIVE_TENNIS_API_KEY` in your ignored local
+`.env` and run:
+
+```powershell
+uv run python -m tennis_match_prediction.live_tennis_probe --history-path data/curated/player_history.parquet
+```
+
+It makes four bounded calls and saves local responses and an analysis report under
+`data/tmp/live-tennis-api/<attempt-id>/`. See [the live test findings](docs/live-tennis-api-test.md)
+for observed fixture/match ID differences, swapped participant order and pending
+identity mapping. The fixture list includes terminal/live rows; this experiment
+is separate from the application batch workflow described above.
 
 ## How the code fits together
 

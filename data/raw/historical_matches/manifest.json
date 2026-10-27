@@ -292,12 +292,12 @@
     },
     {
       "path": "2025.csv",
-      "sha256": "2b201025c9cf1a3c7842c289f825a637a28548dea7f92479510a060146df4fff",
+      "sha256": "5630ff8ee5ff380b765b3f30f9cb85b646e219fab14a28b87edb8b67e2153226",
       "year": 2025
     },
     {
       "path": "2026.csv",
-      "sha256": "1ef84028f5bf40a410d00d898ab6e3abf63b5a8bf8e940865b28057473d59190",
+      "sha256": "5be48387d6e7e3c8956493a6f544bfe9c4e62e6626e10807cc693f3a2e6649d9",
       "year": 2026
     }
   ],

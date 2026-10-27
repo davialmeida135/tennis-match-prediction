@@ -1,6 +1,7 @@
 """Cached, read-only player and model access for the local application."""
 
 import hashlib
+import json
 import logging
 import math
 import unicodedata
@@ -41,12 +42,31 @@ class PlayerService:
     """One frozen history snapshot per server lifetime; models load on first selection."""
 
     def __init__(self, history_path: Path, models_dir: Path, model_path: Path | None) -> None:
+        publication = history_path.parent / "latest_refresh.json"
+        expected_hash = None
+        if publication.is_file():
+            manifest = json.loads(publication.read_text(encoding="utf-8"))
+            item = manifest["artifacts"].get(history_path.name)
+            if (
+                item is not None
+                and Path(item["published_path"]).resolve() == history_path.resolve()
+            ):
+                snapshot = Path(item["snapshot_path"])
+                if not snapshot.resolve().is_relative_to(
+                    (history_path.parent / ".refreshes").resolve()
+                ):
+                    raise ValueError("Published history snapshot is outside the refresh directory")
+                history_path = snapshot
+                expected_hash = item["sha256"]
         if not history_path.is_file():
             raise FileNotFoundError(
                 "Player history is missing. Materialize materialize_historical_dataset first."
             )
         content = history_path.read_bytes()
+        self._history_bytes = content
         self.history_version = hashlib.sha256(content).hexdigest()
+        if expected_hash is not None and self.history_version != expected_hash:
+            raise ValueError("Published history snapshot checksum does not match its manifest")
         snapshot = pd.read_parquet(BytesIO(content))
         self.history = PlayerHistory.model_validate_json(snapshot.loc[0, "history"])
         if self.history.last_source_date is None or not self.history.players:
@@ -78,10 +98,12 @@ class PlayerService:
                         "Selected model requires features unavailable at prediction time"
                     )
                 continue
-            model_id = hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:16]
+            # Registry downloads use temporary paths; identity must survive server restarts.
+            model_id = hashlib.sha256(metadata.model_dump_json().encode()).hexdigest()[:16]
             self.models[model_id] = (path, metadata)
         self.default_model_id = next(iter(self.models), None)
         self._artifacts: dict[str, tuple[ModelArtifact, str]] = {}
+        self._model_bytes: dict[str, bytes] = {}
         self._model_lock = Lock()
         self._index = {
             player_id: search_key(self.history.players[player_id].name)
@@ -101,14 +123,29 @@ class PlayerService:
         with self._model_lock:
             if model_id not in self._artifacts:
                 path, metadata = self.models[model_id]
+                content = path.read_bytes()
                 artifact = load_artifact(path)
-                if artifact.metadata != metadata:
+                if artifact.metadata != metadata or path.read_bytes() != content:
                     raise ValueError("Model changed since startup. Restart the web application.")
                 self._artifacts[model_id] = (
                     artifact,
-                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                    hashlib.sha256(content).hexdigest(),
                 )
+                self._model_bytes[model_id] = content
             return self._artifacts[model_id]
+
+    def save_prediction_artifacts(self, model_id: str, directory: Path) -> None:
+        """Keep the exact frozen artifacts used by inference, including registry downloads."""
+        artifact, _ = self._load_model(model_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "model.pkl").write_bytes(self._model_bytes[model_id])
+        (directory / "model.json").write_text(
+            artifact.metadata.model_dump_json(indent=2), encoding="utf-8"
+        )
+        (directory / "player_history.parquet").write_bytes(self._history_bytes)
+
+    def model_version(self, model_id: str) -> str:
+        return self._load_model(model_id)[1]
 
     def status(self) -> dict[str, JsonValue]:
         cutoff = self.history.last_source_date

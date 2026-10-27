@@ -17,6 +17,7 @@ from dagster import materialize
 from tennis_match_prediction.paths import (
     CURATED_DIR,
     CURATED_MATCHES_CSV_NAME,
+    PROJECT_ROOT,
     TRAINING_MATCHES_CSV_NAME,
 )
 from tennis_match_prediction.pipelines.historical_matches.config import (
@@ -57,11 +58,48 @@ def _refresh_history(source: RawMatchesCsv, output_dir: Path) -> dict[str, Any]:
         "source": source.model_dump(mode="json"),
         "report_path": str(report_path.resolve()),
     }
+    artifact_names = (CURATED_MATCHES_CSV_NAME, TRAINING_MATCHES_CSV_NAME, "player_history.parquet")
     try:
+        raw_path = Path(source.csv_path)
+        if source.refresh:
+            years = set(source.years) if source.years is not None else None
+            source.refresh_history(raw_path.parent, years)
+        elif not raw_path.exists():
+            source.consolidate_seasons(raw_path.parent)
+        shutil.copyfile(raw_path, attempt / "source.csv")
+        report["raw_sha256"] = _sha256(attempt / "source.csv")
+        report["pipeline_sha256"] = _pipeline_sha256()
+        latest_path = output_dir / "latest_refresh.json"
+        if latest_path.is_file():
+            latest = json.loads(latest_path.read_text(encoding="utf-8"))
+            if (
+                latest.get("raw_sha256") == report["raw_sha256"]
+                and latest.get("pipeline_sha256") == report["pipeline_sha256"]
+                and set(latest.get("artifacts", {})) == set(artifact_names)
+                and all(
+                    (output_dir / name).is_file()
+                    and _sha256(output_dir / name) == item["sha256"]
+                    and Path(item["snapshot_path"]).is_file()
+                    and _sha256(Path(item["snapshot_path"])) == item["sha256"]
+                    for name, item in latest["artifacts"].items()
+                )
+            ):
+                report["status"] = "unchanged"
+                report["artifacts"] = latest["artifacts"]
+                return report
+        # ConfigurableResource caches its resolved config; model_copy(update=...)
+        # does not replace that Dagster config. Construct a fresh resource.
+        frozen_source = RawMatchesCsv(
+            **{
+                **source.model_dump(),
+                "csv_path": str(attempt / "source.csv"),
+                "refresh": False,
+            }
+        )
         result = materialize(
             [*ASSETS, *ASSET_CHECKS],
             resources={
-                "raw_matches_csv": source,
+                "raw_matches_csv": frozen_source,
                 "io_manager": ParquetDataFrameIOManager(
                     base_dir=str(attempt / "staging"), curated_base_dir=str(staged_curated)
                 ),
@@ -90,29 +128,21 @@ def _refresh_history(source: RawMatchesCsv, output_dir: Path) -> dict[str, Any]:
             raise RuntimeError("Historical dataset execution or quality checks failed")
 
         # Keep exact inputs alongside the generated snapshots for subsequent comparisons.
-        raw_path = Path(source.csv_path)
-        shutil.copyfile(raw_path, attempt / "source.csv")
         manifest_path = raw_path.parent / "manifest.json"
         if manifest_path.exists():
             shutil.copyfile(manifest_path, attempt / "source_manifest.json")
         report["raw_sha256"] = _sha256(attempt / "source.csv")
         report["artifacts"] = {}
-        for name in (
-            CURATED_MATCHES_CSV_NAME,
-            TRAINING_MATCHES_CSV_NAME,
-            "player_history.parquet",
-        ):
+        for name in artifact_names:
             snapshot = staged_curated / name
             destination = output_dir / name
-            with _atomic_output(destination) as temporary:
-                shutil.copyfile(snapshot, temporary)
             report["artifacts"][name] = {
                 "snapshot_path": str(snapshot.resolve()),
                 "published_path": str(destination.resolve()),
                 "sha256": _sha256(snapshot),
                 "bytes": snapshot.stat().st_size,
             }
-        report["status"] = "success"
+        _publish_exports(attempt, output_dir, report)
     except Exception as error:
         report["status"] = "failed"
         report["error"] = str(error)
@@ -125,9 +155,45 @@ def _refresh_history(source: RawMatchesCsv, output_dir: Path) -> dict[str, Any]:
     return report
 
 
+def _publish_exports(attempt: Path, output_dir: Path, report: dict[str, Any]) -> None:
+    backups = attempt / "previous"
+    backups.mkdir()
+    for name in report["artifacts"]:
+        if (output_dir / name).exists():
+            shutil.copyfile(output_dir / name, backups / name)
+    try:
+        for name in report["artifacts"]:
+            with _atomic_output(output_dir / name) as temporary:
+                shutil.copyfile(attempt / "curated" / name, temporary)
+        report["status"] = "success"
+        # Web readers resolve this pointer to immutable validated snapshots.
+        with _atomic_output(output_dir / "latest_refresh.json") as temporary:
+            temporary.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    except OSError:
+        # Restore compatibility exports after a handled publication failure.
+        # Web readers keep their old immutable snapshot until the pointer changes.
+        for name in report["artifacts"]:
+            if (backups / name).exists():
+                with _atomic_output(output_dir / name) as temporary:
+                    shutil.copyfile(backups / name, temporary)
+            else:
+                (output_dir / name).unlink(missing_ok=True)
+        raise
+
+
 def _sha256(path: Path) -> str:
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def _pipeline_sha256() -> str:
+    """Invalidate the unchanged shortcut when implementation or dependencies change."""
+    digest = hashlib.sha256()
+    files = sorted((PROJECT_ROOT / "src" / "tennis_match_prediction").rglob("*.py"))
+    for path in [*files, PROJECT_ROOT / "pyproject.toml", PROJECT_ROOT / "uv.lock"]:
+        digest.update(str(path.relative_to(PROJECT_ROOT)).encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def main() -> None:
@@ -137,12 +203,16 @@ def main() -> None:
     parser.add_argument("--csv-path", type=Path)
     parser.add_argument("--output-dir", type=Path, default=CURATED_DIR)
     parser.add_argument("--local-only", action="store_true", help="rebuild without downloading")
+    parser.add_argument(
+        "--include-ongoing", action="store_true", help="retain recent partial results"
+    )
     arguments = parser.parse_args()
     if arguments.local_only and arguments.years:
         parser.error("years selects downloads and cannot be combined with --local-only")
     options: dict[str, Any] = {
         "refresh": not arguments.local_only,
         "years": arguments.years or None,
+        "include_ongoing": arguments.include_ongoing,
     }
     if arguments.csv_path is not None:
         options["csv_path"] = str(arguments.csv_path)

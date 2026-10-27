@@ -1,6 +1,9 @@
 # Plano: resultados novos e predições de partidas futuras
 
-Status: atualização com reconstrução completa implementada; demais entregas propostas.
+Status atualizado em 27/10/2026: reconstrução completa, próximos jogos, predições em
+lote e ciclo diário de atualização/avaliação implementados. Este documento preserva
+o plano original; o estado e as limitações atuais estão em
+[rotina diária e desempenho](daily-update-and-performance.md) e no `TODO.md`.
 
 Primeira implementação: `refresh_history` agora executa o grafo histórico completo,
 valida checks antes de publicar, preserva snapshots por tentativa e registra tempos
@@ -95,6 +98,11 @@ Critérios de aceite:
 
 ## Entrega 2 — Programação das próximas partidas
 
+Investigação realizada em 27/10/2026: [evidências do TennisMyLife](upcoming-matches-source-investigation.md).
+O CSV em andamento contém resultados; o JSON público de programação não fornece
+IDs, superfície e horários. As amostras das APIs não confirmaram uma programação
+futura utilizável. Avaliar uma fonte adicional antes de implementar o coletor.
+
 Investigar primeiro a programação do TennisMyLife. Verificar acesso reproduzível,
 cobertura ATP, antecedência, frequência de atualização e condições de uso. Um
 calendário de torneios ou resultados de torneios em andamento não comprova a
@@ -182,7 +190,8 @@ O particionamento anual também permanece uma otimização, conforme `partitioni
   e programação; isso não confirma um feed utilizável de confrontos futuros.
 - Inspeção local: `pipelines/historical_matches/{config,assets,defs}.py`,
   `ml/predict.py`, `web/service.py`, `README.md` e `TODO.md`.
-- A API do catálogo e o download do arquivo em andamento não puderam ser inspecionados
-  pelo navegador nesta investigação. Não há confirmação de schema/status/horários.
+- A limitação inicial de inspeção pelo navegador foi superada em 27/10/2026 com
+  consultas HTTP diretas. O catálogo e o CSV foram inspecionados; horários e
+  adiamentos não constam no CSV. Ver a investigação da entrega 2 para detalhes.
 - `uv run --no-sync dg list defs --json` não listou definições neste ambiente;
   reportou falhas de acesso ao cache do uv. A análise das definições foi estática.
