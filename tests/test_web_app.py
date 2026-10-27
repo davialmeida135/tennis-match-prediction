@@ -1,6 +1,7 @@
 """HTTP behavior, ID resolution, cached inference and model compatibility."""
 
 import json
+import re
 from datetime import UTC, date, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -512,6 +513,21 @@ def test_status_static_assets_and_accent_insensitive_search(client, web_files):
     assert second["players"][0]["id"] == "alice-two"
     assert client.get("/api/players?q=no-such-player").json()["players"] == []
     assert client.get("/api/players?limit=101").status_code == 422
+
+
+def test_pages_revalidate_html_and_version_assets_by_content(client):
+    home = client.get("/")
+    performance = client.get("/performance")
+    assert home.text == performance.text
+    for page in (home, performance):
+        assert page.headers["cache-control"] == "no-cache"
+        assert page.headers["content-type"].startswith("text/html")
+    for asset in ("app.js", "style.css"):
+        url = re.search(rf'/static/{re.escape(asset)}\?v=([0-9a-f]{{64}})', home.text)
+        assert url is not None
+        response = client.get(url.group(0))
+        assert response.status_code == 200
+        assert sha256(response.content).hexdigest() == url.group(1)
 
 
 def test_profile_preserves_missing_statistics_and_observed_zero(client):

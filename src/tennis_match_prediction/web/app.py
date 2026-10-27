@@ -5,13 +5,14 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import JsonValue
 
@@ -59,6 +60,11 @@ def create_app(
 
     application = FastAPI(title="Court Report", lifespan=lifespan)
     static = Path(__file__).parent / "static"
+    # Keep the HTML and browser assets in sync across service deployments.
+    index_html = (static / "index.html").read_text(encoding="utf-8")
+    for asset in ("app.js", "style.css"):
+        version = sha256((static / asset).read_bytes()).hexdigest()
+        index_html = index_html.replace(f"/static/{asset}", f"/static/{asset}?v={version}")
     reload_lock = Lock()
     report_directory = (
         performance_dir
@@ -128,8 +134,8 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(error)) from error
 
     @application.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(static / "index.html")
+    def index() -> HTMLResponse:
+        return HTMLResponse(index_html, headers={"Cache-Control": "no-cache"})
 
     @application.get("/dagster", include_in_schema=False)
     def dagster_redirect(request: Request) -> RedirectResponse:
@@ -183,8 +189,8 @@ def create_app(
         return FileResponse(read_performance()[1] / "report.md", filename="performance.md")
 
     @application.get("/performance", include_in_schema=False)
-    def performance_page() -> FileResponse:
-        return FileResponse(static / "index.html")
+    def performance_page() -> HTMLResponse:
+        return index()
 
     application.mount("/static", StaticFiles(directory=static), name="static")
     return application

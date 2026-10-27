@@ -41,6 +41,12 @@ are cached. Restart the application after adding model artifacts. It binds to lo
 use and does not require Docker or a running MLflow server. Model selection uses
 trusted local project pickles; there is no model-upload endpoint.
 
+After deploying web app updates, restart the service. HTML responses require cache
+revalidation, and JavaScript/CSS URLs include content hashes so browsers fetch the
+matching assets after an update. If navigation still shows an older page, try a
+hard refresh (Ctrl+Shift+R) and check whether a reverse proxy overrides the app's
+cache headers or serves its own copy of `/static`.
+
 ### Load a web model from MLflow Model Registry
 
 The web app can resolve an existing registered model on startup and download its
