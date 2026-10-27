@@ -17,6 +17,7 @@
       <button class="nav-item active" data-view="matchup" aria-current="page"><span aria-hidden="true">↗</span> Match predictor</button>
       <button class="nav-item" data-view="upcoming"><span aria-hidden="true">▦</span> Upcoming matches</button>
       <button class="nav-item" data-view="players"><span aria-hidden="true">◎</span> Player explorer</button>
+      <button class="nav-item" data-view="performance"><span aria-hidden="true">↗</span> Performance</button>
     </nav>
     <div class="sidebar-court" aria-hidden="true"><img src="/static/court.svg" alt=""><p>Know the players.<br>Read the matchup.</p></div>
     <div class="sidebar-bottom"><span class="status-dot"></span> Personal workspace<small>Powered by your historical data</small></div>
@@ -38,6 +39,11 @@
         <div id="upcoming-grid" class="upcoming-grid" aria-live="polite"></div>
         <div class="upcoming-download"><a id="download-batch" class="secondary-button" hidden>Download prediction batch ↓</a></div>
       </section>
+      <section id="performance-view" hidden>
+        <div class="upcoming-toolbar"><div><h2>How the forecasts performed</h2><p id="performance-updated" class="context-note">Results from your saved forecasts.</p></div><button id="reload-performance" class="secondary-button" type="button">Reload report ↻</button></div>
+        <div id="performance-error" class="notice error" role="alert" hidden></div>
+        <div id="performance-content" aria-live="polite"></div>
+      </section>
       <section id="matchup-view">
         <form id="prediction-form">
           <div class="section-heading"><h2>Build a matchup</h2><span>01 <span class="muted">/ SELECT YOUR PLAYERS</span></span></div>
@@ -58,6 +64,6 @@
     </div>
   </main>
   <dialog id="profile-dialog" aria-labelledby="profile-dialog-title"><div class="dialog-top"><span class="eyebrow">PLAYER PROFILE</span><button type="button" data-close-dialog="profile-dialog" class="close-button" aria-label="Close player profile">×</button></div><div id="profile-dialog-content"></div></dialog>
-  <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-top"><span class="eyebrow">YOUR WORKSPACE</span><button type="button" data-close-dialog="settings-dialog" class="close-button" aria-label="Close model details">×</button></div><h2 id="settings-title">Model & data</h2><label for="model-select">Prediction model</label><select id="model-select"></select><div id="model-information"></div><p class="context-note">Models and history are loaded from your local files. Restart the application after rebuilding history or adding models.</p><p class="context-note">Fair odds are derived from model probabilities and contain no bookmaker margin. Calibration has not been established.</p></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-top"><span class="eyebrow">YOUR WORKSPACE</span><button type="button" data-close-dialog="settings-dialog" class="close-button" aria-label="Close model details">×</button></div><h2 id="settings-title">Model & data</h2><label for="model-select">Prediction model</label><select id="model-select"></select><div id="model-information"></div><p class="context-note">Validated history refreshes load automatically on the next API request. Restart the application after adding models.</p><p class="context-note">Fair odds are derived from model probabilities and contain no bookmaker margin. Calibration has not been established.</p></dialog>
 </body>
 </html>

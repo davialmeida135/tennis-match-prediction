@@ -35,6 +35,7 @@ from tennis_match_prediction.pipelines.historical_matches.checks import (
     winrate_features_are_probabilities,
 )
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.maintenance import DailyMaintenance
 from tennis_match_prediction.pipelines.model_training.assets import trained_model
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
@@ -85,14 +86,17 @@ train_model = define_asset_job(
     selection=AssetSelection.assets(trained_model),
 )
 
-defs = Definitions(
-    assets=[*ASSETS, trained_model],
-    asset_checks=ASSET_CHECKS,
-    jobs=[materialize_historical_dataset, train_model],
-    resources={
-        # Intermediate snapshots go to staging; prediction history goes to curated.
-        "io_manager": ParquetDataFrameIOManager(),
-        # Where the raw CSV is read from.
-        "raw_matches_csv": RawMatchesCsv(),
-    },
+defs = Definitions.merge(
+    Definitions(
+        assets=[*ASSETS, trained_model],
+        asset_checks=ASSET_CHECKS,
+        jobs=[materialize_historical_dataset, train_model],
+        resources={
+            # Intermediate snapshots go to staging; prediction history goes to curated.
+            "io_manager": ParquetDataFrameIOManager(),
+            # Where the raw CSV is read from.
+            "raw_matches_csv": RawMatchesCsv(),
+        },
+    ),
+    DailyMaintenance().build_defs(),
 )

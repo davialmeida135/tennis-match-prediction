@@ -50,12 +50,15 @@ def _atomic_output(output: Path) -> Iterator[Path]:
                 temporary.replace(output)
                 break
             except PermissionError as error:
-                if getattr(error, "winerror", None) not in {32, 33}:
+                # Windows scanners can briefly deny replacement with ACCESS_DENIED
+                # (5), not only the sharing/lock violations (32/33).
+                if getattr(error, "winerror", None) not in {5, 32, 33}:
                     raise
                 if attempt == 4:
                     raise PermissionError(
-                        f"Cannot replace {output}: Windows reports that a file is in use. "
-                        "Close applications holding the CSV open and retry materialization."
+                        f"Cannot replace {output}: Windows denied access "
+                        "or reports that a file is in use. "
+                        "Check file permissions and applications holding it open, then retry."
                     ) from error
                 time.sleep(0.25 * 2**attempt)
     finally:
@@ -69,6 +72,7 @@ class RawMatchesCsv(ConfigurableResource):
         default=os.getenv("TENNIS_RAW_MATCHES_CSV") or str(DEFAULT_HISTORICAL_MATCHES_CSV)
     )
     refresh: bool = True
+    include_ongoing: bool = False
     years: list[int] | None = None
     first_year: int | None = Field(
         default=None,
@@ -103,8 +107,66 @@ class RawMatchesCsv(ConfigurableResource):
             raise ValueError(f"Requested seasons are unavailable: {sorted(years - available)}")
 
         downloaded = [self._download_file(file, destination) for file in selected]
+        if self.include_ongoing:
+            ongoing = [file for file in files if file.get("name") == "ongoing_tourneys.csv"]
+            if len(ongoing) != 1:
+                raise ValueError("Catalog must contain exactly one ongoing_tourneys.csv")
+            self._download_ongoing(ongoing[0], destination)
         self._write_manifest(destination, downloaded)
         return sorted(downloaded, key=lambda item: item.year)
+
+    def _download_ongoing(self, file: dict[str, Any], destination: Path) -> None:
+        """Retain observed results; absence from a partial feed never deletes a match."""
+        response = requests.get(str(file["url"]), timeout=self.timeout)
+        response.raise_for_status()
+        content = response.content
+        frame = pd.read_csv(BytesIO(content), dtype=str)
+        self._normalize_match_numbers(frame)
+        self._validate_result_keys(frame)
+        if (
+            "score" not in frame
+            or frame["score"].fillna("").str.strip().isin(["", "To play", "to play"]).any()
+        ):
+            raise ValueError("Ongoing feed contains rows without a result")
+        digest = hashlib.sha256(content).hexdigest()
+        snapshots = destination / "ongoing_snapshots"
+        snapshots.mkdir(exist_ok=True)
+        snapshot = snapshots / f"{digest}.csv"
+        if not snapshot.exists():
+            with _atomic_output(snapshot) as temporary:
+                temporary.write_bytes(content)
+        retained = destination / "ongoing_results.csv"
+        if retained.exists():
+            previous = pd.read_csv(retained, dtype=str)
+            self._normalize_match_numbers(previous)
+            self._validate_result_keys(previous)
+            frame = pd.concat([previous, frame], ignore_index=True).drop_duplicates(
+                ["tourney_id", "match_num"], keep="last"
+            )
+        with _atomic_output(retained) as temporary:
+            frame.to_csv(temporary, index=False)
+
+    @staticmethod
+    def _normalize_match_numbers(frame: pd.DataFrame) -> None:
+        if "match_num" in frame:
+            frame["match_num"] = (
+                pd.to_numeric(frame["match_num"], errors="raise").astype("Int64").astype("string")
+            )
+
+    @staticmethod
+    def _validate_result_keys(frame: pd.DataFrame) -> None:
+        missing = REQUIRED_COLUMNS.difference(frame.columns)
+        if missing:
+            raise ValueError(f"Results missing columns: {sorted(missing)}")
+        keys = ["tourney_id", "match_num", "winner_id", "loser_id"]
+        if frame[keys].isna().any().any() or frame[keys].eq("").any().any():
+            raise ValueError("Results require complete match and participant IDs")
+        if frame.duplicated(["tourney_id", "match_num"]).any():
+            raise ValueError("Ambiguous result identity: repeated tournament/match number")
+        if pd.to_numeric(frame["match_num"], errors="raise").le(0).any():
+            raise ValueError("Results require positive match numbers")
+        if frame["winner_id"].eq(frame["loser_id"]).any():
+            raise ValueError("Results contain identical participants")
 
     def _is_annual_atp_file(self, file: dict[str, Any], years: set[int] | None) -> bool:
         name = str(file.get("name", ""))
@@ -154,9 +216,8 @@ class RawMatchesCsv(ConfigurableResource):
             "source": self.catalog_url,
             "seasons": [seasons[year] for year in sorted(seasons)],
         }
-        (destination / "manifest.json").write_text(
-            json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
-        )
+        with _atomic_output(manifest_path) as temporary:
+            temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
 
     def load_seasons(self, raw_directory: Path) -> pd.DataFrame:
         """Load, validate, and deduplicate local annual ATP files into one chronological frame."""
@@ -181,6 +242,53 @@ class RawMatchesCsv(ConfigurableResource):
                 raise ValueError(f"{path.name} is incompatible; missing columns: {sorted(missing)}")
             frames.append(season)
         frame = pd.concat(frames, ignore_index=True)
+        retained = raw_directory / "ongoing_results.csv"
+        if self.include_ongoing and retained.exists():
+            ongoing = pd.read_csv(retained, dtype=str)
+            # Read both identity columns as text before joining across sources.
+            annual = frame.copy()
+            for column in ("tourney_id", "match_num", "winner_id", "loser_id"):
+                annual[column] = annual[column].astype("string")
+            self._normalize_match_numbers(annual)
+            self._normalize_match_numbers(ongoing)
+            annual = annual.drop_duplicates().reset_index(drop=True)
+            # Legacy annual rows may lack match numbers or player IDs. Preserve
+            # them for the existing chronology/normalization policy, but do not
+            # use an incomplete identity to reconcile a partial feed.
+            complete = (
+                annual[["tourney_id", "match_num", "winner_id", "loser_id"]].notna().all(axis=1)
+            )
+            complete &= ~annual.duplicated(["tourney_id", "match_num"], keep=False)
+            complete &= annual["winner_id"].ne(annual["loser_id"]).fillna(False)
+            identified = annual.loc[complete]
+            self._validate_result_keys(identified)
+            self._validate_result_keys(ongoing)
+            if self.first_year is not None:
+                years = pd.to_datetime(ongoing["tourney_date"], format="mixed").dt.year
+                ongoing = ongoing.loc[years >= self.first_year]
+            unresolved = annual.loc[~complete, ["tourney_id", "match_num"]]
+            if not unresolved.merge(ongoing, on=["tourney_id", "match_num"]).empty:
+                raise ValueError(
+                    "Ongoing result overlaps an ambiguous annual identity; review source"
+                )
+            overlap = identified.merge(
+                ongoing, on=["tourney_id", "match_num"], suffixes=("_a", "_o")
+            )
+            for row in overlap.to_dict("records"):
+                if {row["winner_id_a"], row["loser_id_a"]} != {
+                    row["winner_id_o"],
+                    row["loser_id_o"],
+                }:
+                    raise ValueError("Annual/ongoing participant conflict; review identity")
+            # Annual is authoritative, including corrected winners and scores.
+            reconciled = pd.concat([ongoing, identified], ignore_index=True).drop_duplicates(
+                ["tourney_id", "match_num"], keep="last"
+            )
+            frame = pd.concat([reconciled, annual.loc[~complete]], ignore_index=True)
+            frame["tourney_date"] = pd.to_datetime(
+                frame["tourney_date"].astype(str), format="mixed", errors="raise"
+            ).dt.strftime("%Y%m%d")
+            frame["match_num"] = pd.to_numeric(frame["match_num"], errors="raise")
         missing = REQUIRED_COLUMNS.difference(frame.columns)
         if missing:
             raise ValueError(f"Annual files are incompatible; missing columns: {sorted(missing)}")

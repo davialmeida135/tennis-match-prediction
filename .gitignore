@@ -200,6 +200,11 @@ dagster_home/logs
 /mlartifacts/
 /data/state/
 /data/predictions/
+/data/performance/
+/data/maintenance/
+latest_refresh.json
+.performance.lock
+.maintenance.lock
 upcoming_predictions/
 # Full-rebuild attempts and the local publication lock (also for custom output dirs).
 .refreshes/

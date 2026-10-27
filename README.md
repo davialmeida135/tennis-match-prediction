@@ -36,8 +36,8 @@ requiring additional training-only columns are excluded. Profiles work without a
 model; prediction is disabled until one is available. `--history-path` and
 `--models-dir` override the default artifact locations.
 
-History is loaded once; selected models are cached. Restart the application after
-rebuilding history or adding model artifacts. It binds to localhost for personal
+Validated history publications reload on the next API request; selected models
+are cached. Restart the application after adding model artifacts. It binds to localhost for personal
 use and does not require Docker or a running MLflow server. Model selection uses
 trusted local project pickles; there is no model-upload endpoint.
 
@@ -83,13 +83,34 @@ The player-history Parquet remains a separately deployed local file.
 
 The selected date must follow the history source date. Changing an allowed future
 date does not project age, form or ranking changes. Historical as-of predictions
-and scheduled result ingestion are not implemented. Recent
+are not implemented. Scheduled result ingestion is available through the daily
+maintenance job described below. Recent
 profile rows come from the player snapshot, which stores result/surface/source date
 but not opponents or scores. Fair odds are `1 / probability`, without bookmaker
 margin; a zero probability displays infinite odds. Probability calibration has not
 been established.
 
 ## Start here
+
+### Daily update and forecast performance
+
+```powershell
+uv run python -m tennis_match_prediction.maintenance
+```
+
+Refresh recent annual seasons and ongoing results, publish validated player history,
+then reconcile archived batch forecasts with observed results without retraining.
+Unchanged input/code and intact outputs skip the expensive history rebuild.
+The web app loads a newly published history snapshot on its next API request.
+Open **Performance** for accuracy, Brier, log loss, coverage and pending/excluded
+forecasts. Reports and result revisions are retained as Markdown/JSON.
+
+Dagster registers `daily_update` and `daily_history_and_performance` at 06:00
+America/Sao_Paulo (default RUNNING; requires a running Dagster daemon).
+For report-only collection, run `uv run python -m tennis_match_prediction.performance`;
+add `--offline` to reuse saved results. See [policies, commands and operational
+limits](docs/daily-update-and-performance.md), including conservative timing,
+excluded outcomes, bounded provider requests and snapshot publication.
 
 ### Upcoming matches and batch predictions
 

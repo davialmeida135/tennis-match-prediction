@@ -28,6 +28,24 @@ prospectiva. O processamento incremental dos estados fica como otimização post
 - [x] Calcular comparações antes de atualizar resultados dos grupos com ordem ambígua.
 - [x] Remover features de carga em 7/14 dias enquanto não houver datas reais das partidas.
 
+## Ciclo operacional e avaliação prospectiva
+
+- [x] Associar previsões arquivadas aos resultados pelo ID de partida da Live Tennis API e conferir os IDs dos participantes, mesmo com ordem invertida.
+- [x] Preservar revisões dos resultados e relatórios sem alterar as previsões originais.
+- [x] Avaliar a última previsão elegível por partida e versão exata do modelo; excluir cancelamentos, walkovers, abandonos e resultados sem evidência temporal suficiente.
+- [x] Gerar relatório Markdown/JSON com accuracy, Brier, log loss, cobertura, defasagem do histórico, calibração descritiva e métricas por superfície; disponibilizar a página Performance.
+- [x] Criar comando diário de atualização do histórico e avaliação, sem retreino, com relatórios de sucesso/falha por etapa e bloqueio de execuções concorrentes.
+- [x] Registrar job `daily_update` e schedule diário às 06:00 em America/Sao_Paulo; execução depende do daemon Dagster em funcionamento.
+- [x] Integrar resultados de `ongoing_tourneys.csv`, reter observações ausentes do arquivo parcial e dar precedência ao anual; bloquear identidades ambíguas e conflitos de participantes.
+- [x] Evitar reconstrução quando o conteúdo consolidado, código/dependências e artefatos publicados continuam iguais.
+- [x] Recarregar na aplicação snapshots publicados e verificados; preservar o histórico anterior se o novo snapshot for inválido.
+- [ ] Validar longitudinalmente migração entre arquivo parcial/anual, adiamentos e correções reais do provedor.
+- [ ] Fortalecer a comprovação do início efetivo: `live_at` é observação do provedor e pode ser regravado, não um horário oficial. A política atual usa também os horários agendados original/final como cortes conservadores.
+- [ ] Acumular amostra prospectiva suficiente antes de concluir sobre desempenho ou calibração.
+- [ ] Definir retenção de snapshots e relatórios e recuperação após encerramento abrupto com lock abandonado.
+
+Uso e políticas: [rotina diária e desempenho](docs/daily-update-and-performance.md).
+
 ## 1. Cronologia e qualidade das features
 
 - [ ] Documentar a granularidade de `tourney_date` por temporada/fonte: data da partida, início do torneio ou outra referência.
@@ -76,8 +94,8 @@ no treino; qualquer calibrador deve respeitar a separação temporal.
 - [ ] Definir como detectar correções, exclusões e resultados atrasados em temporadas já ingeridas.
 - [ ] Reconstruir o estado a partir de um ponto seguro quando houver alterações históricas.
 - [ ] Avaliar particionamento da ingestão por ano, preservando a continuidade do histórico entre temporadas.
-- [ ] Validar os arquivos baixados antes de substituir versões locais válidas e manter um manifesto de todas as temporadas consolidadas.
-- [ ] Validar o fluxo completo: histórico inicial → lote novo → features → histórico atualizado → predição.
+- [x] Validar os arquivos anuais baixados antes de substituir versões locais válidas e manter um manifesto das temporadas.
+- [x] Validar o fluxo completo com reconstrução: histórico inicial → resultados novos → features → histórico atualizado → predição manual. Execução real em 27/10/2026, sem falhas nos checks; processamento incremental continua pendente.
 
 Critério de conclusão: processamento incremental e reconstrução completa produzem
 as mesmas features e estados, dentro da tolerância numérica definida. Reprocessar
@@ -90,8 +108,8 @@ o mesmo lote não altera o resultado.
 - [ ] Documentar que previsões históricas exigem o estado anterior ao confronto; o estado final não pode ser usado para avaliar o passado.
 - [ ] Versionar o schema do histórico e das features, com política de compatibilidade ou reconstrução.
 - [x] Registrar hashes dos dados, commit, configuração, períodos e identificador do treinamento nos artefatos e no MLflow.
-- [ ] Identificar o snapshot de histórico usado em cada previsão e verificar compatibilidade com o modelo.
-- [ ] Salvar previsões com entradas, features, probabilidades, versão do modelo e referência ao histórico.
+- [x] Identificar o snapshot de histórico usado em cada previsão e verificar compatibilidade com o modelo.
+- [x] Salvar previsões com entradas, features, probabilidades, versão do modelo e referência ao histórico.
 - [ ] Avaliar o formato de persistência do histórico conforme volume e uso: JSON dentro de Parquet, tabelas estruturadas ou banco de dados.
 
 Critério de conclusão: uma previsão registrada pode ser reproduzida com os
@@ -103,19 +121,19 @@ artefatos e configurações identificados, mesmo após novas atualizações.
 - [x] Preservar fonte, modelo, histórico e features por lote; disponibilizar download JSON e ocultar jogos cujo horário previsto já passou.
 - [x] Testar a Live Tennis API com chave gratuita em branch separada; registrar cobertura, diferenças de IDs/ordenação e candidatos de identidade. [Resultado](docs/live-tennis-api-test.md).
 - [x] Investigar o TennisMyLife: validar CSV em andamento, JSON de programação e amostras das APIs. [Evidências e lacunas](docs/upcoming-matches-source-investigation.md).
-- [ ] Definir uma fonte para buscar partidas futuras, com IDs, superfície e data prevista.
+- [x] Definir uma fonte para buscar partidas futuras, com IDs, superfície e data prevista: Live Tennis API.
 - [ ] Resolver jogadores por ID e manter aliases de nomes, tratando ambiguidades explicitamente.
 - [x] Rejeitar confrontos do jogador consigo mesmo.
 - [ ] Definir comportamento para jogadores ausentes do histórico e histórico insuficiente.
-- [ ] Informar a referência temporal do histórico e sua possível defasagem na saída da predição.
-- [ ] Implementar predição em lote para a programação de partidas.
-- [ ] Associar resultados posteriores às previsões para acompanhar desempenho fora da amostra.
+- [x] Informar a referência temporal do histórico e sua possível defasagem na saída da predição.
+- [x] Implementar predição em lote para a programação de partidas.
+- [x] Associar resultados posteriores às previsões para acompanhar desempenho fora da amostra, conforme política temporal documentada.
 
 ## 6. Dagster, CI e documentação
 
 - [ ] Revisar dependências e artefatos do Dagster para conectar ingestão, atualização das features e predição em lote.
-- [ ] Definir automação da ingestão e atualização do histórico, com frequência de treinamento independente.
-- [ ] Evitar recomputação dos dados quando a fonte não tiver mudanças.
+- [x] Definir automação da ingestão e atualização do histórico, com frequência de treinamento independente.
+- [x] Evitar recomputação dos dados quando a fonte e a implementação não tiverem mudanças e os artefatos estiverem íntegros.
 - [x] Adicionar `pytest` à CI e ampliar Ruff para `pipelines`, `ml` e `tests`.
 - [x] Validar carregamento das definições do Dagster na CI.
 - [ ] Atualizar `docs/project-diagram.md`, removendo referências ao antigo `feature_state.py` e ao treino direto dos dados brutos.

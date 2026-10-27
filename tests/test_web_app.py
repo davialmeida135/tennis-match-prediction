@@ -251,6 +251,73 @@ def client(web_files):
         yield test_client
 
 
+def test_web_reloads_only_validated_published_history(client, web_files):
+    history_path = web_files[0]
+    previous = client.get("/api/status").json()
+    frame = pd.read_parquet(history_path)
+    history = json.loads(frame.loc[0, "history"])
+    history["last_source_date"] = "2026-10-26"
+    frame.loc[0, "history"] = json.dumps(history)
+    snapshot = history_path.parent / ".refreshes" / "test-publication" / "history.parquet"
+    snapshot.parent.mkdir(parents=True)
+    frame.to_parquet(snapshot, index=False)
+    publication = {
+        "artifacts": {
+            history_path.name: {
+                "published_path": str(history_path.resolve()),
+                "snapshot_path": str(snapshot.resolve()),
+                "sha256": sha256(snapshot.read_bytes()).hexdigest(),
+            }
+        },
+    }
+    pointer = history_path.parent / "latest_refresh.json"
+    pointer.write_text(json.dumps(publication), encoding="utf-8")
+    # The compatibility file may still be old. Only the committed snapshot is read.
+    updated = client.get("/api/status").json()
+    assert updated["history_source_date"] == "2026-10-26"
+    assert updated["history_version"] != previous["history_version"]
+    assert updated["history_reload_error"] is None
+    publication["artifacts"][history_path.name]["sha256"] = "incorrect"
+    pointer.write_text(json.dumps(publication), encoding="utf-8")
+    retained = client.get("/api/status").json()
+    assert retained["history_version"] == updated["history_version"]
+    assert retained["history_reload_error"] is not None
+    publication["artifacts"][history_path.name]["sha256"] = sha256(
+        snapshot.read_bytes()
+    ).hexdigest()
+    pointer.write_text(json.dumps(publication), encoding="utf-8")
+    assert client.get("/api/status").json()["history_reload_error"] is None
+
+
+def test_performance_page_and_report_download(web_files, tmp_path):
+    from tennis_match_prediction.performance import update_performance
+
+    application = create_app(
+        history_path=web_files[0],
+        models_dir=web_files[1],
+        model_path=web_files[2],
+        performance_dir=tmp_path / "performance",
+    )
+    with TestClient(application) as browser:
+        assert browser.get("/api/performance").status_code == 404
+        page = browser.get("/performance")
+        assert page.status_code == 200
+        assert page.text == browser.get("/").text
+        assert '/static/style.css' in page.text
+        assert 'data-view="performance"' in page.text
+        assert 'id="performance-view"' in page.text
+        update_performance(
+            tmp_path / "predictions", tmp_path / "performance", api_key=None, max_requests=0
+        )
+        assert browser.get("/api/performance").json()["evaluated_count"] == 0
+        page = browser.get("/performance")
+        assert page.status_code == 200
+        assert page.text == browser.get("/").text
+        download = browser.get("/api/performance/download")
+        assert download.status_code == 200
+        assert "performance.md" in download.headers["content-disposition"]
+
+
 @pytest.fixture
 def registry_client(web_files, tmp_path, monkeypatch):
     from tennis_match_prediction.web import registry

@@ -1,6 +1,9 @@
 # Plano: resultados novos e predições de partidas futuras
 
-Status: atualização com reconstrução completa implementada; demais entregas propostas.
+Status atualizado em 27/10/2026: reconstrução completa, próximos jogos, predições em
+lote e ciclo diário de atualização/avaliação implementados. Este documento preserva
+o plano original; o estado e as limitações atuais estão em
+[rotina diária e desempenho](daily-update-and-performance.md) e no `TODO.md`.
 
 Primeira implementação: `refresh_history` agora executa o grafo histórico completo,
 valida checks antes de publicar, preserva snapshots por tentativa e registra tempos

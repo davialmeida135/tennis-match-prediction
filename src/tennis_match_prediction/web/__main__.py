@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--history-path", type=Path, default=PLAYER_HISTORY_PATH)
     parser.add_argument("--models-dir", type=Path, default=MODELS_DIR)
     parser.add_argument("--predictions-dir", type=Path, default=DATA_DIR / "predictions")
+    parser.add_argument("--performance-dir", type=Path, default=DATA_DIR / "performance")
     arguments = parser.parse_args()
     if not 1 <= arguments.port <= 65535:
         parser.error("port must be between 1 and 65535")
@@ -71,6 +72,7 @@ def main() -> None:
         model_path=arguments.model_path,
         registry_model=registry_model,
         predictions_dir=arguments.predictions_dir,
+        performance_dir=arguments.performance_dir,
     )
     uvicorn.run(application, host="0.0.0.0", port=arguments.port)
 

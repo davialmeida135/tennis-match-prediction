@@ -1,6 +1,7 @@
 """Cached, read-only player and model access for the local application."""
 
 import hashlib
+import json
 import logging
 import math
 import unicodedata
@@ -41,6 +42,22 @@ class PlayerService:
     """One frozen history snapshot per server lifetime; models load on first selection."""
 
     def __init__(self, history_path: Path, models_dir: Path, model_path: Path | None) -> None:
+        publication = history_path.parent / "latest_refresh.json"
+        expected_hash = None
+        if publication.is_file():
+            manifest = json.loads(publication.read_text(encoding="utf-8"))
+            item = manifest["artifacts"].get(history_path.name)
+            if (
+                item is not None
+                and Path(item["published_path"]).resolve() == history_path.resolve()
+            ):
+                snapshot = Path(item["snapshot_path"])
+                if not snapshot.resolve().is_relative_to(
+                    (history_path.parent / ".refreshes").resolve()
+                ):
+                    raise ValueError("Published history snapshot is outside the refresh directory")
+                history_path = snapshot
+                expected_hash = item["sha256"]
         if not history_path.is_file():
             raise FileNotFoundError(
                 "Player history is missing. Materialize materialize_historical_dataset first."
@@ -48,6 +65,8 @@ class PlayerService:
         content = history_path.read_bytes()
         self._history_bytes = content
         self.history_version = hashlib.sha256(content).hexdigest()
+        if expected_hash is not None and self.history_version != expected_hash:
+            raise ValueError("Published history snapshot checksum does not match its manifest")
         snapshot = pd.read_parquet(BytesIO(content))
         self.history = PlayerHistory.model_validate_json(snapshot.loc[0, "history"])
         if self.history.last_source_date is None or not self.history.players:
