@@ -97,21 +97,39 @@ def test_ambiguous_or_conflicting_partial_identity_is_rejected(tmp_path):
         source.consolidate_seasons(tmp_path)
 
 
-def test_daily_job_reports_history_failure_and_still_evaluates(tmp_path, monkeypatch):
-    refresh = Mock(side_effect=RuntimeError("invalid source"))
-    evaluate = Mock(return_value={"report_path": "report.md", "evaluated_count": 3})
+@pytest.mark.parametrize(
+    "failed_stages", [("history",), ("performance",), ("history", "performance")]
+)
+def test_daily_job_reports_stage_failures_and_runs_both_stages(
+    tmp_path, monkeypatch, failed_stages
+):
+    refresh = Mock(
+        return_value={"status": "success", "report_path": "history.json", "raw_sha256": "abc"},
+        side_effect=RuntimeError("invalid source") if "history" in failed_stages else None,
+    )
+    evaluate = Mock(
+        return_value={"report_path": "report.md", "evaluated_count": 3},
+        side_effect=OSError("permission denied") if "performance" in failed_stages else None,
+    )
     monkeypatch.setattr(
         "tennis_match_prediction.pipelines.historical_matches.refresh_history.refresh_history",
         refresh,
     )
     monkeypatch.setattr("tennis_match_prediction.maintenance.update_performance", evaluate)
     settings = MaintenanceSettings(reports_dir=tmp_path, max_requests=0)
-    with pytest.raises(RuntimeError, match="Daily update had failures"):
+    with pytest.raises(RuntimeError, match="Daily update had failures") as failure:
         run_daily_update(settings)
+    assert refresh.call_count == 1
     assert evaluate.call_count == 1
     report = json.loads((tmp_path / "latest.json").read_text())
-    assert report["stages"]["history"]["status"] == "failed"
-    assert report["stages"]["performance"]["evaluated_count"] == 3
+    assert report["status"] == "failed"
+    for stage in failed_stages:
+        result = report["stages"][stage]
+        assert result["status"] == "failed"
+        assert f"{stage}: {result['error']}" in str(failure.value)
+    assert str((tmp_path / f"{report['id']}.json").resolve()) in str(failure.value)
+    if "performance" not in failed_stages:
+        assert report["stages"]["performance"]["evaluated_count"] == 3
     assert not (tmp_path / ".maintenance.lock").exists()
 
 

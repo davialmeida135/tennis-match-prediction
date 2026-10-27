@@ -86,7 +86,12 @@ def run_daily_update(settings: MaintenanceSettings) -> dict[str, Any]:
         _write_json(path, report)
         _write_json(settings.reports_dir / "latest.json", report)
         if report["status"] == "failed":
-            raise RuntimeError(f"Daily update had failures; see {path.resolve()}")
+            failures = "; ".join(
+                f"{stage}: {result['error']}"
+                for stage, result in report["stages"].items()
+                if result["status"] == "failed"
+            )
+            raise RuntimeError(f"Daily update had failures: {failures}; see {path.resolve()}")
         return report
     finally:
         lock.unlink()
