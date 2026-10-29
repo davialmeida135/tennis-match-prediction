@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import JsonValue
 
-from tennis_match_prediction.contracts import ExperimentConfig, ExperimentResult
+from tennis_match_prediction.contracts.experiments import ExperimentConfig, ExperimentResult
 from tennis_match_prediction.ml.config import (
     TEST_START,
     TRAIN_START,

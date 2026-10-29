@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from tennis_match_prediction.live_tennis_probe import analyze_samples, run_probe
+from tennis_match_prediction.diagnostics.live_tennis_probe import analyze_samples, run_probe
 
 
 def _samples():
@@ -102,7 +102,7 @@ def test_probe_uses_bounded_requests_and_keeps_credentials_out_of_artifacts(tmp_
         calls.append((url, kwargs["params"]))
         return Response(payloads[len(calls) - 1])
 
-    monkeypatch.setattr("tennis_match_prediction.live_tennis_probe.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.diagnostics.live_tennis_probe.requests.get", get)
     report = run_probe("test-secret", output_dir=tmp_path)
     assert report["status"] == "success"
     assert len(calls) == 4
@@ -122,7 +122,7 @@ def test_authentication_failure_is_not_retried_or_leaked(tmp_path, monkeypatch):
         calls.append(1)
         return Response()
 
-    monkeypatch.setattr("tennis_match_prediction.live_tennis_probe.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.diagnostics.live_tennis_probe.requests.get", get)
     with pytest.raises(RuntimeError, match="Probe failed"):
         run_probe("test-secret", output_dir=tmp_path)
     assert len(calls) == 1

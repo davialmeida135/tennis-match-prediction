@@ -5,26 +5,16 @@ import json
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import TemporaryDirectory
 from threading import Lock
 from typing import Any
 
 import requests
 
-from tennis_match_prediction.live_tennis_probe import BASE_URL
+from tennis_match_prediction.providers.live_tennis import BASE_URL
+from tennis_match_prediction.storage.json_io import write_json
 from tennis_match_prediction.web.contracts import MatchupRequest
 from tennis_match_prediction.web.service import PlayerService, search_key
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(dir=path.parent, mode="w", encoding="utf-8", delete=False) as handle:
-        temporary = Path(handle.name)
-        json.dump(payload, handle, ensure_ascii=False, indent=2, allow_nan=False)
-    try:
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 class UpcomingService:
@@ -171,12 +161,12 @@ class UpcomingService:
                 with TemporaryDirectory(dir=self.directory, prefix=".batch-") as temporary:
                     stage = Path(temporary) / "artifacts"
                     self.players.save_prediction_artifacts(model_id, stage)
-                    _write_json(stage / "source.json", source)
-                    _write_json(stage / "batch.json", batch)
+                    write_json(stage / "source.json", source)
+                    write_json(stage / "batch.json", batch)
                     stage.replace(destination)
             else:
                 batch = json.loads((destination / "batch.json").read_text(encoding="utf-8"))
-            _write_json(self.directory / f"latest-{model_id}.json", {"id": batch_id})
+            write_json(self.directory / f"latest-{model_id}.json", {"id": batch_id})
             return self.latest(model_id)
 
     @staticmethod

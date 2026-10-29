@@ -13,12 +13,9 @@ from threading import Lock
 import pandas as pd
 from pydantic import JsonValue, ValidationError
 
-from tennis_match_prediction.contracts import (
-    PLAYER_COMPARISON_FEATURE_COLUMNS,
-    ModelMetadata,
-    PlayerHistory,
-    PlayerState,
-)
+from tennis_match_prediction.contracts.experiments import ModelMetadata
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.player_history import PlayerHistory, PlayerState
 from tennis_match_prediction.ml.artifacts import ModelArtifact, load_artifact
 from tennis_match_prediction.ml.predict import features_for_players, probability_for
 from tennis_match_prediction.web.contracts import MatchupRequest

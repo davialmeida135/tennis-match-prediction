@@ -15,7 +15,8 @@ from uuid import uuid4
 import requests
 from dotenv import load_dotenv
 
-BASE_URL = "https://api.livetennisapi.com/api/public/v1"
+from tennis_match_prediction.providers.live_tennis import BASE_URL
+
 SAMPLE_FILTERS = {"tour": "atp", "draw": "singles", "is_qualifying": "false", "limit": 100}
 
 

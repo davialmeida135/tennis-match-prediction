@@ -3,7 +3,7 @@
 import pandas as pd
 import polars as pl
 
-from tennis_match_prediction.contracts import INITIAL_ELO, PlayerState
+from tennis_match_prediction.contracts.player_history import INITIAL_ELO, PlayerState
 from tennis_match_prediction.transforms.history import (
     history_batches,
     prepare_history,

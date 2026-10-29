@@ -8,7 +8,8 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from tennis_match_prediction.performance import evaluate_batches, update_performance
+from tennis_match_prediction.forecast_evaluation.reconciliation import evaluate_batches
+from tennis_match_prediction.forecast_evaluation.service import update_performance
 
 
 def batch(batch_id="a", created="2000-01-02T12:00:00Z", probability=0.8):
@@ -153,7 +154,7 @@ def test_result_revisions_offline_replay_and_failure_preserve_publication(tmp_pa
     response = Mock(status_code=200)
     response.json.return_value = observation()["match"]
     get = Mock(return_value=response)
-    monkeypatch.setattr("tennis_match_prediction.performance.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.forecast_evaluation.service.requests.get", get)
     first = update_performance(forecasts, output, api_key="secret")
     assert first["models"][0]["accuracy"] == 1
     response.json.return_value["winner"] = 1
@@ -179,7 +180,7 @@ def test_result_revisions_offline_replay_and_failure_preserve_publication(tmp_pa
 def test_provider_errors_never_publish_a_report(tmp_path, monkeypatch, status):
     save_batch(tmp_path / "predictions", batch())
     monkeypatch.setattr(
-        "tennis_match_prediction.performance.requests.get",
+        "tennis_match_prediction.forecast_evaluation.service.requests.get",
         Mock(return_value=Mock(status_code=status)),
     )
     with pytest.raises(RuntimeError, match=f"HTTP {status}"):
@@ -201,7 +202,7 @@ def test_request_budget_rotates_oldest_observation(tmp_path, monkeypatch):
         result["id"] = match_id
         return Mock(status_code=200, json=lambda: result)
 
-    monkeypatch.setattr("tennis_match_prediction.performance.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.forecast_evaluation.service.requests.get", get)
     output = tmp_path / "reports"
     update_performance(tmp_path / "predictions", output, api_key="key", max_requests=1)
     second = update_performance(tmp_path / "predictions", output, api_key="key", max_requests=1)

@@ -9,7 +9,8 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory, Prediction
+    from tennis_match_prediction.contracts.player_history import PlayerHistory
+    from tennis_match_prediction.contracts.prediction import FutureMatchRequest, Prediction
     from tennis_match_prediction.ml.artifacts import ModelArtifact
 
 
@@ -22,7 +23,8 @@ def predict(
     # Startup imports measured ~94s here; keep CLI help and validation standard-library-only.
     import pandas as pd
 
-    from tennis_match_prediction.contracts import PlayerHistory, Prediction
+    from tennis_match_prediction.contracts.player_history import PlayerHistory
+    from tennis_match_prediction.contracts.prediction import Prediction
     from tennis_match_prediction.ml.artifacts import load_artifact
     from tennis_match_prediction.paths import PLAYER_HISTORY_PATH
 
@@ -181,7 +183,7 @@ def main() -> None:
     # Argument parsing must finish before importing the contracts' dataframe dependencies.
     from pydantic import ValidationError
 
-    from tennis_match_prediction.contracts import FutureMatchRequest
+    from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 
     try:
         request = FutureMatchRequest(

@@ -75,7 +75,7 @@ variável de ambiente correspondente. O exemplo versionado contém somente o cam
 vazio. Não passar a chave como argumento de linha de comando.
 
 ```powershell
-uv run python -m tennis_match_prediction.live_tennis_probe --history-path data/curated/player_history.parquet
+uv run python -m tennis_match_prediction.diagnostics.live_tennis_probe --history-path data/curated/player_history.parquet
 uv run pytest tests/test_live_tennis_probe.py -q
 ```
 

@@ -12,14 +12,15 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+from tennis_match_prediction.forecast_evaluation.service import update_performance
 from tennis_match_prediction.paths import CURATED_DIR, DATA_DIR, DEFAULT_HISTORICAL_MATCHES_CSV
-from tennis_match_prediction.performance import update_performance
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
-from tennis_match_prediction.web.upcoming import _write_json
+from tennis_match_prediction.pipelines.historical_matches.refresh_history import refresh_history
+from tennis_match_prediction.storage.json_io import write_json
 
 
 @dataclass
-class MaintenanceSettings:
+class DailyUpdateSettings:
     csv_path: Path = DEFAULT_HISTORICAL_MATCHES_CSV
     curated_dir: Path = CURATED_DIR
     predictions_dir: Path = DATA_DIR / "predictions"
@@ -31,11 +32,8 @@ class MaintenanceSettings:
     reports_dir: Path = field(default_factory=lambda: DATA_DIR / "maintenance")
 
 
-def run_daily_update(settings: MaintenanceSettings) -> dict[str, Any]:
+def run_daily_update(settings: DailyUpdateSettings) -> dict[str, Any]:
     """Run independent stages even if one fails; preserve a dated operational report."""
-    # Import at execution time to keep Dagster definition construction free of cycles.
-    from tennis_match_prediction.pipelines.historical_matches.refresh_history import refresh_history
-
     if not 0 <= settings.max_requests <= 20:
         raise ValueError("max_requests must be between 0 and 20")
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
@@ -83,8 +81,8 @@ def run_daily_update(settings: MaintenanceSettings) -> dict[str, Any]:
         )
         report["finished_at"] = datetime.now(UTC).isoformat()
         path = settings.reports_dir / f"{report['id']}.json"
-        _write_json(path, report)
-        _write_json(settings.reports_dir / "latest.json", report)
+        write_json(path, report)
+        write_json(settings.reports_dir / "latest.json", report)
         if report["status"] == "failed":
             failures = "; ".join(
                 f"{stage}: {result['error']}"
@@ -111,7 +109,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         report = run_daily_update(
-            MaintenanceSettings(
+            DailyUpdateSettings(
                 csv_path=args.csv_path,
                 curated_dir=args.curated_dir,
                 predictions_dir=args.predictions_dir,

@@ -4,7 +4,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from tennis_match_prediction.contracts import LogisticRegressionSettings
+from tennis_match_prediction.contracts.model_settings import LogisticRegressionSettings
 from tennis_match_prediction.ml.models.base import SklearnMatchModel
 
 

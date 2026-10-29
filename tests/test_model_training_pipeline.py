@@ -8,7 +8,7 @@ import yaml
 from dagster import AssetKey, DagsterInstance, Definitions, validate_run_config
 
 from tennis_match_prediction.ml.artifacts import load_artifact
-from tennis_match_prediction.pipelines.historical_matches.defs import defs
+from tennis_match_prediction.pipelines.defs import defs
 from tennis_match_prediction.pipelines.model_training.assets import trained_model
 
 

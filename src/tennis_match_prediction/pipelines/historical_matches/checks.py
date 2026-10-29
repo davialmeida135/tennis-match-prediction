@@ -8,7 +8,7 @@ reported in the Dagster UI with the numbers that caused it.
 import pandas as pd
 from dagster import AssetCheckResult, MetadataValue, asset_check
 
-from tennis_match_prediction.contracts import NORMALIZED_REQUIRED_COLUMNS
+from tennis_match_prediction.contracts.datasets import NORMALIZED_REQUIRED_COLUMNS
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
     elo_featured_atp_matches,

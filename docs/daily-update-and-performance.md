@@ -1,7 +1,7 @@
 # Rotina diária e desempenho prospectivo
 
 ```powershell
-uv run python -m tennis_match_prediction.maintenance
+uv run python -m tennis_match_prediction.workflows.daily_update
 ```
 
 O comando atualiza a temporada corrente e a anterior, preserva as demais temporadas
@@ -20,7 +20,7 @@ deixar o lock: confirmar que não existe execução ativa antes de removê-lo.
 Para execução local sem acesso às fontes:
 
 ```powershell
-uv run python -m tennis_match_prediction.maintenance --local-only --offline-results
+uv run python -m tennis_match_prediction.workflows.daily_update --local-only --offline-results
 ```
 
 `--csv-path`, `--curated-dir`, `--predictions-dir` e `--performance-dir` permitem
@@ -78,8 +78,8 @@ o término bem-sucedido da atualização.
 ## Associação dos resultados e política de avaliação
 
 ```powershell
-uv run python -m tennis_match_prediction.performance
-uv run python -m tennis_match_prediction.performance --offline
+uv run python -m tennis_match_prediction.forecast_evaluation
+uv run python -m tennis_match_prediction.forecast_evaluation --offline
 ```
 
 Somente lotes imutáveis `data/predictions/*/batch.json` da Live Tennis API entram

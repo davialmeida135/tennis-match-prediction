@@ -2,7 +2,7 @@
 
 from sklearn.ensemble import ExtraTreesClassifier
 
-from tennis_match_prediction.contracts import ExtraTreesSettings
+from tennis_match_prediction.contracts.model_settings import ExtraTreesSettings
 from tennis_match_prediction.ml.models.base import SklearnMatchModel
 
 

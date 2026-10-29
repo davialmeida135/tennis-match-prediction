@@ -2,7 +2,7 @@
 
 from sklearn.ensemble import RandomForestClassifier
 
-from tennis_match_prediction.contracts import RandomForestSettings
+from tennis_match_prediction.contracts.model_settings import RandomForestSettings
 from tennis_match_prediction.ml.models.base import SklearnMatchModel
 
 

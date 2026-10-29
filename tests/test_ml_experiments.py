@@ -18,7 +18,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory, PlayerState
+from tennis_match_prediction.contracts.player_history import PlayerHistory, PlayerState
+from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.artifacts import load_artifact
 from tennis_match_prediction.ml.config import tracking_settings
 from tennis_match_prediction.ml.evaluation import validate_probabilities

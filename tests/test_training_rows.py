@@ -1,6 +1,6 @@
 import pandas as pd
 
-from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     MATCH_COLUMNS,

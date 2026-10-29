@@ -1,4 +1,4 @@
-"""Dagster component for the existing daily maintenance workflow."""
+"""Dagster component for the daily history refresh and forecast evaluation workflow."""
 
 from pathlib import Path
 
@@ -16,7 +16,7 @@ class DailyUpdateConfig(dg.Config):
     max_requests: int = 20
 
 
-class DailyMaintenance(dg.Component, dg.Resolvable, dg.Model):
+class DailyUpdate(dg.Component, dg.Resolvable, dg.Model):
     """Wrap bounded REST collection; definitions perform no network or disk access."""
 
     def build_defs(self, context: dg.ComponentLoadContext | None = None) -> dg.Definitions:
@@ -24,13 +24,16 @@ class DailyMaintenance(dg.Component, dg.Resolvable, dg.Model):
         def update_history_and_performance(
             context: dg.OpExecutionContext, config: DailyUpdateConfig
         ):
-            from tennis_match_prediction.maintenance import MaintenanceSettings, run_daily_update
+            from tennis_match_prediction.workflows.daily_update import (
+                DailyUpdateSettings,
+                run_daily_update,
+            )
 
             options = config.model_dump(exclude_none=True)
             for key in ("csv_path", "curated_dir", "predictions_dir", "performance_dir"):
                 if key in options:
                     options[key] = Path(options[key])
-            report = run_daily_update(MaintenanceSettings(**options))
+            report = run_daily_update(DailyUpdateSettings(**options))
             context.log.info("Daily update completed: %s", report)
 
         @dg.job(

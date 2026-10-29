@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from pathlib import Path
 
-from tennis_match_prediction.contracts import ModelMetadata
+from tennis_match_prediction.contracts.experiments import ModelMetadata
 from tennis_match_prediction.ml.models.base import BaseMatchModel
 
 

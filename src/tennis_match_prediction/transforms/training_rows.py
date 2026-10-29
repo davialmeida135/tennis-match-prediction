@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
 
 TARGET_COLUMN = "winner"
 

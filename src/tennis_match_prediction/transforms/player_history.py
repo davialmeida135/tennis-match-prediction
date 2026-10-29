@@ -5,12 +5,8 @@ from math import isfinite
 
 import pandas as pd
 
-from tennis_match_prediction.contracts import (
-    PLAYER_COMPARISON_FEATURE_COLUMNS,
-    PlayedMatch,
-    PlayerHistory,
-    PlayerState,
-)
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.player_history import PlayedMatch, PlayerHistory, PlayerState
 from tennis_match_prediction.transforms.elo import update_match_ratings
 from tennis_match_prediction.transforms.history import (
     history_batches,

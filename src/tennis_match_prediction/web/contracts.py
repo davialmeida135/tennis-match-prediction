@@ -4,7 +4,8 @@ from datetime import date
 
 from pydantic import Field, field_validator, model_validator
 
-from tennis_match_prediction.contracts import ContractModel, FutureMatchRequest
+from tennis_match_prediction.contracts.base import ContractModel
+from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 
 
 class MatchupRequest(ContractModel):

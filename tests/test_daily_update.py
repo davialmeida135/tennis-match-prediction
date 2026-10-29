@@ -6,9 +6,9 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
-from tennis_match_prediction.maintenance import MaintenanceSettings, run_daily_update
+from tennis_match_prediction.pipelines.defs import defs
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
-from tennis_match_prediction.pipelines.historical_matches.defs import defs
+from tennis_match_prediction.workflows.daily_update import DailyUpdateSettings, run_daily_update
 
 
 def results(number, winner="001", loser="002"):
@@ -112,11 +112,13 @@ def test_daily_job_reports_stage_failures_and_runs_both_stages(
         side_effect=OSError("permission denied") if "performance" in failed_stages else None,
     )
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.refresh_history.refresh_history",
+        "tennis_match_prediction.workflows.daily_update.refresh_history",
         refresh,
     )
-    monkeypatch.setattr("tennis_match_prediction.maintenance.update_performance", evaluate)
-    settings = MaintenanceSettings(reports_dir=tmp_path, max_requests=0)
+    monkeypatch.setattr(
+        "tennis_match_prediction.workflows.daily_update.update_performance", evaluate
+    )
+    settings = DailyUpdateSettings(reports_dir=tmp_path, max_requests=0)
     with pytest.raises(RuntimeError, match="Daily update had failures") as failure:
         run_daily_update(settings)
     assert refresh.call_count == 1
@@ -143,7 +145,7 @@ def test_daily_schedule_is_registered_without_training():
 
 def test_dagster_daily_job_accepts_isolated_paths(tmp_path, monkeypatch):
     run = Mock(return_value={"status": "success"})
-    monkeypatch.setattr("tennis_match_prediction.maintenance.run_daily_update", run)
+    monkeypatch.setattr("tennis_match_prediction.workflows.daily_update.run_daily_update", run)
     # Use the merged production definitions: their default IO manager only accepts
     # DataFrames, so this operational op must not produce a persisted dict output.
     job = defs.get_job_def("daily_update")

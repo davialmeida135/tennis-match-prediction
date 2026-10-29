@@ -3,7 +3,8 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from tennis_match_prediction.contracts import FutureMatchRequest, PlayerHistory
+from tennis_match_prediction.contracts.player_history import PlayerHistory
+from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.predict import features_for
 from tennis_match_prediction.transforms.history import (
     parse_source_date,
@@ -146,7 +147,7 @@ def test_match_date_rejects_invalid_calendar_dates(value: object) -> None:
 
 
 def test_training_rejects_raw_history_and_unordered_rows(tmp_path):
-    from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS
+    from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
     from tennis_match_prediction.ml.train import train
 
     path = tmp_path / "training.csv"

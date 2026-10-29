@@ -7,8 +7,8 @@
 | High | Source dates are not completion timestamps | Establish safe pre-match chronology before daily automation | README; `transforms/history.py` |
 | High | Report's selected model has 14 inputs, inference generates 12 | Use compatible model or implement matching features | model report; `ml/predict.py`; selected model JSON |
 | High | Local history ends 2026-08-30 | Refresh and publish freshness/version information | Validated local Parquet inspection |
-| Medium | Exact-name resolution, name-keyed H2H, no same-player guard | Adopt stable IDs/aliases and validation | `ml/predict.py`; `transforms/player_history.py`; `contracts.py` |
-| Medium | No saved pre-match forecast/history identity | Add reproducible prediction records | `contracts.py` Prediction |
+| Medium | Exact-name resolution, name-keyed H2H, no same-player guard | Adopt stable IDs/aliases and validation | `ml/predict.py`; `transforms/player_history.py`; `contracts/` |
+| Medium | No saved pre-match forecast/history identity | Add reproducible prediction records | `contracts/` Prediction |
 
 ## Technical Debt
 
@@ -35,5 +35,5 @@ Scan's 90-day history reports README 25 edits, legacy historical asset path 15, 
 
 - `docs/project-state-2026-10-14.md`, `docs/ml-model-comparison-2026-10-13.md`.
 - `README.md`, `TODO.md`, `.github/workflows/pylint.yml`, `docker-compose.yaml`.
-- `src/tennis_match_prediction/{contracts.py,ml/predict.py,ml/artifacts.py,transforms/player_history.py}`.
+- `src/tennis_match_prediction/{contracts/,ml/predict.py,ml/artifacts.py,transforms/player_history.py}`.
 - Discovery scan and review terminal checks; `git log` confirms ongoing source-layout and ML refactors.

@@ -3,7 +3,8 @@
 import pandas as pd
 import pytest
 
-from tennis_match_prediction.contracts import FutureMatchRequest, PlayerState
+from tennis_match_prediction.contracts.player_history import PlayerState
+from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.feature_quality import coverage_report
 from tennis_match_prediction.ml.predict import features_for
 from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison

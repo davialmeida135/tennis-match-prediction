@@ -6,7 +6,7 @@ from hashlib import file_digest
 import pandas as pd
 from pydantic import JsonValue
 
-from tennis_match_prediction.contracts import ExperimentConfig
+from tennis_match_prediction.contracts.experiments import ExperimentConfig
 from tennis_match_prediction.ml.config import TRAINING_MATCHES
 from tennis_match_prediction.ml.evaluation import BASELINE_COLUMNS
 

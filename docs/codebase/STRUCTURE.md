@@ -16,11 +16,11 @@
 
 ## Entry Points
 
-`workspace.yaml` loads `pipelines.historical_matches.defs`. Python module CLIs: `ml.train`, `ml.predict`, `ml.feature_quality`, `pipelines.historical_matches.refresh_history`. README mentions `ml.compare`, but that module is absent in the current inventory. No product web entry point exists.
+`workspace.yaml` loads `pipelines.defs`, which composes historical dataset, model training and daily update definitions. Python module CLIs include `web`, `ml.train`, `ml.predict`, `ml.feature_quality`, `pipelines.historical_matches.refresh_history`, `workflows.daily_update`, `forecast_evaluation`, and `diagnostics.live_tennis_probe` (all prefixed with `tennis_match_prediction`).
 
 ## Module Boundaries
 
-`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, evaluation, artifacts, tracking and inference. Root `contracts.py` and `paths.py` centralize schemas and paths. Keep proposed HTTP presentation outside transformation logic.
+`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, offline evaluation, artifacts, tracking and inference. `forecast_evaluation/` owns reconciliation of archived forecasts, prospective metrics and report publication. `workflows/daily_update.py` coordinates history refresh and forecast evaluation. `contracts/` groups schemas by responsibility; `paths.py` centralizes paths. `storage/` holds shared persistence primitives, `providers/` holds external provider configuration, and `diagnostics/` holds explicit experiments. `web/` serves the personal application's HTTP API and static interface, including upcoming-match batch prediction.
 
 ## Naming and Organization Rules
 
@@ -29,5 +29,5 @@ Snake-case modules/functions, PascalCase contracts and model adapters, uppercase
 ## Evidence
 
 - `README.md`, `workspace.yaml`, `src/tennis_match_prediction/paths.py`.
-- `src/tennis_match_prediction/{contracts.py,ml/train.py,ml/predict.py}`.
+- `src/tennis_match_prediction/{contracts/,ml/train.py,ml/predict.py,pipelines/defs.py}`.
 - Source inventory obtained with `rg --files`; no `AGENTS.md` found in the reviewed project inventory.

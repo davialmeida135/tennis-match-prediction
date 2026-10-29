@@ -101,7 +101,7 @@ been established.
 ### Daily update and forecast performance
 
 ```powershell
-uv run python -m tennis_match_prediction.maintenance
+uv run python -m tennis_match_prediction.workflows.daily_update
 ```
 
 Refresh recent annual seasons and ongoing results, publish validated player history,
@@ -113,7 +113,7 @@ forecasts. Reports and result revisions are retained as Markdown/JSON.
 
 Dagster registers `daily_update` and `daily_history_and_performance` at 06:00
 America/Sao_Paulo (default RUNNING; requires a running Dagster daemon).
-For report-only collection, run `uv run python -m tennis_match_prediction.performance`;
+For report-only collection, run `uv run python -m tennis_match_prediction.forecast_evaluation`;
 add `--offline` to reuse saved results. See [policies, commands and operational
 limits](docs/daily-update-and-performance.md), including conservative timing,
 excluded outcomes, bounded provider requests and snapshot publication.
@@ -164,7 +164,7 @@ web startup example above uses the remote server explicitly.
 uv sync
 Copy-Item .env.example .env
 docker compose -f compose.mlflow.yaml up -d --build --wait
-uv run dagster job execute -m tennis_match_prediction.pipelines.historical_matches.defs -j materialize_historical_dataset
+uv run dagster job execute -m tennis_match_prediction.pipelines.defs -j materialize_historical_dataset
 uv run python -m tennis_match_prediction.ml.train
 ```
 
@@ -231,7 +231,7 @@ datasets or generating predictions. Set `LIVE_TENNIS_API_KEY` in your ignored lo
 `.env` and run:
 
 ```powershell
-uv run python -m tennis_match_prediction.live_tennis_probe --history-path data/curated/player_history.parquet
+uv run python -m tennis_match_prediction.diagnostics.live_tennis_probe --history-path data/curated/player_history.parquet
 ```
 
 It makes four bounded calls and saves local responses and an analysis report under
@@ -250,14 +250,24 @@ outside `src/`.
 `transforms/` holds data normalization, imputation, history calculations, feature
 formulas, curation, and training-row construction. Pipelines and prediction import
 this shared logic directly. `pipelines/` owns Dagster orchestration and ingestion;
-`ml/` owns training and prediction. Shared contracts and filesystem configuration
-live at the package root in `contracts.py` and `paths.py`.
+`ml/` owns training and prediction. `forecast_evaluation/` reconciles saved forecasts
+with observed outcomes, computes prospective metrics, and publishes reports.
+`workflows/daily_update.py` coordinates history refresh and forecast evaluation;
+`pipelines/daily_update.py` registers its Dagster job and schedule.
+`pipelines/defs.py` composes the historical dataset, model training, and daily update
+definitions loaded by `workspace.yaml`.
+
+`contracts/` groups typed boundaries by responsibility: model settings, experiments,
+prediction, player history, datasets, ingestion, and feature names. `paths.py` owns
+filesystem configuration. `storage/json_io.py` provides shared atomic JSON writing;
+`providers/live_tennis.py` owns provider connection configuration, while exploratory
+provider commands live under `diagnostics/`.
 
 Read these files in this order:
 
 1. `src/tennis_match_prediction/pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
 2. `src/tennis_match_prediction/pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
-3. `src/tennis_match_prediction/contracts.py` — Pydantic models, feature names, and DataFrame validation.
+3. `src/tennis_match_prediction/contracts/` — Pydantic models, feature names, and DataFrame validation grouped by responsibility.
 4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the model features.
 5. `src/tennis_match_prediction/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
 6. `src/tennis_match_prediction/ml/experiment.py` — prepare published rows, fit a model adapter, evaluate, track and save; `ml/train.py` provides the CLI and Python entry point.
@@ -267,7 +277,8 @@ The model defaults to the 12 features in `TRAINING_FEATURE_COLUMNS` in `src/tenn
 Training randomly assigns the winner to player0 or player1 and gives the features
 that same orientation. `winner=1` means player1 won.
 
-All data models live in `contracts.py` and inherit from `ContractModel`.
+Shared data models live in `contracts/` and inherit from `contracts/base.py`'s
+`ContractModel`; HTTP request models live in `web/contracts.py`.
 `PlayerState`, `PlayedMatch` and `PlayerHistory` validate the prediction history
 persisted by Dagster. DataFrame contracts check columns, dates, finite features, and
 binary targets with vectorized operations.
@@ -373,7 +384,7 @@ CSV path) and requires only the configured training features, target and
 chronological date. Override the defaults for one run with
 `uv run python -m tennis_match_prediction.ml.train --train-start 2017-01-01 --validation-start 2024-01-01 --test-start 2025-01-01 --features overall_elo_diff surface_elo_diff`.
 Edit `src/tennis_match_prediction/ml/config.py` to change the training CSV, selected features
-and split dates. Model settings are validated by contracts in `contracts.py`; override
+and split dates. Model settings are validated in `contracts/model_settings.py`; override
 them with `model_params` in Python or a JSON `--params-file` on the CLI.
 The default dates are `TRAIN_START = date(2017, 1, 1)`,
 `VALIDATION_START = date(2024, 1, 1)`, and `TEST_START = date(2025, 1, 1)`.

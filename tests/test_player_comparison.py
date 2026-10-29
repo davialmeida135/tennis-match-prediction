@@ -2,11 +2,8 @@ import math
 
 import pytest
 
-from tennis_match_prediction.contracts import (
-    PLAYER_COMPARISON_FEATURE_COLUMNS,
-    PlayedMatch,
-    PlayerState,
-)
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.player_history import PlayedMatch, PlayerState
 from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 

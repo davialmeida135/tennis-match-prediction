@@ -3,7 +3,11 @@
 import json
 from uuid import uuid4
 
-from tennis_match_prediction.contracts import ExperimentConfig, ExperimentResult, ModelMetadata
+from tennis_match_prediction.contracts.experiments import (
+    ExperimentConfig,
+    ExperimentResult,
+    ModelMetadata,
+)
 from tennis_match_prediction.ml.artifacts import save_artifact
 from tennis_match_prediction.ml.dataset import prepare_dataset
 from tennis_match_prediction.ml.evaluation import evaluate

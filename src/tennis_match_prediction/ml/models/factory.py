@@ -2,7 +2,7 @@
 
 from pydantic import JsonValue
 
-from tennis_match_prediction.contracts import (
+from tennis_match_prediction.contracts.model_settings import (
     ExtraTreesSettings,
     HistGradientBoostingSettings,
     LogisticRegressionSettings,

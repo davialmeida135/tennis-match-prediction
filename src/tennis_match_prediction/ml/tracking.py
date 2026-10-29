@@ -20,7 +20,7 @@ from mlflow.models import infer_signature
 from pydantic import JsonValue
 from sqlalchemy.engine import make_url
 
-from tennis_match_prediction.contracts import ExperimentConfig
+from tennis_match_prediction.contracts.experiments import ExperimentConfig
 from tennis_match_prediction.ml.models.base import BaseMatchModel, SklearnMatchModel
 from tennis_match_prediction.paths import PROJECT_ROOT
 

@@ -2,7 +2,7 @@
 
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from tennis_match_prediction.contracts import HistGradientBoostingSettings
+from tennis_match_prediction.contracts.model_settings import HistGradientBoostingSettings
 from tennis_match_prediction.ml.models.base import SklearnMatchModel
 
 

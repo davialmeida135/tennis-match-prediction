@@ -4,7 +4,8 @@ import os
 from datetime import date
 from pathlib import Path
 
-from tennis_match_prediction.contracts import DataFrameContract, TrackingSettings
+from tennis_match_prediction.contracts.datasets import DataFrameContract
+from tennis_match_prediction.contracts.experiments import TrackingSettings
 from tennis_match_prediction.paths import CURATED_DIR, DATA_DIR, TRAINING_MATCHES_CSV_NAME
 
 # Edit these defaults, then call train() or run the training module without arguments.

@@ -6,10 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tennis_match_prediction.contracts import (
-    NORMALIZED_MATCHES,
-    PlayerHistory,
-)
+from tennis_match_prediction.contracts.datasets import NORMALIZED_MATCHES
+from tennis_match_prediction.contracts.player_history import PlayerHistory
 from tennis_match_prediction.ml.config import TRAINING_FEATURE_COLUMNS, TRAINING_MATCHES
 
 

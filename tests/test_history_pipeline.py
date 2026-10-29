@@ -7,11 +7,13 @@ import pytest
 from dagster import AssetCheckResult, DagsterInstance, Definitions, asset_check, materialize
 
 from tennis_match_prediction import paths
-from tennis_match_prediction.contracts import PLAYER_COMPARISON_FEATURE_COLUMNS, PlayerHistory
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.player_history import PlayerHistory
+from tennis_match_prediction.pipelines.defs import defs
 from tennis_match_prediction.pipelines.historical_matches import assets
 from tennis_match_prediction.pipelines.historical_matches import refresh_history as refresh_module
 from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
-from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS, defs
+from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 from tennis_match_prediction.transforms.elo import calcular_elo
 from tennis_match_prediction.transforms.history import prepare_history
@@ -309,7 +311,7 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert PlayerHistory.model_validate_json(snapshot.loc[0, "history"]) == history
 
     # Training consumes only the published rows; prediction consumes only the asset snapshot.
-    from tennis_match_prediction.contracts import FutureMatchRequest
+    from tennis_match_prediction.contracts.prediction import FutureMatchRequest
     from tennis_match_prediction.ml.predict import predict
     from tennis_match_prediction.ml.train import train
 

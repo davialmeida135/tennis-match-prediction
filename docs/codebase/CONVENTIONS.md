@@ -23,5 +23,5 @@ Root `tests/test_*.py`, pytest assertions, parameterization, tmp_path and monkey
 ## Evidence
 
 - `pyproject.toml`, `.github/workflows/pylint.yml`.
-- `src/tennis_match_prediction/{contracts.py,ml/predict.py,transforms/player_history.py}`.
+- `src/tennis_match_prediction/{contracts/,ml/predict.py,transforms/player_history.py}`.
 - `tests/test_ml_experiments.py`, `tests/test_mlflow_integration.py`.

@@ -6,12 +6,9 @@ import pickle
 import pandas as pd
 import pytest
 
-from tennis_match_prediction.contracts import (
-    INITIAL_ELO,
-    PLAYER_COMPARISON_FEATURE_COLUMNS,
-    FutureMatchRequest,
-    PlayerHistory,
-)
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
+from tennis_match_prediction.contracts.player_history import INITIAL_ELO, PlayerHistory
+from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.predict import features_for, predict
 from tennis_match_prediction.transforms.elo import calcular_elo
 from tennis_match_prediction.transforms.history import prepare_history

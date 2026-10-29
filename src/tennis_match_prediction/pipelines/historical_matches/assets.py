@@ -18,11 +18,8 @@ from dagster import (
     multi_asset,
 )
 
-from tennis_match_prediction.contracts import (
-    NORMALIZED_MATCHES,
-    PLAYER_COMPARISON_FEATURE_COLUMNS,
-    DataFrameContract,
-)
+from tennis_match_prediction.contracts.datasets import NORMALIZED_MATCHES, DataFrameContract
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.paths import (
     CURATED_MATCHES_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,

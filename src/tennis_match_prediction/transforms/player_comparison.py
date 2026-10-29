@@ -2,7 +2,7 @@
 
 import math
 
-from tennis_match_prediction.contracts import INITIAL_ELO, PlayedMatch, PlayerState
+from tennis_match_prediction.contracts.player_history import INITIAL_ELO, PlayedMatch, PlayerState
 
 
 def calculate_player_comparison(

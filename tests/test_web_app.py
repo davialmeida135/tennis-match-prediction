@@ -14,14 +14,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from tennis_match_prediction.contracts import (
-    ExperimentConfig,
-    LogisticRegressionSettings,
-    ModelMetadata,
-    PlayedMatch,
-    PlayerHistory,
-    PlayerState,
-)
+from tennis_match_prediction.contracts.experiments import ExperimentConfig, ModelMetadata
+from tennis_match_prediction.contracts.model_settings import LogisticRegressionSettings
+from tennis_match_prediction.contracts.player_history import PlayedMatch, PlayerHistory, PlayerState
 from tennis_match_prediction.ml.artifacts import load_artifact, save_artifact
 from tennis_match_prediction.ml.models.logistic_regression import LogisticRegressionModel
 from tennis_match_prediction.ml.predict import predict, probability_for
@@ -291,7 +286,7 @@ def test_web_reloads_only_validated_published_history(client, web_files):
 
 
 def test_performance_page_and_report_download(web_files, tmp_path):
-    from tennis_match_prediction.performance import update_performance
+    from tennis_match_prediction.forecast_evaluation.service import update_performance
 
     application = create_app(
         history_path=web_files[0],
@@ -642,7 +637,7 @@ def test_profiles_work_without_models(web_files, tmp_path):
 
 
 def test_name_based_cli_rejects_same_player(web_files):
-    from tennis_match_prediction.contracts import FutureMatchRequest
+    from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 
     # Bob is unambiguous; both CLI player positions resolve to the same ID.
     request = FutureMatchRequest(
