@@ -82,6 +82,20 @@ uv run python -m tennis_match_prediction.forecast_evaluation
 uv run python -m tennis_match_prediction.forecast_evaluation --offline
 ```
 
+A página **Performance** e o relatório Markdown incluem cada previsão e o
+resultado observado: jogadores, probabilidades, vencedor, placar quando disponível,
+modelo e avaliação (correta, incorreta, pendente ou excluída). A página permite
+buscar por jogador, torneio, partida ou modelo, filtrar a avaliação e navegar por
+todas as previsões. Expanda **Prediction & result** para inspecionar os registros
+salvos completos. Previsões substituídas e excluídas continuam visíveis, mas não
+entram nas métricas; em 50%/50%, a acurácia seleciona o segundo jogador.
+
+Relatórios antigos exibidos ou baixados pela aplicação recuperam os detalhes dos
+lotes arquivados e da coleta de resultados daquela versão, sem novas consultas ao
+provedor e sem recalcular as métricas. Os arquivos antigos permanecem intactos.
+O comando `--offline` acima publica um novo relatório Markdown local usando os
+resultados já coletados.
+
 Somente lotes imutáveis `data/predictions/*/batch.json` da Live Tennis API entram
 na avaliação. Predições manuais exportadas não têm identidade de partida e ficam
 fora deste fluxo. Consultas usam `/matches/{id}` do mesmo provedor, conferindo

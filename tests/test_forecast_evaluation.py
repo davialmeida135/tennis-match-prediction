@@ -8,7 +8,9 @@ from unittest.mock import Mock
 import pytest
 import requests
 
+from tennis_match_prediction.forecast_evaluation.archive import load_report
 from tennis_match_prediction.forecast_evaluation.reconciliation import evaluate_batches
+from tennis_match_prediction.forecast_evaluation.reporting import markdown_report
 from tennis_match_prediction.forecast_evaluation.service import update_performance
 
 
@@ -79,6 +81,99 @@ def test_metrics_and_swapped_result_orientation():
     assert model["calibration"][0]["observed_frequency"] == 1
     assert report["decisions"][0]["result_version"] == 1
     assert original == batch()
+
+
+def test_prediction_details_preserve_forecast_and_result_participant_order():
+    original = batch()
+    forecast = original["predictions"][0]
+    forecast.update(player0={"name": "Alice"}, player1={"name": "Bob"})
+    forecast["match"]["tournament"] = "Example Open"
+    result = observation()
+    result["match"].update(players={"p1": {"id": 20}, "p2": {"id": 10}}, winner=1, score="6-4 6-3")
+    report = evaluate_batches([original], {"100": result})
+    row = report["decisions"][0]
+    assert row["player0_name"] == "Alice"
+    assert row["player1_name"] == "Bob"
+    assert row["forecast"] == forecast
+    assert row["result"] == result["match"]
+    assert row["predicted_player_index"] == row["winner_player_index"] == 1
+    assert row["prediction_correct"] is True
+    report["generated_at"] = "2000-01-04T00:00:00Z"
+    markdown = markdown_report(report)
+    assert "Alice (20.0%) vs Bob (80.0%)" in markdown
+    assert "6-4 6-3" in markdown
+    assert "Correta" in markdown
+    assert "Example Open" in markdown
+
+
+def test_details_keep_unscored_forecasts_without_claiming_they_are_correct():
+    earlier = batch("a")
+    later = batch("b", "2000-01-02T18:00:00Z", 0.2)
+    late = batch("c", "2000-01-03T12:00:00Z")
+    pending = batch("d")
+    pending["predictions"][0]["match"]["id"] = 101
+    report = evaluate_batches([earlier, later, late, pending], {"100": observation()})
+    rows = {row["batch_id"]: row for row in report["decisions"]}
+    assert rows["a"]["reason"] == "superseded_forecast"
+    assert rows["a"]["winner_player_index"] == 1
+    assert rows["a"]["prediction_correct"] is None
+    assert rows["b"]["prediction_correct"] is False
+    assert rows["c"]["reason"] == "not_pre_match"
+    assert rows["c"]["winner_player_index"] == 1
+    assert rows["c"]["prediction_correct"] is None
+    assert rows["d"]["result"] is None
+    assert rows["d"]["prediction_correct"] is None
+
+
+@pytest.mark.parametrize("field,value", [("id", 999), ("winner", True), ("status", "live")])
+def test_details_do_not_attribute_unverified_winners(field, value):
+    result = observation()
+    result["match"][field] = value
+    row = evaluate_batches([batch()], {"100": result})["decisions"][0]
+    assert row["winner_player_index"] is None
+    assert row["prediction_correct"] is None
+
+
+def test_markdown_escapes_names_and_keeps_scores_inside_table_cells():
+    original = batch()
+    original["predictions"][0]["player0_name"] = "<script>alert(1)</script>|Alice\nSmith"
+    result = observation()
+    result["match"]["score"] = {"sets": "6-4|6-3"}
+    report = evaluate_batches([original], {"100": result})
+    report["generated_at"] = "2000-01-04T00:00:00Z"
+    markdown = markdown_report(report)
+    assert "<script>" not in markdown
+    assert "&#124;Alice Smith" in markdown
+    assert "6-4&#124;6-3" in markdown
+
+
+def test_older_reports_recover_details_from_their_own_snapshot_without_rescoring(tmp_path):
+    forecasts = tmp_path / "predictions"
+    original = batch()
+    original["predictions"][0].update(player0_name="Alice", player1_name="Bob")
+    save_batch(forecasts, original)
+    result = observation()
+    report = evaluate_batches([original], {"100": result})
+    for key in (
+        "player0_name",
+        "player1_name",
+        "forecast",
+        "result",
+        "predicted_player_index",
+        "winner_player_index",
+        "prediction_correct",
+    ):
+        report["decisions"][0].pop(key)
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    (tmp_path / "results.json").write_text(json.dumps({"100": result}), encoding="utf-8")
+    saved = report_path.read_bytes()
+    hydrated = load_report(tmp_path, forecasts)
+    assert hydrated["models"] == report["models"]
+    assert hydrated["decisions"][0]["player1_name"] == "Bob"
+    assert hydrated["decisions"][0]["prediction_correct"] is True
+    assert hydrated["decisions"][0]["result"] == result["match"]
+    assert report_path.read_bytes() == saved
 
 
 def test_select_latest_eligible_once_per_exact_model_version():

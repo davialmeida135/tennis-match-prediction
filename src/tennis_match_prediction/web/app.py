@@ -12,10 +12,12 @@ from threading import Lock
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import JsonValue
 
+from tennis_match_prediction.forecast_evaluation.archive import load_report
+from tennis_match_prediction.forecast_evaluation.reporting import markdown_report
 from tennis_match_prediction.web.contracts import BatchPredictionRequest, MatchupRequest
 from tennis_match_prediction.web.registry import RegistryModel, download_registry_model
 from tennis_match_prediction.web.service import PlayerService
@@ -168,7 +170,7 @@ def create_app(
             },
         )
 
-    def read_performance() -> tuple[dict, Path]:
+    def read_performance() -> dict:
         pointer = report_directory / "latest.json"
         if not pointer.is_file():
             raise HTTPException(
@@ -178,15 +180,19 @@ def create_app(
         if len(version) != 32 or any(c not in "0123456789abcdef" for c in version):
             raise HTTPException(status_code=503, detail="Invalid performance report version")
         directory = report_directory / "runs" / version
-        return json.loads((directory / "report.json").read_text(encoding="utf-8")), directory
+        return load_report(directory, application.state.upcoming.directory)
 
     @application.get("/api/performance")
     def performance() -> dict:
-        return read_performance()[0]
+        return read_performance()
 
     @application.get("/api/performance/download")
-    def download_performance() -> FileResponse:
-        return FileResponse(read_performance()[1] / "report.md", filename="performance.md")
+    def download_performance() -> Response:
+        return Response(
+            markdown_report(read_performance()),
+            media_type="text/markdown",
+            headers={"Content-Disposition": 'attachment; filename="performance.md"'},
+        )
 
     @application.get("/performance", include_in_schema=False)
     def performance_page() -> HTMLResponse:

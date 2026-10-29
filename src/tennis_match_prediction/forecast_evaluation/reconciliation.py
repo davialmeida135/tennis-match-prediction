@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
+from tennis_match_prediction.forecast_evaluation.details import prediction_details
 from tennis_match_prediction.forecast_evaluation.metrics import forecast_metrics
 
 POLICY = {
@@ -117,6 +118,8 @@ def evaluate_batches(
                 "surface": forecast["match"].get("surface"),
                 "created_at": forecast.get("created_at"),
                 "reason": reason,
+                **prediction_details(forecast, observations.get(str(match_id))),
+                "prediction_correct": None,
                 **resolved,
             }
             decisions.append(row)
@@ -131,6 +134,8 @@ def evaluate_batches(
                 if row is not chosen:
                     row["reason"] = "superseded_forecast"
     models = []
+    for row in selected:
+        row["prediction_correct"] = row["predicted_player_index"] == row["target"]
     for version in sorted({key[0] for key in groups}):
         rows = [row for row in selected if row["model_version"] == version]
         candidates = [row for row in decisions if row["model_version"] == version]

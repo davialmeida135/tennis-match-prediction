@@ -154,7 +154,62 @@ const performanceReasons = {
   superseded_forecast: "Earlier forecasts replaced by a later eligible forecast"
 };
 
+let performanceDecisions = [];
+let performancePage = 0;
+const performancePageSize = 25;
+
+function forecastStatus(row) {
+  if (row.prediction_correct === true) return "Correct";
+  if (row.prediction_correct === false) return "Incorrect";
+  return performanceReasons[row.reason] || row.reason || "Details unavailable";
+}
+
+function renderPerformanceForecasts() {
+  const query = $("forecast-search").value.trim().toLowerCase();
+  const filter = $("forecast-status").value;
+  const pendingReasons = ["result_not_collected", "result_unavailable", "not_completed", "unknown_winner"];
+  const matches = performanceDecisions.filter((row) => {
+    const pending = pendingReasons.includes(row.reason);
+    const selected = filter === "all" || (filter === "evaluated" && row.reason == null)
+      || (filter === "correct" && row.prediction_correct === true)
+      || (filter === "incorrect" && row.prediction_correct === false)
+      || (filter === "pending" && pending)
+      || (filter === "excluded" && row.reason != null && !pending);
+    return selected && [row.player0_name, row.player1_name, row.match_id, row.model_name,
+      row.model_version, row.forecast?.match?.tournament, row.batch_id].join(" ").toLowerCase().includes(query);
+  });
+  const pages = Math.max(1, Math.ceil(matches.length / performancePageSize));
+  performancePage = Math.min(performancePage, pages - 1);
+  $("forecast-count").textContent = `${number(matches.length)} of ${number(performanceDecisions.length)} saved forecasts · Page ${performancePage + 1} of ${pages}`;
+  $("forecast-prev").disabled = performancePage === 0;
+  $("forecast-next").disabled = performancePage + 1 >= pages;
+  $("forecast-rows").innerHTML = matches.slice(performancePage * performancePageSize,
+    (performancePage + 1) * performancePageSize).map((row) => {
+    const forecast = row.forecast || {};
+    const match = forecast.match || {};
+    const result = row.result || {};
+    const names = [row.player0_name || "Player 1", row.player1_name || "Player 2"];
+    const winner = row.winner_player_index == null ? null : names[row.winner_player_index];
+    const score = result.score == null ? "Score unavailable" : typeof result.score === "object" ? JSON.stringify(result.score) : result.score;
+    const resultState = [result.status, result.outcome].filter(Boolean).join(" · ");
+    const tone = row.prediction_correct === true ? "correct" : row.prediction_correct === false ? "incorrect" : "unscored";
+    return `<tr><td><strong>${escapeHTML(names[0])} vs ${escapeHTML(names[1])}</strong>
+      <small>${escapeHTML([match.tournament, match.round, row.surface].filter(Boolean).join(" · "))}</small>
+      <small>Match ${escapeHTML(row.match_id)} · ${escapeHTML(match.scheduled_time ? kickoffLabel(match.scheduled_time) : "Schedule unavailable")}</small></td>
+      <td>${escapeHTML(names[0])}: ${percent(forecast.player0_win_probability, 1)}<br>${escapeHTML(names[1])}: ${percent(forecast.player1_win_probability, 1)}
+      <small>Forecast ${escapeHTML(row.created_at ? kickoffLabel(row.created_at) : "time unavailable")}</small></td>
+      <td><strong>${escapeHTML(winner || (row.reason === "match_id_conflict" || row.reason === "participant_conflict" ? "Result identity unverified" : "Winner not confirmed"))}</strong>
+      <small>${escapeHTML(score)}</small><small>${escapeHTML(resultState || "Result not collected")}</small></td>
+      <td>${escapeHTML(modelLabel(row.model_name) || "Unknown model")}<small>Version ${escapeHTML(row.model_version?.slice(0, 12))}</small></td>
+      <td><span class="forecast-status ${tone}">${escapeHTML(forecastStatus(row))}</span>
+      <details class="forecast-record"><summary>Prediction & result</summary><p class="context-note">Result observed ${escapeHTML(row.result_observed_at ? kickoffLabel(row.result_observed_at) : "—")}</p>
+      <pre>${escapeHTML(JSON.stringify({ batch_id: row.batch_id, forecast: row.forecast, result: row.result }, null, 2))}</pre></details></td></tr>`;
+  }).join("") || '<tr><td colspan="5">No forecasts match these filters.</td></tr>';
+}
+
 function renderPerformance(report) {
+  performanceDecisions = [...(report.decisions || [])].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  performancePage = 0;
   $("performance-updated").textContent = `Report updated ${kickoffLabel(report.generated_at)}`;
   const rows = report.models.map((model) => `<tr><td><strong>${escapeHTML(modelLabel(model.model_name))}</strong><small>Version ${escapeHTML(model.model_version.slice(0, 12))}</small></td>
     <td>${number(model.count)} <span class="muted">/ ${number(model.forecast_matches)}</span></td><td>${percent(model.accuracy, 1)}</td><td>${number(model.brier, 4)}</td><td>${number(model.log_loss, 4)}</td></tr>`).join("");
@@ -168,9 +223,21 @@ function renderPerformance(report) {
       <div class="performance-table-wrap" role="region" aria-label="Model performance" tabindex="0"><table class="performance-table"><thead><tr><th>Model</th><th>Evaluated / forecast</th><th>Accuracy</th><th>Brier</th><th>Log loss</th></tr></thead><tbody>${rows}</tbody></table></div>
       ${!report.evaluated_count ? '<div class="performance-waiting"><span class="status-dot"></span>No eligible completed matches yet. Metrics will appear as results become available.</div>' : ""}
       <p class="context-note">Lower Brier and log loss indicate better probability estimates. A neutral 50% forecast has Brier 0.25 and log loss 0.6931. Models may cover different matches.</p></section>
+    <section class="performance-panel"><div class="section-heading"><h2>Every prediction & result</h2></div>
+      <p class="context-note">Each saved forecast appears separately, including earlier forecasts and excluded results. Only evaluated rows count toward the metrics. At 50% / 50%, accuracy selects the second player.</p>
+      <div class="forecast-filters"><label>Search forecasts<input id="forecast-search" type="search" placeholder="Player, tournament, match or model"></label>
+      <label>Evaluation<select id="forecast-status"><option value="all">All forecasts</option><option value="evaluated">Evaluated</option><option value="correct">Correct</option><option value="incorrect">Incorrect</option><option value="pending">Pending</option><option value="excluded">Excluded / superseded</option></select></label></div>
+      <div class="performance-table-wrap" role="region" aria-label="Individual predictions and results" tabindex="0"><table class="performance-table forecast-table"><thead><tr><th>Match</th><th>Saved prediction</th><th>Observed result</th><th>Model</th><th>Evaluation</th></tr></thead><tbody id="forecast-rows"></tbody></table></div>
+      <div class="forecast-pagination"><span id="forecast-count" role="status"></span><button id="forecast-prev" class="secondary-button" type="button">Previous</button><button id="forecast-next" class="secondary-button" type="button">Next</button></div></section>
     <div class="performance-details"><section class="performance-panel"><div class="section-heading"><h2>Excluded or pending forecasts</h2></div><ul class="performance-reasons">${reasons || '<li>No excluded forecasts.</li>'}</ul><p class="context-note">Counts refer to individual saved forecasts. A match can appear in more than one batch.</p></section>
     <section class="performance-panel"><div class="section-heading"><h2>What counts in the report</h2></div><p class="performance-policy">The last eligible forecast for each match and model version. Only normal completions are scored; retirements, walkovers and cancellations are excluded.</p><p class="context-note">Forecasts must precede both saved schedules and the provider’s recorded live time. That observation can change and is not an official start time. Pending matches remain in coverage totals. Small samples do not establish calibration.</p></section></div>
     <div class="performance-download"><a class="secondary-button" href="/api/performance/download">Download report ↓</a><a class="text-button" href="/api/performance">View full data ↗</a></div>`;
+  for (const id of ["forecast-search", "forecast-status"]) {
+    $(id).addEventListener(id === "forecast-search" ? "input" : "change", () => { performancePage = 0; renderPerformanceForecasts(); });
+  }
+  $("forecast-prev").addEventListener("click", () => { performancePage -= 1; renderPerformanceForecasts(); });
+  $("forecast-next").addEventListener("click", () => { performancePage += 1; renderPerformanceForecasts(); });
+  renderPerformanceForecasts();
 }
 
 async function loadPerformance() {

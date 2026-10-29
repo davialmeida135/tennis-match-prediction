@@ -299,7 +299,7 @@ def test_performance_page_and_report_download(web_files, tmp_path):
         page = browser.get("/performance")
         assert page.status_code == 200
         assert page.text == browser.get("/").text
-        assert '/static/style.css' in page.text
+        assert "/static/style.css" in page.text
         assert 'data-view="performance"' in page.text
         assert 'id="performance-view"' in page.text
         update_performance(
@@ -312,6 +312,94 @@ def test_performance_page_and_report_download(web_files, tmp_path):
         download = browser.get("/api/performance/download")
         assert download.status_code == 200
         assert "performance.md" in download.headers["content-disposition"]
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_performance_serves_individual_forecasts_and_results(web_files, tmp_path, legacy):
+    from tennis_match_prediction.forecast_evaluation.reconciliation import evaluate_batches
+
+    forecasts = tmp_path / "predictions"
+    batch_id = "a" * 64
+    forecast = {
+        "created_at": "2000-01-02T12:00:00Z",
+        "player0": {"name": "Alice"},
+        "player1": {"name": "Bob"},
+        "player0_win_probability": 0.2,
+        "player1_win_probability": 0.8,
+        "match": {
+            "id": 100,
+            "provider_player0_id": 10,
+            "provider_player1_id": 20,
+            "scheduled_time": "2000-01-03T12:00:00Z",
+            "surface": "Hard",
+        },
+    }
+    batch = {
+        "id": batch_id,
+        "source": "Live Tennis API",
+        "model_id": "model",
+        "model_name": "candidate",
+        "model_version": "b" * 64,
+        "source_fetched_at": "2000-01-02T11:59:00Z",
+        "history_source_date": "2000-01-01",
+        "predictions": [forecast],
+    }
+    observations = {
+        "100": {
+            "observed_at": "2000-01-03T16:00:00Z",
+            "match": {
+                "id": 100,
+                "status": "completed",
+                "outcome": "completed",
+                "winner": 2,
+                "scheduled_time": "2000-01-03T12:00:00Z",
+                "live_at": "2000-01-03T12:03:00Z",
+                "players": {"p1": {"id": 10}, "p2": {"id": 20}},
+                "score": "6-4 6-3",
+            },
+        }
+    }
+    report = evaluate_batches([batch], observations)
+    report["generated_at"] = "2000-01-04T00:00:00Z"
+    if legacy:
+        for key in (
+            "forecast",
+            "result",
+            "player0_name",
+            "player1_name",
+            "winner_player_index",
+            "predicted_player_index",
+            "prediction_correct",
+        ):
+            report["decisions"][0].pop(key)
+    version = "c" * 32
+    performance_dir = tmp_path / "performance"
+    run = performance_dir / "runs" / version
+    run.mkdir(parents=True)
+    (forecasts / batch_id).mkdir(parents=True)
+    (forecasts / batch_id / "batch.json").write_text(json.dumps(batch), encoding="utf-8")
+    (performance_dir / "latest.json").write_text(json.dumps({"id": version}), encoding="utf-8")
+    (run / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    (run / "results.json").write_text(json.dumps(observations), encoding="utf-8")
+    (run / "report.md").write_text("Old summary", encoding="utf-8")
+    application = create_app(
+        history_path=web_files[0],
+        models_dir=web_files[1],
+        model_path=web_files[2],
+        predictions_dir=forecasts,
+        performance_dir=performance_dir,
+    )
+    with TestClient(application) as browser:
+        row = browser.get("/api/performance").json()["decisions"][0]
+        assert row["player1_name"] == "Bob"
+        assert row["forecast"]["player1_win_probability"] == 0.8
+        assert row["result"]["score"] == "6-4 6-3"
+        assert row["winner_player_index"] == 1
+        assert row["prediction_correct"] is True
+        download = browser.get("/api/performance/download")
+        assert "Alice (20.0%) vs Bob (80.0%)" in download.text
+        assert "6-4 6-3" in download.text
+        assert "Correta" in download.text
 
 
 @pytest.fixture
@@ -518,7 +606,7 @@ def test_pages_revalidate_html_and_version_assets_by_content(client):
         assert page.headers["cache-control"] == "no-cache"
         assert page.headers["content-type"].startswith("text/html")
     for asset in ("app.js", "style.css"):
-        url = re.search(rf'/static/{re.escape(asset)}\?v=([0-9a-f]{{64}})', home.text)
+        url = re.search(rf"/static/{re.escape(asset)}\?v=([0-9a-f]{{64}})", home.text)
         assert url is not None
         response = client.get(url.group(0))
         assert response.status_code == 200
