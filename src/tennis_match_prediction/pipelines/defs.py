@@ -3,7 +3,8 @@
 from dagster import Definitions
 
 from tennis_match_prediction.pipelines.daily_update import DailyUpdate
-from tennis_match_prediction.pipelines.historical_matches.defs import defs as history_defs
-from tennis_match_prediction.pipelines.model_training.defs import defs as training_defs
+from tennis_match_prediction.pipelines.historical_matches import defs as history_module
+from tennis_match_prediction.pipelines.model_training import defs as training_module
 
-defs = Definitions.merge(history_defs, training_defs, DailyUpdate().build_defs())
+# Import modules so autodiscovery sees only the combined Definitions object.
+defs = Definitions.merge(history_module.defs, training_module.defs, DailyUpdate().build_defs())
