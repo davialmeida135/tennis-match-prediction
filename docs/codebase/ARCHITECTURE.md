@@ -35,7 +35,7 @@ Model factory and adapters in `ml/models`; Pydantic contracts; Dagster decorated
 
 ## Known Architectural Risks
 
-Latest history cannot answer past as-of queries. The standalone prediction API reloads model/history on each call; the web service caches selected models and reloads published history. Source dates do not establish actual completion times. History refresh uses full replay rather than incremental replay. Model feature selection can exceed inference feature availability.
+Latest history cannot answer past as-of queries. The standalone prediction API reloads model/history on each call; the web service caches models and reloads published history through a validated snapshot pointer. Source dates do not establish actual completion times. History refresh uses full replay, with an unchanged-input/code/artifact shortcut. Model feature selection can exceed inference feature availability; web discovery filters incompatible models and scoring checks required features. Compatibility CSV exports are individually atomic, not one transaction; web readers use immutable snapshot publication instead.
 
 ## Evidence
 
@@ -44,3 +44,4 @@ Latest history cannot answer past as-of queries. The standalone prediction API r
 - `src/tennis_match_prediction/transforms/{player_history,player_comparison,history}.py`.
 - `src/tennis_match_prediction/ml/{experiment,dataset,predict}.py`, `ml/models/factory.py`.
 - `src/tennis_match_prediction/{forecast_evaluation/,workflows/daily_update.py,pipelines/defs.py,web/service.py,web/upcoming.py}`.
+- `src/tennis_match_prediction/{web/app.py,pipelines/historical_matches/refresh_history.py}`.

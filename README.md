@@ -1,5 +1,9 @@
 # Tennis match prediction
 
+For a beginner-friendly explanation of the current code, read the
+[full code walkthrough](docs/code-walkthrough.md), from historical ingestion and
+the 12 model inputs through training, web predictions, and later result evaluation.
+
 Predict an ATP match from two player names, a date, and a surface. Historical
 results come from TennisMyLife; experiments use chronological splits with logistic
 regression, random forest, Extra Trees, histogram boosting or XGBoost. A Dagster

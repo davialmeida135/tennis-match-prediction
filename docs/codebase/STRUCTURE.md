@@ -12,7 +12,7 @@
 | `notebooks/` | Exploratory notebooks |
 | `dagster_home/` | Local orchestrator configuration |
 | `docker/` | MLflow image and startup |
-| `.github/workflows/` | CI lint |
+| `.github/workflows/` | CI tests, definition validation, Ruff and Pylint |
 
 ## Entry Points
 
@@ -24,6 +24,8 @@
 
 ## Naming and Organization Rules
 
+Runtime outputs also include `data/predictions/` for batches with source/model/history copies, `data/performance/runs/` for observations/reports, `data/maintenance/` for daily stage reports, and `data/curated/.refreshes/` for isolated historical rebuilds. See `web/__main__.py`, `forecast_evaluation/service.py`, `workflows/daily_update.py`, and `pipelines/historical_matches/refresh_history.py` under the package.
+
 Snake-case modules/functions, PascalCase contracts and model adapters, uppercase configuration constants. Absolute package imports use `tennis_match_prediction`. Source is organized by responsibility with historical ingestion grouped under one pipeline.
 
 ## Evidence
@@ -31,3 +33,4 @@ Snake-case modules/functions, PascalCase contracts and model adapters, uppercase
 - `README.md`, `workspace.yaml`, `src/tennis_match_prediction/paths.py`.
 - `src/tennis_match_prediction/{contracts/,ml/train.py,ml/predict.py,pipelines/defs.py}`.
 - Source inventory obtained with `rg --files`; no `AGENTS.md` found in the reviewed project inventory.
+- `.github/workflows/pylint.yml` and the runtime-output modules named above.

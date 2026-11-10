@@ -8,11 +8,11 @@
 | MLflow server/local backend | Metrics, parameters, provenance, model artifacts | Configured URI; local Compose binds loopback |
 | Dagster local instance | Asset orchestration and metadata | Local workspace and SQLite; optional MySQL |
 
-No fixture provider is integrated. [TODO] Provider coverage, cost, ID compatibility and permissions.
+Live Tennis API provides upcoming matches and results using `X-API-Key` from `LIVE_TENNIS_API_KEY`. Upcoming players resolve through unique normalized full names; results reconcile by provider match and participant IDs. MLflow Model Registry optionally resolves a model alias/version to its originating run's artifacts at web startup.
 
 ## Data Stores
 
-Annual/consolidated CSVs; intermediate Parquet; curated exports and history JSON payload inside Parquet; model pickles and JSON metadata. MLflow uses PostgreSQL/volume artifacts in Compose or local SQLite/files. These tracking stores are not a match/prediction application database.
+Annual/consolidated CSVs and retained ongoing results; intermediate Parquet; curated exports and history JSON payload inside Parquet; model pickles and JSON metadata. Immutable upcoming batches copy source/model/history files. Performance runs retain observations and JSON/Markdown reports. MLflow uses PostgreSQL/volume artifacts in Compose or local SQLite/files. These tracking stores are not a match/prediction application database.
 
 ## Secrets and Credentials Handling
 
@@ -20,14 +20,15 @@ Dotenv/environment configuration; `.env` ignored. `.env.example` and Compose con
 
 ## Reliability and Failure Behavior
 
-Historical requests have configurable timeout, default 60 seconds, and raise HTTP errors. Download hashes detect changes; required columns are validated before publishing annual files; atomic replacement retries Windows sharing violations. Annual downloads are sequential. No HTTP retry/backoff wrapper appears in this resource. MLflow server errors do not silently fall back to local tracking.
+Historical requests have configurable timeout, default 60 seconds, and raise HTTP errors. Hashes detect changes; required columns are validated before annual publication; atomic replacement retries Windows sharing violations. Annual downloads are sequential, without an HTTP retry/backoff wrapper. Upcoming/result calls have 30-second timeouts, disable redirects, and have budgets of five pages and 20 result requests respectively. Upcoming source responses cache for one minute. Failed collection preserves the previous publication. Registry downloads happen once per startup; failures do not select an unrelated local model.
 
 ## Observability for Integrations
 
-Dagster asset metadata/checks and logs, MLflow experiment metrics/provenance. [TODO] Fixture synchronization metrics and freshness alerts; no implemented fixture flow exists.
+Dagster metadata/checks/logs; MLflow metrics/provenance; refresh hashes/timings; batch skip counts; versioned forecast decisions; daily stage reports. `/api/status` exposes history identity and reload errors. [TODO] External freshness alerts and tracing configuration.
 
 ## Evidence
 
 - `src/tennis_match_prediction/pipelines/historical_matches/config.py`, `assets.py`.
 - `src/tennis_match_prediction/ml/{tracking,config,predict}.py`.
 - `.env.example`, `.gitignore`, `docker-compose.yaml`, `dagster_home/dagster.yaml`.
+- `src/tennis_match_prediction/{providers/live_tennis.py,web/upcoming.py,web/registry.py,forecast_evaluation/service.py,workflows/daily_update.py}`.

@@ -14,7 +14,7 @@ Absolute installed-package imports; Ruff I enforces import organization. Predict
 
 ## Error and Logging Conventions
 
-Contracts validate inputs/dataframes; missing files and unsupported configurations raise exceptions. Prediction CLI converts expected errors to argparse errors. Dagster assets use context logging and metadata; MLflow records experiment provenance/failures. [TODO] Standard structured log fields and redaction policy for a future HTTP layer.
+Contracts validate inputs/dataframes and reject unknown contract fields and non-finite numbers. Missing files and unsupported configurations raise exceptions. Prediction CLI converts expected errors to argparse errors. HTTP routes map expected errors to 404, 422, or 503. Dagster assets use context logging and metadata; MLflow records experiment provenance/failures; daily workflows retain stage reports. [TODO] Project-wide required log fields and redaction policy.
 
 ## Testing Conventions
 
@@ -25,3 +25,4 @@ Root `tests/test_*.py`, pytest assertions, parameterization, tmp_path and monkey
 - `pyproject.toml`, `.github/workflows/pylint.yml`.
 - `src/tennis_match_prediction/{contracts/,ml/predict.py,transforms/player_history.py}`.
 - `tests/test_ml_experiments.py`, `tests/test_mlflow_integration.py`.
+- `src/tennis_match_prediction/{contracts/base.py,web/app.py,workflows/daily_update.py}`.
