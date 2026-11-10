@@ -31,4 +31,4 @@ Dagster metadata/checks/logs; MLflow metrics/provenance; refresh hashes/timings;
 - `src/tennis_match_prediction/pipelines/historical_matches/config.py`, `assets.py`.
 - `src/tennis_match_prediction/ml/{tracking,config,predict}.py`.
 - `.env.example`, `.gitignore`, `docker-compose.yaml`, `dagster_home/dagster.yaml`.
-- `src/tennis_match_prediction/{providers/live_tennis.py,web/upcoming.py,web/registry.py,forecast_evaluation/service.py,workflows/daily_update.py}`.
+- `src/tennis_match_prediction/{web/upcoming.py,web/registry.py,forecast_evaluation/service.py,workflows/daily_update.py}`.

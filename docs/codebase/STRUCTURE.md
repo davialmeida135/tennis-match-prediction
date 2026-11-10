@@ -16,11 +16,11 @@
 
 ## Entry Points
 
-`workspace.yaml` loads `pipelines.defs`, which composes historical dataset, model training and daily update definitions. Python module CLIs include `web`, `ml.train`, `ml.predict`, `ml.feature_quality`, `pipelines.historical_matches.refresh_history`, `workflows.daily_update`, `forecast_evaluation`, and `diagnostics.live_tennis_probe` (all prefixed with `tennis_match_prediction`).
+`workspace.yaml` loads `pipelines.defs`, which composes historical dataset, model training and daily update definitions. Python module CLIs include `web`, `ml.train`, `ml.predict`, `ml.feature_quality`, `pipelines.historical_matches.refresh_history`, `workflows.daily_update`, and `forecast_evaluation` (all prefixed with `tennis_match_prediction`).
 
 ## Module Boundaries
 
-`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, offline evaluation, artifacts, tracking and inference. `forecast_evaluation/` owns reconciliation of archived forecasts, prospective metrics and report publication. `workflows/daily_update.py` coordinates history refresh and forecast evaluation. `contracts/` groups schemas by responsibility; `paths.py` centralizes paths. `storage/` holds shared persistence primitives, `providers/` holds external provider configuration, and `diagnostics/` holds explicit experiments. `web/` serves the personal application's HTTP API and static interface, including upcoming-match batch prediction.
+`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, offline evaluation, artifacts, tracking and inference. `forecast_evaluation/` owns reconciliation of archived forecasts, prospective metrics and report publication. `workflows/daily_update.py` coordinates history refresh and forecast evaluation. `contracts/` groups schemas by responsibility; `paths.py` centralizes paths. `storage/` holds shared persistence primitives. Live Tennis API callers define their base URL locally. `web/` serves the personal application's HTTP API and static interface, including upcoming-match batch prediction.
 
 ## Naming and Organization Rules
 

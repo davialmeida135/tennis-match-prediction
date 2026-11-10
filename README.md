@@ -228,22 +228,6 @@ Restart the web application after publishing to load the updated player history.
 This flow currently uses annual ATP files; ingestion of `ongoing_tourneys.csv` and
 automatic scheduling remain planned work.
 
-## Live Tennis API experiment
-
-An isolated probe tests ATP singles main-draw fixtures without changing historical
-datasets or generating predictions. Set `LIVE_TENNIS_API_KEY` in your ignored local
-`.env` and run:
-
-```powershell
-uv run python -m tennis_match_prediction.diagnostics.live_tennis_probe --history-path data/curated/player_history.parquet
-```
-
-It makes four bounded calls and saves local responses and an analysis report under
-`data/tmp/live-tennis-api/<attempt-id>/`. See [the live test findings](docs/live-tennis-api-test.md)
-for observed fixture/match ID differences, swapped participant order and pending
-identity mapping. The fixture list includes terminal/live rows; this experiment
-is separate from the application batch workflow described above.
-
 ## How the code fits together
 
 Importable code lives in `src/tennis_match_prediction/`. `uv sync` installs the
@@ -264,8 +248,8 @@ definitions loaded by `workspace.yaml`.
 `contracts/` groups typed boundaries by responsibility: model settings, experiments,
 prediction, player history, datasets, ingestion, and feature names. `paths.py` owns
 filesystem configuration. `storage/json_io.py` provides shared atomic JSON writing;
-`providers/live_tennis.py` owns provider connection configuration, while exploratory
-provider commands live under `diagnostics/`.
+`web/upcoming.py` and `forecast_evaluation/service.py` each define their Live Tennis
+API base URL locally.
 
 Read these files in this order:
 

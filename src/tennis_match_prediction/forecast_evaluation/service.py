@@ -9,9 +9,12 @@ from uuid import uuid4
 
 import requests
 
-from tennis_match_prediction.forecast_evaluation.reconciliation import evaluate_batches, timestamp
+from tennis_match_prediction.forecast_evaluation.reconciliation import (
+    evaluate_batches,
+    timestamp,
+)
 from tennis_match_prediction.forecast_evaluation.reporting import markdown_report
-from tennis_match_prediction.providers.live_tennis import BASE_URL
+from tennis_match_prediction.paths import LIVE_MATCHES_URL
 from tennis_match_prediction.storage.json_io import write_json
 
 
@@ -27,7 +30,11 @@ def load_batches(directory: Path) -> list[dict[str, Any]]:
 
 
 def update_performance(
-    predictions_dir: Path, output_dir: Path, *, api_key: str | None, max_requests: int = 20
+    predictions_dir: Path,
+    output_dir: Path,
+    *,
+    api_key: str | None,
+    max_requests: int = 20,
 ) -> dict[str, Any]:
     """Collect bounded per-ID results; publish report and observations as one version."""
     if not 0 <= max_requests <= 20:
@@ -44,7 +51,10 @@ def update_performance(
 
 
 def _update_performance(
-    batches: list[dict[str, Any]], output_dir: Path, api_key: str | None, max_requests: int
+    batches: list[dict[str, Any]],
+    output_dir: Path,
+    api_key: str | None,
+    max_requests: int,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
     latest_path = output_dir / "latest.json"
@@ -52,17 +62,21 @@ def _update_performance(
     if latest_path.exists():
         previous = json.loads(latest_path.read_text(encoding="utf-8"))["id"]
         observations = json.loads(
-            (output_dir / "runs" / previous / "results.json").read_text(encoding="utf-8")
+            (output_dir / "runs" / previous / "results.json").read_text(
+                encoding="utf-8"
+            )
         )
     due = {
         row["match"]["id"]
         for batch in batches
         for row in batch["predictions"]
-        if (start := timestamp(row["match"].get("scheduled_time"))) is not None and start <= now
+        if (start := timestamp(row["match"].get("scheduled_time"))) is not None
+        and start <= now
     }
     # Round-robin oldest observations, including terminal results to catch corrections.
     ordered = sorted(
-        due, key=lambda mid: (observations.get(str(mid), {}).get("observed_at", ""), mid)
+        due,
+        key=lambda mid: (observations.get(str(mid), {}).get("observed_at", ""), mid),
     )
     requests_made = 0
     if max_requests and ordered and not api_key:
@@ -70,7 +84,7 @@ def _update_performance(
     for match_id in ordered[:max_requests]:
         try:
             response = requests.get(
-                f"{BASE_URL}/matches/{match_id}",
+                f"{LIVE_MATCHES_URL}/matches/{match_id}",
                 headers={"X-API-Key": api_key},
                 timeout=30,
                 allow_redirects=False,
@@ -96,7 +110,9 @@ def _update_performance(
         observations[str(match_id)] = {
             "observed_at": datetime.now(UTC).isoformat(),
             "http_status": response.status_code,
-            "sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
+            "sha256": hashlib.sha256(
+                json.dumps(payload, sort_keys=True).encode()
+            ).hexdigest(),
             "match": payload,
         }
     report = evaluate_batches(batches, observations)

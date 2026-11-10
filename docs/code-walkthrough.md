@@ -68,9 +68,7 @@ The installed package lives in `src/tennis_match_prediction/`. The folders divid
 | `web/` | FastAPI endpoints, player/model services, upcoming forecasts, and browser files. |
 | `forecast_evaluation/` | Result collection, forecast eligibility, metrics, and reports. |
 | `workflows/` | The daily maintenance coordinator. |
-| `providers/` | Shared Live Tennis API configuration. |
 | `storage/` | Shared atomic JSON writing. |
-| `diagnostics/` | Explicit provider experiments, separate from the normal application flow. |
 | `paths.py` | Default data locations and environment configuration. |
 
 At repository level, `tests/` contains regression tests, `notebooks/` contains exploration, `docs/` contains explanations, and `docker/` contains the optional MLflow tracking-server setup. `workspace.yaml` tells Dagster which Python definitions to load.
@@ -377,7 +375,7 @@ Lock files prevent overlapping operations at the relevant directories. Retained 
 
 Evidence: `workflows/daily_update.py`, `pipelines/daily_update.py`, `pipelines/defs.py`, and `pipelines/historical_matches/refresh_history.py`.
 
-## 17. Contracts, configuration, and diagnostics
+## 17. Contracts, configuration, and feature inspection
 
 `contracts/base.py:ContractModel` rejects unknown fields and non-finite numeric values. Other contract modules specialize this for experiments, model parameters, requests, history, ingestion metadata, and DataFrames. DataFrame checks validate the relevant columns, dates, numeric values, and binary targets.
 
@@ -385,9 +383,9 @@ Evidence: `workflows/daily_update.py`, `pipelines/daily_update.py`, `pipelines/d
 
 `ml/feature_quality.py` inspects raw source coverage. It distinguishes missing values, invalid observations, and valid zero values by season. That reveals gaps that neutral comparison values in the training table can hide.
 
-`diagnostics/live_tennis_probe.py` is an explicitly run provider investigation. Normal forecast generation uses `web/upcoming.py`; production result evaluation uses `forecast_evaluation/`.
+Forecast generation uses `web/upcoming.py`; production result evaluation uses `forecast_evaluation/`. Each caller defines its Live Tennis API base URL locally.
 
-Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, and `diagnostics/live_tennis_probe.py`.
+Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, `web/upcoming.py`, and `forecast_evaluation/service.py`.
 
 ## 18. How to run the main flows
 

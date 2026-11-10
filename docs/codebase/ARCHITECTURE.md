@@ -25,7 +25,7 @@ File-backed data pipeline plus shared ML experiment runner and prediction API. S
 | `forecast_evaluation` | Forecast reconciliation, prospective metrics and reports | Uses provider configuration and shared storage; independent of web presentation |
 | `workflows/daily_update.py` | Coordinates history refresh and forecast evaluation | Called by CLI or the Dagster daily update component |
 | `pipelines/defs.py` | Composes history, training and daily update definitions | Application code location loaded by `workspace.yaml` |
-| `storage`, `providers`, `diagnostics` | Persistence primitives, provider configuration and explicit experiments | Production modules do not import diagnostic code |
+| `storage` | Shared persistence primitives | Live Tennis callers define their API base URL locally |
 | `web` | HTTP API, static application, player/model access and upcoming forecasts | Uses shared prediction and storage logic |
 | `contracts/`, `paths.py` | Schemas and storage configuration | Shared across layers |
 

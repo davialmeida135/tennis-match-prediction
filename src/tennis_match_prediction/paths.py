@@ -44,6 +44,8 @@ MODELS_DIR = DATA_DIR / "models"
 CURATED_MATCHES_CSV_NAME = "curated_atp_matches.csv"
 TRAINING_MATCHES_CSV_NAME = "training_atp_matches.csv"
 
+LIVE_MATCHES_URL = "https://api.livetennisapi.com/api/public/v1"
+
 
 def write_curated_csv(
     frame: pd.DataFrame, file_name: str, *, output_dir: Path | None = None
