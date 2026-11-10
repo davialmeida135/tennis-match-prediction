@@ -12,11 +12,11 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from tennis_match_prediction.forecast_evaluation.service import update_performance
+from tennis_match_prediction.forecast_evaluation.collection import update_performance
 from tennis_match_prediction.paths import CURATED_DIR, DATA_DIR, DEFAULT_HISTORICAL_MATCHES_CSV
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.historical_matches.refresh_history import refresh_history
-from tennis_match_prediction.storage.json_io import write_json
+from tennis_match_prediction.storage.files import write_json
 
 
 @dataclass

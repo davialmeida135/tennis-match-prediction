@@ -5,12 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import time
-from collections.abc import Iterator
-from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Self
 
 import pandas as pd
@@ -20,6 +16,7 @@ from pydantic import Field, model_validator
 
 from tennis_match_prediction.contracts.ingestion import DownloadedSeason
 from tennis_match_prediction.paths import DEFAULT_HISTORICAL_MATCHES_CSV
+from tennis_match_prediction.storage.files import atomic_output
 
 DATA_FILES_URL = "https://stats.tennismylife.org/api/data-files"
 REQUIRED_COLUMNS = frozenset(
@@ -34,35 +31,6 @@ REQUIRED_COLUMNS = frozenset(
         "surface",
     }
 )
-
-
-@contextmanager
-def _atomic_output(output: Path) -> Iterator[Path]:
-    """Publish through a unique, closed temporary file, tolerating brief Windows locks."""
-    with NamedTemporaryFile(
-        dir=output.parent, prefix=f".{output.name}.", suffix=".tmp", delete=False
-    ) as handle:
-        temporary = Path(handle.name)
-    try:
-        yield temporary
-        for attempt in range(5):
-            try:
-                temporary.replace(output)
-                break
-            except PermissionError as error:
-                # Windows scanners can briefly deny replacement with ACCESS_DENIED
-                # (5), not only the sharing/lock violations (32/33).
-                if getattr(error, "winerror", None) not in {5, 32, 33}:
-                    raise
-                if attempt == 4:
-                    raise PermissionError(
-                        f"Cannot replace {output}: Windows denied access "
-                        "or reports that a file is in use. "
-                        "Check file permissions and applications holding it open, then retry."
-                    ) from error
-                time.sleep(0.25 * 2**attempt)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 class RawMatchesCsv(ConfigurableResource):
@@ -133,7 +101,7 @@ class RawMatchesCsv(ConfigurableResource):
         snapshots.mkdir(exist_ok=True)
         snapshot = snapshots / f"{digest}.csv"
         if not snapshot.exists():
-            with _atomic_output(snapshot) as temporary:
+            with atomic_output(snapshot) as temporary:
                 temporary.write_bytes(content)
         retained = destination / "ongoing_results.csv"
         if retained.exists():
@@ -143,7 +111,7 @@ class RawMatchesCsv(ConfigurableResource):
             frame = pd.concat([previous, frame], ignore_index=True).drop_duplicates(
                 ["tourney_id", "match_num"], keep="last"
             )
-        with _atomic_output(retained) as temporary:
+        with atomic_output(retained) as temporary:
             frame.to_csv(temporary, index=False)
 
     @staticmethod
@@ -194,7 +162,7 @@ class RawMatchesCsv(ConfigurableResource):
         if frame.empty:
             raise ValueError(f"{path.name} contains no matches")
         if changed:
-            with _atomic_output(path) as temporary:
+            with atomic_output(path) as temporary:
                 temporary.write_bytes(content)
         return DownloadedSeason(year=year, path=path, sha256=digest, changed=changed)
 
@@ -216,7 +184,7 @@ class RawMatchesCsv(ConfigurableResource):
             "source": self.catalog_url,
             "seasons": [seasons[year] for year in sorted(seasons)],
         }
-        with _atomic_output(manifest_path) as temporary:
+        with atomic_output(manifest_path) as temporary:
             temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
 
     def load_seasons(self, raw_directory: Path) -> pd.DataFrame:
@@ -311,6 +279,6 @@ class RawMatchesCsv(ConfigurableResource):
         frame = self.load_seasons(raw_directory)
         output = Path(self.csv_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        with _atomic_output(output) as temporary:
+        with atomic_output(output) as temporary:
             frame.to_csv(temporary, index=False)
         return frame

@@ -23,13 +23,13 @@ from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE
 from tennis_match_prediction.paths import (
     CURATED_MATCHES_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,
-    write_curated_csv,
 )
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.metadata import dataframe_metadata
-from tennis_match_prediction.transforms.curation import remove_stat_cols
-from tennis_match_prediction.transforms.match_preparation import prepare_history
-from tennis_match_prediction.transforms.normalization import remove_wo
+from tennis_match_prediction.storage.files import write_curated_csv
+from tennis_match_prediction.transforms.curation import remove_match_statistics
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
+from tennis_match_prediction.transforms.normalization import remove_walkovers
 from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
@@ -112,7 +112,7 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
 )
 def normalized_atp_matches(raw_atp_matches: pd.DataFrame) -> pd.DataFrame:
     """Filter played matches, clean surfaces and establish source chronology."""
-    frame = prepare_history(raw_atp_matches)
+    frame = prepare_matches(raw_atp_matches)
     NORMALIZED_MATCHES.validate_frame(frame)
     return frame
 
@@ -152,7 +152,7 @@ def curated_atp_matches(
     player_comparison_atp_matches: pd.DataFrame,
 ) -> pd.DataFrame:
     """Keep readable source context and remove outcome statistics before target construction."""
-    frame = remove_wo(player_comparison_atp_matches)
+    frame = remove_walkovers(player_comparison_atp_matches)
     if (
         not set(PLAYER_COMPARISON_FEATURE_COLUMNS).issubset(frame.columns)
         or frame[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].isna().any().any()
@@ -161,7 +161,7 @@ def curated_atp_matches(
             "Missing temporal features. Materialize player_comparison_atp_matches and all "
             "downstream assets together to rebuild the feature chain."
         )
-    return remove_stat_cols(frame)
+    return remove_match_statistics(frame)
 
 
 @asset(

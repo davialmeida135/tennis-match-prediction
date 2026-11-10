@@ -33,7 +33,7 @@ flowchart TD
     L --> M[Performance page and reports]
 ```
 
-Evidence: `src/tennis_match_prediction/pipelines/historical_matches/assets.py`, `ml/experiment.py`, `ml/predict.py`, `web/upcoming.py`, and `forecast_evaluation/service.py` under that package.
+Evidence: `src/tennis_match_prediction/pipelines/historical_matches/assets.py`, `ml/experiment.py`, `ml/predict.py`, `web/upcoming_matches.py`, and `forecast_evaluation/collection.py` under that package.
 
 ## 2. The vocabulary, without the jargon
 
@@ -68,7 +68,7 @@ The installed package lives in `src/tennis_match_prediction/`. The folders divid
 | `web/` | FastAPI endpoints, player/model services, upcoming forecasts, and browser files. |
 | `forecast_evaluation/` | Result collection, forecast eligibility, metrics, and reports. |
 | `workflows/` | The daily maintenance coordinator. |
-| `storage/` | Shared atomic JSON writing. |
+| `storage/` | Shared file publication for JSON, CSV and historical snapshots. |
 | `paths.py` | Default data locations and environment configuration. |
 
 At repository level, `tests/` contains regression tests, `notebooks/` contains exploration, `docs/` contains explanations, and `docker/` contains the optional MLflow tracking-server setup. `workspace.yaml` tells Dagster which Python definitions to load.
@@ -95,7 +95,7 @@ Evidence: `pipelines/historical_matches/assets.py`, `pipelines/shared/parquet_io
 
 ## 5. Step one: collect historical results
 
-Start with `pipelines/historical_matches/config.py`. Its `RawMatchesCsv` class manages the source files.
+Start with `pipelines/historical_matches/ingestion.py`. Its `RawMatchesCsv` class manages the source files.
 
 It queries the TennisMyLife file catalog, chooses annual ATP CSVs, downloads them, validates required columns, records hashes, and consolidates the locally available seasons into `all_atp_matches.csv`.
 
@@ -282,7 +282,7 @@ The model may use a subset of the shared features. A model requiring inputs that
 
 Historical as-of prediction is not implemented. A final snapshot cannot safely answer what the system would have predicted before an earlier match.
 
-Evidence: `ml/predict.py`, `contracts/prediction.py`, and `web/service.py`.
+Evidence: `ml/predict.py`, `contracts/prediction.py`, and `web/players.py`.
 
 ## 13. How the web application works
 
@@ -312,11 +312,11 @@ On API requests, the application checks `latest_refresh.json`. If it changes, it
 
 The default local model is the most recently modified compatible artifact discovered, not necessarily the most accurate. The CLI currently binds Uvicorn to `0.0.0.0`, although the README describes localhost-only operation. The route implementation has no authentication layer.
 
-Evidence: `web/{__main__,app,service,contracts}.py` and `web/static/{app.js,index.html,style.css}`.
+Evidence: `web/{__main__,app,players,contracts}.py` and `web/static/{app.js,index.html,style.css}`.
 
 ## 14. Upcoming matches and reproducible batches
 
-`web/upcoming.py:UpcomingService` requests upcoming ATP singles main-draw matches from Live Tennis API. The request budget is five pages of up to 100 rows; the source response is cached for one minute. An incomplete page sequence or provider error prevents publishing a replacement batch.
+`web/upcoming_matches.py:UpcomingService` requests upcoming ATP singles main-draw matches from Live Tennis API. The request budget is five pages of up to 100 rows; the source response is cached for one minute. An incomplete page sequence or provider error prevents publishing a replacement batch.
 
 Before predicting, it checks the match status, future timezone-aware scheduled time, known surface, and distinct participants. Postponed, cancelled, started, missing, and ambiguous cases are skipped with recorded reasons.
 
@@ -337,13 +337,13 @@ The copied files are the exact frozen inputs used for prediction, including a mo
 
 Reading a batch makes no provider call. The current view hides matches after their scheduled start and hides batches incompatible with the current model/history. The archived directory remains available on disk.
 
-Evidence: `web/upcoming.py`, `web/service.py:save_prediction_artifacts`, and `web/__main__.py`.
+Evidence: `web/upcoming_matches.py`, `web/players.py:save_prediction_artifacts`, and `web/__main__.py`.
 
 ## 15. Step five: evaluate forecasts after the matches
 
 Training validation asks how a model performs on historical examples. `forecast_evaluation/` asks how archived predictions performed after they were actually issued.
 
-`service.py` reads saved batches, finds matches whose original scheduled time has passed, and collects provider results with a maximum of 20 requests per execution. It revisits older observations, including completed results, so corrections can produce a new report.
+`collection.py` reads saved batches, finds matches whose original scheduled time has passed, and collects provider results with a maximum of 20 requests per execution. It revisits older observations, including completed results, so corrections can produce a new report.
 
 `reconciliation.py` checks the provider match ID and both participant IDs. If the provider reverses participant order, the winner is translated using IDs. A name resemblance or approximate date is not enough.
 
@@ -357,7 +357,7 @@ Every run writes `results.json`, `report.json`, and `report.md` in a new `data/p
 
 Manual prediction exports do not carry a provider match identity and are outside this evaluation flow. Different model versions can cover different match samples, so the report alone is not a controlled model comparison.
 
-Evidence: `forecast_evaluation/{service,reconciliation,metrics,reporting,archive,details}.py`.
+Evidence: `forecast_evaluation/{collection,reconciliation,metrics,reporting,archive,details}.py`.
 
 ## 16. Daily maintenance and publication
 
@@ -383,9 +383,9 @@ Evidence: `workflows/daily_update.py`, `pipelines/daily_update.py`, `pipelines/d
 
 `ml/feature_quality.py` inspects raw source coverage. It distinguishes missing values, invalid observations, and valid zero values by season. That reveals gaps that neutral comparison values in the training table can hide.
 
-Forecast generation uses `web/upcoming.py`; production result evaluation uses `forecast_evaluation/`. Each caller defines its Live Tennis API base URL locally.
+Forecast generation uses `web/upcoming_matches.py`; production result evaluation uses `forecast_evaluation/`. Both callers use the Live Tennis API base URL from `paths.py`.
 
-Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, `web/upcoming.py`, and `forecast_evaluation/service.py`.
+Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, `web/upcoming_matches.py`, and `forecast_evaluation/collection.py`.
 
 ## 18. How to run the main flows
 
@@ -484,7 +484,7 @@ Evidence: `pyproject.toml`, `.github/workflows/pylint.yml`, and `tests/`.
 - Full replay, retained snapshots, and per-batch model/history copies have runtime and storage costs.
 - The README contains stale statements about localhost binding, restart requirements, ongoing ingestion, and the Compose filename. The source paths cited here establish the behavior described in this walkthrough.
 
-Evidence: `ml/predict.py`, `transforms/{match_preparation,player_comparison,temporal_features}.py`, `contracts/player_history.py`, `web/{__main__,service,upcoming}.py`, `workflows/daily_update.py`, `forecast_evaluation/{reconciliation,metrics}.py`, and `README.md`.
+Evidence: `ml/predict.py`, `transforms/{match_preparation,player_comparison,temporal_features}.py`, `contracts/player_history.py`, `web/{__main__,players,upcoming_matches}.py`, `workflows/daily_update.py`, `forecast_evaluation/{reconciliation,metrics}.py`, and `README.md`.
 
 ## 21. A practical reading order
 
@@ -492,4 +492,4 @@ Read `contracts/player_history.py` to understand what is remembered about a play
 
 Continue with `transforms/training_rows.py`, `ml/dataset.py`, and `ml/experiment.py` to understand how historical comparisons become a fitted model. Then read `ml/predict.py` to see the same comparisons used for a future matchup.
 
-Finally, read `web/service.py`, `web/upcoming.py`, `forecast_evaluation/reconciliation.py`, and `workflows/daily_update.py`. Those modules turn the prediction functions into an application with saved forecasts, observed results, and repeatable maintenance.
+Finally, read `web/players.py`, `web/upcoming_matches.py`, `forecast_evaluation/reconciliation.py`, and `workflows/daily_update.py`. Those modules turn the prediction functions into an application with saved forecasts, observed results, and repeatable maintenance.

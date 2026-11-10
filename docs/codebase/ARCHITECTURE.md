@@ -25,7 +25,7 @@ File-backed data pipeline plus shared ML experiment runner and prediction API. S
 | `forecast_evaluation` | Forecast reconciliation, prospective metrics and reports | Uses provider configuration and shared storage; independent of web presentation |
 | `workflows/daily_update.py` | Coordinates history refresh and forecast evaluation | Called by CLI or the Dagster daily update component |
 | `pipelines/defs.py` | Composes history, training and daily update definitions | Application code location loaded by `workspace.yaml` |
-| `storage` | Shared persistence primitives | Live Tennis callers define their API base URL locally |
+| `storage` | Shared persistence primitives | File writers are independent of Dagster and the web interface |
 | `web` | HTTP API, static application, player/model access and upcoming forecasts | Uses shared prediction and storage logic |
 | `contracts/`, `paths.py` | Schemas and storage configuration | Shared across layers |
 
@@ -39,9 +39,9 @@ Latest history cannot answer past as-of queries. The standalone prediction API r
 
 ## Evidence
 
-- `src/tennis_match_prediction/pipelines/historical_matches/{assets,defs,config}.py`.
+- `src/tennis_match_prediction/pipelines/historical_matches/{assets,defs,ingestion}.py`.
 - `src/tennis_match_prediction/pipelines/shared/parquet_io.py`.
 - `src/tennis_match_prediction/transforms/{player_history,player_comparison,history}.py`.
 - `src/tennis_match_prediction/ml/{experiment,dataset,predict}.py`, `ml/models/factory.py`.
-- `src/tennis_match_prediction/{forecast_evaluation/,workflows/daily_update.py,pipelines/defs.py,web/service.py,web/upcoming.py}`.
+- `src/tennis_match_prediction/{forecast_evaluation/,workflows/daily_update.py,pipelines/defs.py,web/players.py,web/upcoming_matches.py}`.
 - `src/tennis_match_prediction/{web/app.py,pipelines/historical_matches/refresh_history.py}`.

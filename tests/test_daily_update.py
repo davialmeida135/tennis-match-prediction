@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from tennis_match_prediction.pipelines.defs import defs
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.workflows.daily_update import DailyUpdateSettings, run_daily_update
 
 
@@ -48,7 +48,7 @@ def test_partial_feed_retains_absent_rows_and_annual_corrections_take_precedence
         return Mock(content=frame.to_csv(index=False).encode())
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get", get
     )
     source = RawMatchesCsv(
         csv_path=str(tmp_path / "all.csv"),

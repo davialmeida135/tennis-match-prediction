@@ -1,6 +1,6 @@
 import pandas as pd
 
-from tennis_match_prediction.transforms.match_preparation import prepare_history
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
 from tennis_match_prediction.transforms.normalization import (
     remove_matches_without_player_ids,
 )
@@ -55,7 +55,7 @@ def test_comparisons_keep_rows_with_colliding_or_missing_match_keys() -> None:
         }
     )
 
-    prepared = prepare_history(matches)
+    prepared = prepare_matches(matches)
     featured, _, _ = attach_temporal_features(prepared)
 
     pd.testing.assert_frame_equal(featured[matches.columns], prepared)

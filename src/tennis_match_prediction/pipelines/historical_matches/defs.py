@@ -27,7 +27,7 @@ from tennis_match_prediction.pipelines.historical_matches.checks import (
     target_is_balanced,
     target_is_binary,
 )
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 ASSETS = [

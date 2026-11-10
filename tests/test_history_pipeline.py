@@ -12,10 +12,10 @@ from tennis_match_prediction.contracts.player_history import PlayerHistory
 from tennis_match_prediction.pipelines.defs import defs
 from tennis_match_prediction.pipelines.historical_matches import assets
 from tennis_match_prediction.pipelines.historical_matches import refresh_history as refresh_module
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
-from tennis_match_prediction.transforms.match_preparation import prepare_history
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
 from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
@@ -89,7 +89,7 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
         return Response()
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get", get
     )
     source = RawMatchesCsv(
         csv_path=str(raw_dir / "all_atp_matches.csv"),
@@ -198,7 +198,7 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
     missing_id = raw.iloc[[0]].assign(winner_id=None)
     raw = pd.concat([walkover, raw, missing_id], ignore_index=True)
 
-    prepared = prepare_history(raw)
+    prepared = prepare_matches(raw)
     _, temporal, history = attach_temporal_features(prepared)
 
     assert prepared["match_num"].tolist()[:1] == [1]

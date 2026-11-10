@@ -21,8 +21,8 @@ from tennis_match_prediction.ml.artifacts import load_artifact, save_artifact
 from tennis_match_prediction.ml.models.logistic_regression import LogisticRegressionModel
 from tennis_match_prediction.ml.predict import predict, probability_for
 from tennis_match_prediction.web.app import create_app
+from tennis_match_prediction.web.players import PlayerService
 from tennis_match_prediction.web.registry import RegistryModel
-from tennis_match_prediction.web.service import PlayerService
 
 
 def _upcoming_match(match_id=100):
@@ -86,7 +86,7 @@ def test_upcoming_batch_skips_unavailable_and_postponed_and_is_reproducible(
         assert kwargs["headers"]["X-API-Key"] == "test-key"
         return Response()
 
-    monkeypatch.setattr("tennis_match_prediction.web.upcoming.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming_matches.requests.get", get)
     model_id = client.get("/api/status").json()["default_model_id"]
     assert client.get("/api/upcoming").json()["batch"] is None
     original_history = web_files[0].read_bytes()
@@ -130,7 +130,7 @@ def test_upcoming_batch_skips_unavailable_and_postponed_and_is_reproducible(
         def now(cls, tz=None):
             return datetime(2099, 1, 2, tzinfo=UTC)
 
-    monkeypatch.setattr("tennis_match_prediction.web.upcoming.datetime", AfterKickoff)
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming_matches.datetime", AfterKickoff)
     assert client.get("/api/upcoming").json()["batch"]["predictions"] == []
     assert len(client.get(f"/api/upcoming/batches/{batch['id']}").json()["predictions"]) == 1
 
@@ -150,7 +150,7 @@ def test_upcoming_provider_failure_and_pagination_are_not_silent(upcoming_client
         calls.append(kwargs["params"]["offset"])
         return Response()
 
-    monkeypatch.setattr("tennis_match_prediction.web.upcoming.requests.get", get)
+    monkeypatch.setattr("tennis_match_prediction.web.upcoming_matches.requests.get", get)
     result = client.post("/api/upcoming/refresh", json={"model_id": model_id})
     assert result.status_code == 503
     assert calls == [0, 100, 200, 300, 400]
@@ -162,7 +162,7 @@ def test_upcoming_provider_failure_and_pagination_are_not_silent(upcoming_client
 
 
 def test_upcoming_rejects_ambiguous_players_and_untrusted_states():
-    from tennis_match_prediction.web.upcoming import UpcomingService
+    from tennis_match_prediction.web.upcoming_matches import UpcomingService
 
     names = {"alice example": ["one", "two"], "bob example": ["bob"]}
     now = datetime(2026, 1, 1, tzinfo=UTC)
@@ -286,7 +286,7 @@ def test_web_reloads_only_validated_published_history(client, web_files):
 
 
 def test_performance_page_and_report_download(web_files, tmp_path):
-    from tennis_match_prediction.forecast_evaluation.service import update_performance
+    from tennis_match_prediction.forecast_evaluation.collection import update_performance
 
     application = create_app(
         history_path=web_files[0],
@@ -674,8 +674,8 @@ def test_cached_models_and_history_are_not_reloaded_per_prediction(client, monke
     def unexpected_load(*args, **kwargs):
         raise AssertionError("Prediction reloaded a cached file")
 
-    monkeypatch.setattr("tennis_match_prediction.web.service.load_artifact", unexpected_load)
-    monkeypatch.setattr("tennis_match_prediction.web.service.pd.read_parquet", unexpected_load)
+    monkeypatch.setattr("tennis_match_prediction.web.players.load_artifact", unexpected_load)
+    monkeypatch.setattr("tennis_match_prediction.web.players.pd.read_parquet", unexpected_load)
     for _ in range(2):
         assert client.post("/api/predict", json=matchup(client)).status_code == 200
 
@@ -683,7 +683,7 @@ def test_cached_models_and_history_are_not_reloaded_per_prediction(client, monke
 @pytest.mark.parametrize("probability", [0.0, 1.0])
 def test_zero_probability_odds_are_json_safe(client, monkeypatch, probability):
     monkeypatch.setattr(
-        "tennis_match_prediction.web.service.probability_for", lambda *_: probability
+        "tennis_match_prediction.web.players.probability_for", lambda *_: probability
     )
     response = client.post("/api/predict", json=matchup(client))
     assert response.status_code == 200

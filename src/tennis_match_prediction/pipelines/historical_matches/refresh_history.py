@@ -20,12 +20,12 @@ from tennis_match_prediction.paths import (
     PROJECT_ROOT,
     TRAINING_MATCHES_CSV_NAME,
 )
-from tennis_match_prediction.pipelines.historical_matches.config import (
-    RawMatchesCsv,
-    _atomic_output,
-)
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS
+from tennis_match_prediction.pipelines.historical_matches.ingestion import (
+    RawMatchesCsv,
+)
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
+from tennis_match_prediction.storage.files import atomic_output
 
 
 def refresh_history(source: RawMatchesCsv, *, output_dir: Path = CURATED_DIR) -> dict[str, Any]:
@@ -150,7 +150,7 @@ def _refresh_history(source: RawMatchesCsv, output_dir: Path) -> dict[str, Any]:
     finally:
         report["finished_at"] = datetime.now(UTC).isoformat()
         report["total_seconds"] = perf_counter() - started
-        with _atomic_output(report_path) as temporary:
+        with atomic_output(report_path) as temporary:
             temporary.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     return report
 
@@ -163,18 +163,18 @@ def _publish_exports(attempt: Path, output_dir: Path, report: dict[str, Any]) ->
             shutil.copyfile(output_dir / name, backups / name)
     try:
         for name in report["artifacts"]:
-            with _atomic_output(output_dir / name) as temporary:
+            with atomic_output(output_dir / name) as temporary:
                 shutil.copyfile(attempt / "curated" / name, temporary)
         report["status"] = "success"
         # Web readers resolve this pointer to immutable validated snapshots.
-        with _atomic_output(output_dir / "latest_refresh.json") as temporary:
+        with atomic_output(output_dir / "latest_refresh.json") as temporary:
             temporary.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     except OSError:
         # Restore compatibility exports after a handled publication failure.
         # Web readers keep their old immutable snapshot until the pointer changes.
         for name in report["artifacts"]:
             if (backups / name).exists():
-                with _atomic_output(output_dir / name) as temporary:
+                with atomic_output(output_dir / name) as temporary:
                     shutil.copyfile(backups / name, temporary)
             else:
                 (output_dir / name).unlink(missing_ok=True)

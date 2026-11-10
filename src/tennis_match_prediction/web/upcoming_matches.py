@@ -12,9 +12,9 @@ from typing import Any
 import requests
 
 from tennis_match_prediction.paths import LIVE_MATCHES_URL
-from tennis_match_prediction.storage.json_io import write_json
+from tennis_match_prediction.storage.files import write_json
 from tennis_match_prediction.web.contracts import MatchupRequest
-from tennis_match_prediction.web.service import PlayerService, search_key
+from tennis_match_prediction.web.players import PlayerService, search_key
 
 
 class UpcomingService:

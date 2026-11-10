@@ -1,10 +1,21 @@
-"""Read report snapshots and recover match details from their saved source records."""
+"""Read saved prediction batches and report snapshots from local archives."""
 
 import json
 from pathlib import Path
 from typing import Any
 
 from tennis_match_prediction.forecast_evaluation.details import prediction_details
+
+
+def load_batches(directory: Path) -> list[dict[str, Any]]:
+    """Read immutable batch records, never latest pointers or manual forecasts."""
+    batches = []
+    for path in sorted(directory.glob("*/batch.json")):
+        batch = json.loads(path.read_text(encoding="utf-8"))
+        if batch["id"] != path.parent.name or batch.get("source") != "Live Tennis API":
+            raise ValueError(f"Invalid saved batch: {path}")
+        batches.append(batch)
+    return batches
 
 
 def load_report(directory: Path, predictions_dir: Path) -> dict[str, Any]:

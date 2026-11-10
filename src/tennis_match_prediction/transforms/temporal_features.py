@@ -12,7 +12,7 @@ from tennis_match_prediction.transforms.match_preparation import (
     history_batches,
     order_history,
 )
-from tennis_match_prediction.transforms.normalization import fill_null_surface, remove_wo
+from tennis_match_prediction.transforms.normalization import normalize_surfaces, remove_walkovers
 from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
 
 
@@ -108,9 +108,9 @@ def _temporal_features_by_row(
     state = PlayerHistory(last_source_date=None, players={})
     source_rows: list[int] = []
     rows: list[dict[str, float | int | str | None]] = []
-    ordered = order_history(fill_null_surface(matches.reset_index(drop=True)))
+    ordered = order_history(normalize_surfaces(matches.reset_index(drop=True)))
     if "score" in ordered:
-        ordered = remove_wo(ordered)
+        ordered = remove_walkovers(ordered)
     for batch in history_batches(ordered):
         for _, match in batch.iterrows():
             for side in ("winner", "loser"):

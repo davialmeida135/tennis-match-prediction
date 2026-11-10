@@ -9,24 +9,14 @@ from uuid import uuid4
 
 import requests
 
+from tennis_match_prediction.forecast_evaluation.archive import load_batches
 from tennis_match_prediction.forecast_evaluation.reconciliation import (
     evaluate_batches,
     timestamp,
 )
 from tennis_match_prediction.forecast_evaluation.reporting import markdown_report
 from tennis_match_prediction.paths import LIVE_MATCHES_URL
-from tennis_match_prediction.storage.json_io import write_json
-
-
-def load_batches(directory: Path) -> list[dict[str, Any]]:
-    """Read immutable batch records, never latest pointers or manual forecasts."""
-    batches = []
-    for path in sorted(directory.glob("*/batch.json")):
-        batch = json.loads(path.read_text(encoding="utf-8"))
-        if batch["id"] != path.parent.name or batch.get("source") != "Live Tennis API":
-            raise ValueError(f"Invalid saved batch: {path}")
-        batches.append(batch)
-    return batches
+from tennis_match_prediction.storage.files import write_json
 
 
 def update_performance(

@@ -5,29 +5,29 @@ from collections.abc import Iterator
 import pandas as pd
 
 from tennis_match_prediction.transforms.normalization import (
-    fill_null_surface,
-    preprocess_dates,
+    normalize_source_dates,
+    normalize_surfaces,
     remove_matches_without_player_ids,
-    remove_wo,
+    remove_walkovers,
 )
 
 
 def order_history(matches: pd.DataFrame) -> pd.DataFrame:
     """Order by calendar date, tournament and match number, retaining tied source order."""
-    result = preprocess_dates(matches)
+    result = normalize_source_dates(matches)
     if "match_num" in result:
         result["match_num"] = pd.to_numeric(result["match_num"], errors="raise").astype("Int64")
     columns = [column for column in ("tourney_date", "tourney_id", "match_num") if column in result]
     return result.sort_values(columns, kind="stable", na_position="last")
 
 
-def prepare_history(matches: pd.DataFrame) -> pd.DataFrame:
+def prepare_matches(matches: pd.DataFrame) -> pd.DataFrame:
     """Exclude unplayed/unidentifiable matches and clean surface before any lookback."""
     result = remove_matches_without_player_ids(matches)
     if "score" in result:
-        result = remove_wo(result)
+        result = remove_walkovers(result)
     if "surface" in result:
-        result = fill_null_surface(result)
+        result = normalize_surfaces(result)
     return order_history(result).reset_index(drop=True)
 
 

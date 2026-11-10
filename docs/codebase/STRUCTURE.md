@@ -20,11 +20,23 @@
 
 ## Module Boundaries
 
-`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, offline evaluation, artifacts, tracking and inference. `forecast_evaluation/` owns reconciliation of archived forecasts, prospective metrics and report publication. `workflows/daily_update.py` coordinates history refresh and forecast evaluation. `contracts/` groups schemas by responsibility; `paths.py` centralizes paths. `storage/` holds shared persistence primitives. Live Tennis API callers define their base URL locally. `web/` serves the personal application's HTTP API and static interface, including upcoming-match batch prediction.
+`pipelines/` owns ingestion and Dagster orchestration; `transforms/` owns shared data/feature calculations; `ml/` owns fitting, offline evaluation, artifacts, tracking and inference. `forecast_evaluation/` owns reconciliation of archived forecasts, prospective metrics and report publication. `workflows/daily_update.py` coordinates history refresh and forecast evaluation. `contracts/` groups schemas by responsibility; `paths.py` centralizes paths. `storage/` holds shared persistence primitives. The Live Tennis API base URL is defined in `paths.py`. `web/` serves the personal application's HTTP API and static interface, including upcoming-match batch prediction.
+
+## Key implementation files
+
+- `pipelines/historical_matches/ingestion.py`: annual downloads, source validation, and consolidation through the `RawMatchesCsv` resource.
+- `transforms/normalization.py`: normalize surfaces and source dates; remove walkovers and unidentified participants.
+- `transforms/match_preparation.py`: `prepare_matches` coordinates cleaning and chronology; history batches handle ambiguous order.
+- `transforms/temporal_features.py`: compute comparisons before applying match results to player state.
+- `storage/files.py`: JSON and curated CSV writing, plus atomic replacement shared by all publishers.
+- `web/players.py`: cached player profiles, model discovery, and individual predictions.
+- `web/upcoming_matches.py`: collect upcoming matches and archive prediction batches.
+- `forecast_evaluation/archive.py`: read saved batches and report snapshots.
+- `forecast_evaluation/collection.py`: collect observed results and publish evaluations.
 
 ## Naming and Organization Rules
 
-Runtime outputs also include `data/predictions/` for batches with source/model/history copies, `data/performance/runs/` for observations/reports, `data/maintenance/` for daily stage reports, and `data/curated/.refreshes/` for isolated historical rebuilds. See `web/__main__.py`, `forecast_evaluation/service.py`, `workflows/daily_update.py`, and `pipelines/historical_matches/refresh_history.py` under the package.
+Runtime outputs also include `data/predictions/` for batches with source/model/history copies, `data/performance/runs/` for observations/reports, `data/maintenance/` for daily stage reports, and `data/curated/.refreshes/` for isolated historical rebuilds. See `web/__main__.py`, `forecast_evaluation/collection.py`, `workflows/daily_update.py`, and `pipelines/historical_matches/refresh_history.py` under the package.
 
 Snake-case modules/functions, PascalCase contracts and model adapters, uppercase configuration constants. Absolute package imports use `tennis_match_prediction`. Source is organized by responsibility with historical ingestion grouped under one pipeline.
 

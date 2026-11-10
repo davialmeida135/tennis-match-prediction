@@ -247,14 +247,13 @@ definitions loaded by `workspace.yaml`.
 
 `contracts/` groups typed boundaries by responsibility: model settings, experiments,
 prediction, player history, datasets, ingestion, and feature names. `paths.py` owns
-filesystem configuration. `storage/json_io.py` provides shared atomic JSON writing;
-`web/upcoming.py` and `forecast_evaluation/service.py` each define their Live Tennis
-API base URL locally.
+filesystem configuration. `storage/files.py` owns JSON/CSV writing and atomic file replacement;
+`paths.py` also defines the Live Tennis API base URL used by upcoming matches and result collection.
 
 Read these files in this order:
 
 1. `src/tennis_match_prediction/pipelines/historical_matches/assets.py` — raw asset decides whether to reuse, consolidate or download source history.
-2. `src/tennis_match_prediction/pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
+2. `src/tennis_match_prediction/pipelines/historical_matches/ingestion.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
 3. `src/tennis_match_prediction/contracts/` — Pydantic models, feature names, and DataFrame validation grouped by responsibility.
 4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the model features.
 5. `src/tennis_match_prediction/transforms/temporal_features.py` — build match comparisons and player history in one chronological pass.

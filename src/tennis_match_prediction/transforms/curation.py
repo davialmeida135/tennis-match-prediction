@@ -26,6 +26,6 @@ PER_MATCH_STAT_COLUMNS = [
 ]
 
 
-def remove_stat_cols(df: pd.DataFrame) -> pd.DataFrame:
+def remove_match_statistics(df: pd.DataFrame) -> pd.DataFrame:
     """Drop the per-match statistics that would leak the result."""
     return df.drop(columns=[column for column in PER_MATCH_STAT_COLUMNS if column in df.columns])

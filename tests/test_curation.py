@@ -1,7 +1,7 @@
 import pandas as pd
 
 from tennis_match_prediction.transforms.curation import (
-    remove_stat_cols,
+    remove_match_statistics,
 )
 
 
@@ -16,6 +16,6 @@ def test_curation_drops_current_match_statistics_and_preserves_source_context() 
         }
     )
 
-    curated = remove_stat_cols(frame)
+    curated = remove_match_statistics(frame)
 
     pd.testing.assert_frame_equal(curated, frame[["surface", "winner_age", "ace_rate_diff"]])

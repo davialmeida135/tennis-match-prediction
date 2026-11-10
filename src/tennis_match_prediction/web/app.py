@@ -19,9 +19,9 @@ from pydantic import JsonValue
 from tennis_match_prediction.forecast_evaluation.archive import load_report
 from tennis_match_prediction.forecast_evaluation.reporting import markdown_report
 from tennis_match_prediction.web.contracts import BatchPredictionRequest, MatchupRequest
+from tennis_match_prediction.web.players import PlayerService
 from tennis_match_prediction.web.registry import RegistryModel, download_registry_model
-from tennis_match_prediction.web.service import PlayerService
-from tennis_match_prediction.web.upcoming import UpcomingService
+from tennis_match_prediction.web.upcoming_matches import UpcomingService
 
 
 def create_app(

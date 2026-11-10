@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 
 
-def remove_wo(df: pd.DataFrame) -> pd.DataFrame:
+def remove_walkovers(df: pd.DataFrame) -> pd.DataFrame:
     """Drop walkovers: no real game was played, so they carry no signal."""
     return df.loc[df["score"].ne("W/O").fillna(True)].copy()
 
@@ -22,14 +22,14 @@ def remove_matches_without_player_ids(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[valid_ids].copy()
 
 
-def preprocess_dates(df: pd.DataFrame) -> pd.DataFrame:
+def normalize_source_dates(df: pd.DataFrame) -> pd.DataFrame:
     """Parse the source date without generating unused calendar features."""
     result = df.copy()
     result["tourney_date"] = pd.to_datetime(result["tourney_date"].map(parse_source_date))
     return result
 
 
-def fill_null_surface(df: pd.DataFrame) -> pd.DataFrame:
+def normalize_surfaces(df: pd.DataFrame) -> pd.DataFrame:
     """Treat missing/blank surfaces as Hard and normalize source casing."""
     result = df.copy()
     surface = result["surface"].astype("string").str.strip().str.title()

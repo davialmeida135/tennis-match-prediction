@@ -17,7 +17,6 @@ Override the root with the TENNIS_DATA_DIR environment variable (see .env.exampl
 import os
 from pathlib import Path
 
-import pandas as pd
 from dotenv import load_dotenv
 
 # `dagster dev` does not read .env by itself, so load it once, here, before any
@@ -45,13 +44,3 @@ CURATED_MATCHES_CSV_NAME = "curated_atp_matches.csv"
 TRAINING_MATCHES_CSV_NAME = "training_atp_matches.csv"
 
 LIVE_MATCHES_URL = "https://api.livetennisapi.com/api/public/v1"
-
-
-def write_curated_csv(
-    frame: pd.DataFrame, file_name: str, *, output_dir: Path | None = None
-) -> Path:
-    """Write `frame` under data/curated as `file_name` and return the path."""
-    path = (CURATED_DIR if output_dir is None else output_dir) / file_name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(path, index=False)
-    return path

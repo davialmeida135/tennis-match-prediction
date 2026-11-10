@@ -72,7 +72,7 @@ não altera datasets, histórico dos jogadores, modelo ou aplicação web.
 
 O utilitário exploratório e seus testes foram removidos para simplificar o projeto.
 Este documento preserva os resultados da consulta de 27/10/2026. A aplicação usa
-`web/upcoming.py` para partidas futuras e `forecast_evaluation/service.py` para resultados.
+`web/upcoming_matches.py` para partidas futuras e `forecast_evaluation/collection.py` para resultados.
 
 Relatório da execução real:
 `data/tmp/live-tennis-api/1f54153d2003495eb02b610d91594efe/report.json`.

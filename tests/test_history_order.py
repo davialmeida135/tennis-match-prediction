@@ -10,7 +10,7 @@ from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE
 from tennis_match_prediction.contracts.player_history import INITIAL_ELO, PlayerHistory
 from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.predict import features_for, predict
-from tennis_match_prediction.transforms.match_preparation import prepare_history
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
 from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
@@ -36,7 +36,7 @@ def _matches(numbers: list[object]) -> pd.DataFrame:
 
 
 def test_same_source_date_uses_numeric_match_order_for_every_feature() -> None:
-    prepared = prepare_history(_matches(["10", "2", "1"]))
+    prepared = prepare_matches(_matches(["10", "2", "1"]))
     _, features, _ = attach_temporal_features(prepared)
     assert features["match_num"].tolist() == [1, 2, 10]
     first_gain = 125 / (5**0.4)
