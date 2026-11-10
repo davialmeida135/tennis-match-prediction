@@ -188,8 +188,8 @@ O particionamento anual também permanece uma otimização, conforme `partitioni
   como semana do torneio, além de correções e remoções históricas.
 - [TennisMyLife: página inicial](https://stats.tennismylife.org/): apresenta calendário
   e programação; isso não confirma um feed utilizável de confrontos futuros.
-- Inspeção local: `pipelines/historical_matches/{config,assets,defs}.py`,
-  `ml/predict.py`, `web/service.py`, `README.md` e `TODO.md`.
+- Inspeção local: `pipelines/historical_matches/{ingestion,assets,defs}.py`,
+  `ml/predict.py`, `web/players.py`, `README.md` e `TODO.md`.
 - A limitação inicial de inspeção pelo navegador foi superada em 27/10/2026 com
   consultas HTTP diretas. O catálogo e o CSV foram inspecionados; horários e
   adiamentos não constam no CSV. Ver a investigação da entrega 2 para detalhes.

@@ -1,14 +1,12 @@
 import pandas as pd
 import pytest
 
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
-    elo_featured_atp_matches,
-    imputed_atp_matches,
     normalized_atp_matches,
-    winrate_featured_atp_matches,
 )
-from tennis_match_prediction.transforms.player_history import (
+from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
 from tennis_match_prediction.transforms.training_rows import (
@@ -55,7 +53,8 @@ def test_curated_matches_keep_attached_features_when_reordered() -> None:
     assert curated["match_num"].tolist() == [2, 1]
     assert curated.loc[0, "overall_elo_diff"] == temporal.loc[1, "overall_elo_diff"]
     assert curated.loc[1, "overall_elo_diff"] == 0.0
-    assert curated["surface_Hard"].tolist() == [1.0, 1.0]
+    assert curated["surface"].tolist() == ["Hard", "Hard"]
+    assert curated["round"].tolist() == ["F", "SF"]
 
 
 def test_curated_matches_reject_missing_temporal_results() -> None:
@@ -109,24 +108,18 @@ def test_feature_chain_preserves_matches_through_training_rows() -> None:
     raw = raw.assign(draw_size=32, best_of=3)
     for side in ("winner", "loser"):
         for column, value in {
-            "ht": 180,
             "age": 25,
             "rank": 20,
             "rank_points": 1000,
-            "seed": None,
-            "entry": None,
         }.items():
             raw[f"{side}_{column}"] = value
     normalized = normalized_atp_matches(raw)
     featured, _, _ = attach_temporal_features(normalized)
-    winrates = winrate_featured_atp_matches(featured)
-    elo = elo_featured_atp_matches(winrates)
-    imputed = imputed_atp_matches(elo)
-    curated = curated_atp_matches(imputed)
+    curated = curated_atp_matches(featured)
     final = build_training_rows(curated, random_seed=42)
 
-    assert all(len(frame) == len(raw) for frame in (featured, imputed, winrates, elo, final))
+    assert all(len(frame) == len(raw) for frame in (normalized, featured, curated, final))
     assert list(final.columns) == FINAL_COLUMN_ORDER
     assert {"h2h", "elo_diff"}.isdisjoint(curated.columns)
     assert {"h2h", "elo_diff"}.isdisjoint(final.columns)
-    assert final[["player0_elo", "player1_elo", "overall_elo_diff"]].notna().all().all()
+    assert final[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].notna().all().all()

@@ -12,28 +12,15 @@ from tennis_match_prediction.contracts.player_history import PlayerHistory
 from tennis_match_prediction.pipelines.defs import defs
 from tennis_match_prediction.pipelines.historical_matches import assets
 from tennis_match_prediction.pipelines.historical_matches import refresh_history as refresh_module
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
 from tennis_match_prediction.pipelines.historical_matches.defs import ASSET_CHECKS, ASSETS
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
-from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.history import prepare_history
-from tennis_match_prediction.transforms.imputation import (
-    DEFAULT_AGE,
-    DEFAULT_HEIGHT,
-    DEFAULT_RANK,
-    DEFAULT_RANK_POINTS,
-    fill_null_age,
-    fill_null_height,
-    fill_null_rank,
-)
-from tennis_match_prediction.transforms.player_history import (
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
+from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
 from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
-)
-from tennis_match_prediction.transforms.winrate import (
-    calcular_winrate_total,
 )
 
 
@@ -102,7 +89,7 @@ def test_refresh_rebuilds_new_corrected_and_deleted_results(tmp_path, monkeypatc
         return Response()
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get", get
     )
     source = RawMatchesCsv(
         csv_path=str(raw_dir / "all_atp_matches.csv"),
@@ -211,53 +198,15 @@ def test_history_paths_share_order_filtering_surface_and_elo() -> None:
     missing_id = raw.iloc[[0]].assign(winner_id=None)
     raw = pd.concat([walkover, raw, missing_id], ignore_index=True)
 
-    prepared = prepare_history(raw)
-    elo = calcular_elo(raw)
-    winrates = calcular_winrate_total(raw)
+    prepared = prepare_matches(raw)
     _, temporal, history = attach_temporal_features(prepared)
-    expected_differences = temporal["overall_elo_diff"].tolist()
 
     assert prepared["match_num"].tolist()[:1] == [1]
     assert pd.isna(prepared.loc[1, "match_num"])
     assert prepared["surface"].tolist() == ["Hard"] * 4
-    for frame in (elo, winrates):
-        assert frame["tourney_id"].tolist() == prepared["tourney_id"].tolist()
-        assert frame["match_num"].fillna(-1).tolist() == prepared["match_num"].fillna(-1).tolist()
-        assert len(frame) == 4
-    assert (elo["winner_elo"] - elo["loser_elo"]).tolist() == pytest.approx(expected_differences)
+    assert len(temporal) == 4
+    assert temporal["overall_elo_diff"].eq(0.0).all()
     assert sum(player.wins for player in history.players.values()) == 4
-
-
-@pytest.mark.parametrize("fill", [fill_null_height, fill_null_age, fill_null_rank])
-def test_imputation_is_causal_and_independent_of_winner_assignment(fill) -> None:
-    source = _history(3)
-    for stem in ("ht", "age", "rank", "rank_points"):
-        source[f"winner_{stem}"] = [None, 10.0, None]
-        source[f"loser_{stem}"] = [None, 30.0, None]
-    prefix = fill(source.iloc[:2])
-    future = source.iloc[[0]].copy()
-    for stem in ("ht", "age", "rank", "rank_points"):
-        future[f"winner_{stem}"] = 999999.0
-        future[f"loser_{stem}"] = 0.0
-    full = fill(pd.concat([source, future], ignore_index=True))
-    pd.testing.assert_frame_equal(full.iloc[:2], prefix)
-    swapped = source.copy()
-    for stem in ("ht", "age", "rank", "rank_points"):
-        swapped[f"winner_{stem}"] = source[f"loser_{stem}"]
-        swapped[f"loser_{stem}"] = source[f"winner_{stem}"]
-    swapped_result = fill(swapped)
-    filled = fill(source)
-    for stem in ("ht", "age", "rank", "rank_points"):
-        pd.testing.assert_series_equal(
-            filled[f"winner_{stem}"], swapped_result[f"loser_{stem}"], check_names=False
-        )
-    if fill is fill_null_height:
-        assert filled["winner_ht"].tolist() == [DEFAULT_HEIGHT, 10.0, 20.0]
-    elif fill is fill_null_age:
-        assert filled["winner_age"].tolist() == [DEFAULT_AGE, 10.0, 20.0]
-    else:
-        assert filled["winner_rank"].tolist() == [DEFAULT_RANK, 10.0, 30.0]
-        assert filled["winner_rank_points"].tolist() == [DEFAULT_RANK_POINTS, 10.0, 10.0]
 
 
 def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkeypatch) -> None:
@@ -291,17 +240,18 @@ def test_registered_pipeline_materializes_snapshots_and_exports(tmp_path, monkey
     assert assets.training_atp_matches.dependency_keys == {assets.curated_atp_matches.key}
     normalized = pd.read_parquet(staging / "normalized_atp_matches.parquet")
     comparisons = pd.read_parquet(staging / "player_comparison_atp_matches.parquet")
-    elo = pd.read_parquet(staging / "elo_featured_atp_matches.parquet")
     training = pd.read_csv(tmp_path / "curated" / paths.TRAINING_MATCHES_CSV_NAME)
     assert len(normalized) == len(training) == 200
     assert normalized["surface"].eq("Hard").all()
     assert list(training.columns) == FINAL_COLUMN_ORDER
-    assert {"h2h", "elo_diff"}.isdisjoint(elo.columns)
-    assert not (staging / "h2h_featured_atp_matches.parquet").exists()
-    assert training.filter(regex="_(ht|age|rank|rank_points)$").notna().all().all()
-    assert (elo["winner_elo"] - elo["loser_elo"]).tolist() == pytest.approx(
-        comparisons["overall_elo_diff"].tolist()
-    )
+    for removed in (
+        "winrate_featured_atp_matches",
+        "elo_featured_atp_matches",
+        "imputed_atp_matches",
+    ):
+        assert not (staging / f"{removed}.parquet").exists()
+    assert len(training.columns) == 14
+    assert training[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].notna().all().all()
     _, expected, history = attach_temporal_features(normalized)
     pd.testing.assert_frame_equal(
         comparisons[list(PLAYER_COMPARISON_FEATURE_COLUMNS)],

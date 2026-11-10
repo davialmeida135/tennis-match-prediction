@@ -1,16 +1,21 @@
 import pandas as pd
 
 from tennis_match_prediction.transforms.curation import (
-    SURFACE_COLUMNS,
-    encode_surface,
+    remove_match_statistics,
 )
 
 
-def test_encode_surface_keeps_fixed_schema_for_carpet_and_missing_values() -> None:
-    frame = pd.DataFrame({"surface": ["Carpet", "Hard", None]})
+def test_curation_drops_current_match_statistics_and_preserves_source_context() -> None:
+    frame = pd.DataFrame(
+        {
+            "surface": ["Carpet", "Hard", None],
+            "winner_age": [25.0, None, 30.0],
+            "w_ace": [10, 4, 5],
+            "l_svpt": [100, 80, 90],
+            "ace_rate_diff": [0.01, -0.02, 0.03],
+        }
+    )
 
-    encoded = encode_surface(frame)
+    curated = remove_match_statistics(frame)
 
-    assert [column for column in encoded if column.startswith("surface_")] == SURFACE_COLUMNS
-    assert encoded.loc[0, SURFACE_COLUMNS].tolist() == [0.0, 0.0, 0.0]
-    assert encoded.loc[1, SURFACE_COLUMNS].tolist() == [1.0, 0.0, 0.0]
+    pd.testing.assert_frame_equal(curated, frame[["surface", "winner_age", "ace_rate_diff"]])

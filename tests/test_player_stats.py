@@ -1,11 +1,10 @@
 import pandas as pd
 
-from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.history import prepare_history
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
 from tennis_match_prediction.transforms.normalization import (
     remove_matches_without_player_ids,
 )
-from tennis_match_prediction.transforms.player_history import attach_temporal_features
+from tennis_match_prediction.transforms.temporal_features import attach_temporal_features
 
 
 def test_normalization_drops_matches_without_both_player_ids() -> None:
@@ -41,22 +40,23 @@ def test_h2h_does_not_compare_missing_player_ids() -> None:
     assert featured["h2h_log_odds"].tolist() == [0.0]
 
 
-def test_elo_keeps_rows_with_colliding_or_missing_match_keys() -> None:
+def test_comparisons_keep_rows_with_colliding_or_missing_match_keys() -> None:
     matches = pd.DataFrame(
         {
             "tourney_id": ["one", "two", "three"],
             "tourney_date": [pd.Timestamp("2026-01-01")] * 3,
             "match_num": [1, 1, None],
             "tourney_level": ["D"] * 3,
+            "surface": ["Hard"] * 3,
             "winner_id": ["A"] * 3,
             "loser_id": ["B"] * 3,
             "winner_name": ["Alice"] * 3,
             "loser_name": ["Bob"] * 3,
-            "overall_elo_diff": [0.0, 10.0, 20.0],
         }
     )
 
-    featured = calcular_elo(matches)
+    prepared = prepare_matches(matches)
+    featured, _, _ = attach_temporal_features(prepared)
 
-    pd.testing.assert_frame_equal(featured[matches.columns], prepare_history(matches))
-    assert featured[["winner_elo", "loser_elo"]].notna().all().all()
+    pd.testing.assert_frame_equal(featured[matches.columns], prepared)
+    assert featured[["overall_elo_diff", "surface_elo_diff"]].notna().all().all()

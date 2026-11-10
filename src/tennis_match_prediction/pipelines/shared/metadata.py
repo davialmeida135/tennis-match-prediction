@@ -107,8 +107,7 @@ def dataframe_metadata(
 def columns_present(frame: pd.DataFrame, columns: list[str]) -> tuple[bool, dict[str, Any]]:
     """Check helper: are all `columns` available? Does not care about null values.
 
-    Use this before imputation, when nulls are expected but a missing column means
-    the upstream schema changed.
+    Source attributes can be null; a missing column means the upstream schema changed.
     """
     missing = [column for column in columns if column not in frame.columns]
     return not missing, {

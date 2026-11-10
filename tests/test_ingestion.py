@@ -8,7 +8,7 @@ import pytest
 from dagster import materialize
 
 from tennis_match_prediction.pipelines.historical_matches.assets import raw_atp_matches
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 
@@ -56,7 +56,7 @@ def _mock_download(monkeypatch, years, calls):
         return Response(_csv(int(url.rsplit("/", 1)[1][:4])))
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get", get
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get", get
     )
 
 
@@ -69,7 +69,7 @@ def test_local_materialization_never_downloads(tmp_path, monkeypatch, cached):
         pytest.fail("Local materialization must not contact the source")
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get",
         unexpected_download,
     )
     assert _materialize(tmp_path, RawMatchesCsv(csv_path=str(output), refresh=False)).success
@@ -146,7 +146,7 @@ def test_first_year_filters_cached_history_without_download(tmp_path, monkeypatc
         pytest.fail("Local materialization must not contact the source")
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get",
         unexpected_download,
     )
     source = RawMatchesCsv(csv_path=str(output), refresh=False, first_year=2024)
@@ -186,7 +186,7 @@ def test_invalid_download_preserves_valid_annual_file(tmp_path, monkeypatch, inv
             pass
 
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.requests.get",
+        "tennis_match_prediction.pipelines.historical_matches.ingestion.requests.get",
         lambda *args, **kwargs: Response(),
     )
     with pytest.raises((ValueError, pd.errors.ParserError)):
@@ -229,7 +229,7 @@ def test_consolidation_handles_file_locks(tmp_path, monkeypatch, failures, winer
 
     monkeypatch.setattr(Path, "replace", locked_replace)
     monkeypatch.setattr(
-        "tennis_match_prediction.pipelines.historical_matches.config.time.sleep", delays.append
+        "tennis_match_prediction.storage.files.time.sleep", delays.append
     )
     source = RawMatchesCsv(csv_path=str(output))
     if failures < 5:

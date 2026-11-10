@@ -33,7 +33,7 @@ flowchart TD
     L --> M[Performance page and reports]
 ```
 
-Evidence: `src/tennis_match_prediction/pipelines/historical_matches/assets.py`, `ml/experiment.py`, `ml/predict.py`, `web/upcoming.py`, and `forecast_evaluation/service.py` under that package.
+Evidence: `src/tennis_match_prediction/pipelines/historical_matches/assets.py`, `ml/experiment.py`, `ml/predict.py`, `web/upcoming_matches.py`, and `forecast_evaluation/collection.py` under that package.
 
 ## 2. The vocabulary, without the jargon
 
@@ -68,9 +68,7 @@ The installed package lives in `src/tennis_match_prediction/`. The folders divid
 | `web/` | FastAPI endpoints, player/model services, upcoming forecasts, and browser files. |
 | `forecast_evaluation/` | Result collection, forecast eligibility, metrics, and reports. |
 | `workflows/` | The daily maintenance coordinator. |
-| `providers/` | Shared Live Tennis API configuration. |
-| `storage/` | Shared atomic JSON writing. |
-| `diagnostics/` | Explicit provider experiments, separate from the normal application flow. |
+| `storage/` | Shared file publication for JSON, CSV and historical snapshots. |
 | `paths.py` | Default data locations and environment configuration. |
 
 At repository level, `tests/` contains regression tests, `notebooks/` contains exploration, `docs/` contains explanations, and `docker/` contains the optional MLflow tracking-server setup. `workspace.yaml` tells Dagster which Python definitions to load.
@@ -97,7 +95,7 @@ Evidence: `pipelines/historical_matches/assets.py`, `pipelines/shared/parquet_io
 
 ## 5. Step one: collect historical results
 
-Start with `pipelines/historical_matches/config.py`. Its `RawMatchesCsv` class manages the source files.
+Start with `pipelines/historical_matches/ingestion.py`. Its `RawMatchesCsv` class manages the source files.
 
 It queries the TennisMyLife file catalog, chooses annual ATP CSVs, downloads them, validates required columns, records hashes, and consolidates the locally available seasons into `all_atp_matches.csv`.
 
@@ -122,9 +120,6 @@ Evidence: `RawMatchesCsv.download_seasons`, `_download_ongoing`, `load_seasons`,
 raw_atp_matches
   -> normalized_atp_matches
   -> player_comparison_atp_matches
-  -> winrate_featured_atp_matches
-  -> elo_featured_atp_matches
-  -> imputed_atp_matches
   -> curated_atp_matches
   -> training_atp_matches
   -> training_atp_matches_csv
@@ -132,25 +127,21 @@ raw_atp_matches
 
 There are two side outputs: `player_history` branches from the comparison step, and `curated_atp_matches_csv` branches from the curated step. Building training rows does not require first writing the curated CSV.
 
-**Normalization** removes walkovers and rows without player IDs, cleans surfaces, parses dates, orders matches, and turns seed values into numeric values and flags.
+**Normalization** removes walkovers and rows without player IDs, cleans surfaces, parses dates, orders matches, and retains source attributes without expanding seeds or entry methods.
 
 **Comparison generation** replays player history and calculates the 12 shared pre-match features. It also produces the final player-history snapshot.
 
-**Additional win rates and Elo** produce a wider historical dataset, including overall and surface win rates over several windows. The default model uses only the 12 shared comparison features, even though the exported table contains additional columns.
+**Curation** validates the shared comparisons and removes per-match outcome statistics. It retains source context without categorical encoding or attribute imputation. The current match's serving statistics update history only after its features have been calculated.
 
-**Imputation** fills missing player attributes from prior observations and fixed initial defaults. It follows the temporal policy rather than filling from later matches.
+**Training-row construction** assigns neutral player positions, orients the 12 comparison features, and creates the binary target. The output contains exactly those features, `tourney_date`, and `winner` (14 columns).
 
-**Curation** encodes surface, round, tournament level, and handedness, and removes per-match outcome statistics. The current match's serving statistics must not become inputs for predicting that same match.
+Dagster's IO manager writes intermediate DataFrames to Parquet. Asset checks cover required columns, chronology, walkovers, finite comparison features, target validity, and the exact output schema. The refresh wrapper explicitly requires successful execution and checks before publication.
 
-**Training-row construction** assigns neutral player positions and creates the binary target.
-
-Dagster's IO manager writes intermediate DataFrames to Parquet. Asset checks cover required columns, chronology, walkovers, nulls, probability ranges, Elo, target validity, and output schemas. The refresh wrapper explicitly requires successful execution and checks before publication.
-
-Evidence: `pipelines/historical_matches/{assets,checks,defs}.py`, `pipelines/shared/parquet_io.py`, and `transforms/{normalization,imputation,curation,winrate,elo,training_rows}.py`.
+Evidence: `pipelines/historical_matches/{assets,checks,defs}.py`, `pipelines/shared/parquet_io.py`, and `transforms/{normalization,curation,elo,training_rows}.py`.
 
 ## 7. The central rule: calculate first, learn the result afterward
 
-`transforms/player_history.py` contains the core replay logic. A simplified version is:
+`transforms/temporal_features.py` contains the core replay logic. A simplified version is:
 
 ```python
 for batch in chronological_batches:
@@ -167,7 +158,7 @@ The real implementation first creates state for previously unseen players. It co
 
 Why batches? The historical source does not always identify actual match dates or start times. `tourney_date` can describe a tournament's start date. Numeric match numbers can establish order within a tournament; lexical tournament IDs cannot establish real chronology across events.
 
-`transforms/history.py` therefore freezes the prior state for ambiguous groups. Missing, invalid, or duplicate match numbers can make a tournament group ambiguous. A player appearing in different tournaments on the same source date makes that date ambiguous. Comparisons in the resulting batch share the same prior state.
+`transforms/match_preparation.py` therefore groups matches with ambiguous ordering into batches; `transforms/temporal_features.py` freezes the prior state for each batch. Missing, invalid, or duplicate match numbers can make a tournament group ambiguous. A player appearing in different tournaments on the same source date makes that date ambiguous. Comparisons in the resulting batch share the same prior state.
 
 This policy reduces leakage from uncertain ordering. It does not reconstruct official match timestamps.
 
@@ -175,7 +166,7 @@ Player state includes overall and surface Elo, wins/losses, name-keyed head-to-h
 
 Elo starts at 1500. Its update compares the actual result with the expected result, using a factor that decreases with accumulated match count. Overall and surface ratings share the update formula.
 
-Evidence: `transforms/history.py`, `transforms/player_history.py`, `transforms/elo.py`, and `contracts/player_history.py`.
+Evidence: `transforms/match_preparation.py`, `transforms/temporal_features.py`, `transforms/elo.py`, and `contracts/player_history.py`.
 
 ## 8. The 12 model inputs
 
@@ -208,13 +199,13 @@ If either side lacks an observation for a comparison, the shared difference help
 
 Surface affects surface Elo and form. The future date is checked against the history cutoff; it does not project future age, rankings, or form. With the same players, surface, model, and history, changing only the allowed date leaves the features unchanged.
 
-Evidence: `contracts/features.py`, `transforms/player_comparison.py`, `transforms/player_history.py`, and `ml/predict.py`.
+Evidence: `contracts/features.py`, `transforms/player_comparison.py`, `transforms/temporal_features.py`, and `ml/predict.py`.
 
 ## 9. Why training uses player0 and player1
 
 Raw historical data calls the participants winner and loser. Keeping those roles as model input positions would reveal the answer.
 
-`build_training_rows()` randomly assigns the participants to `player0` and `player1`, with seed 42 in the Dagster asset for reproducibility. It moves their attributes together, changes the signs of the comparison features when necessary, and creates this target:
+`build_training_rows()` randomly assigns the participants to `player0` and `player1`, with seed 42 in the Dagster asset for reproducibility. It changes the signs of the comparison features when necessary, and creates this target:
 
 ```text
 winner = 1  means player1 won
@@ -291,7 +282,7 @@ The model may use a subset of the shared features. A model requiring inputs that
 
 Historical as-of prediction is not implemented. A final snapshot cannot safely answer what the system would have predicted before an earlier match.
 
-Evidence: `ml/predict.py`, `contracts/prediction.py`, and `web/service.py`.
+Evidence: `ml/predict.py`, `contracts/prediction.py`, and `web/players.py`.
 
 ## 13. How the web application works
 
@@ -321,11 +312,11 @@ On API requests, the application checks `latest_refresh.json`. If it changes, it
 
 The default local model is the most recently modified compatible artifact discovered, not necessarily the most accurate. The CLI currently binds Uvicorn to `0.0.0.0`, although the README describes localhost-only operation. The route implementation has no authentication layer.
 
-Evidence: `web/{__main__,app,service,contracts}.py` and `web/static/{app.js,index.html,style.css}`.
+Evidence: `web/{__main__,app,players,contracts}.py` and `web/static/{app.js,index.html,style.css}`.
 
 ## 14. Upcoming matches and reproducible batches
 
-`web/upcoming.py:UpcomingService` requests upcoming ATP singles main-draw matches from Live Tennis API. The request budget is five pages of up to 100 rows; the source response is cached for one minute. An incomplete page sequence or provider error prevents publishing a replacement batch.
+`web/upcoming_matches.py:UpcomingService` requests upcoming ATP singles main-draw matches from Live Tennis API. The request budget is five pages of up to 100 rows; the source response is cached for one minute. An incomplete page sequence or provider error prevents publishing a replacement batch.
 
 Before predicting, it checks the match status, future timezone-aware scheduled time, known surface, and distinct participants. Postponed, cancelled, started, missing, and ambiguous cases are skipped with recorded reasons.
 
@@ -346,13 +337,13 @@ The copied files are the exact frozen inputs used for prediction, including a mo
 
 Reading a batch makes no provider call. The current view hides matches after their scheduled start and hides batches incompatible with the current model/history. The archived directory remains available on disk.
 
-Evidence: `web/upcoming.py`, `web/service.py:save_prediction_artifacts`, and `web/__main__.py`.
+Evidence: `web/upcoming_matches.py`, `web/players.py:save_prediction_artifacts`, and `web/__main__.py`.
 
 ## 15. Step five: evaluate forecasts after the matches
 
 Training validation asks how a model performs on historical examples. `forecast_evaluation/` asks how archived predictions performed after they were actually issued.
 
-`service.py` reads saved batches, finds matches whose original scheduled time has passed, and collects provider results with a maximum of 20 requests per execution. It revisits older observations, including completed results, so corrections can produce a new report.
+`collection.py` reads saved batches, finds matches whose original scheduled time has passed, and collects provider results with a maximum of 20 requests per execution. It revisits older observations, including completed results, so corrections can produce a new report.
 
 `reconciliation.py` checks the provider match ID and both participant IDs. If the provider reverses participant order, the winner is translated using IDs. A name resemblance or approximate date is not enough.
 
@@ -366,7 +357,7 @@ Every run writes `results.json`, `report.json`, and `report.md` in a new `data/p
 
 Manual prediction exports do not carry a provider match identity and are outside this evaluation flow. Different model versions can cover different match samples, so the report alone is not a controlled model comparison.
 
-Evidence: `forecast_evaluation/{service,reconciliation,metrics,reporting,archive,details}.py`.
+Evidence: `forecast_evaluation/{collection,reconciliation,metrics,reporting,archive,details}.py`.
 
 ## 16. Daily maintenance and publication
 
@@ -384,17 +375,17 @@ Lock files prevent overlapping operations at the relevant directories. Retained 
 
 Evidence: `workflows/daily_update.py`, `pipelines/daily_update.py`, `pipelines/defs.py`, and `pipelines/historical_matches/refresh_history.py`.
 
-## 17. Contracts, configuration, and diagnostics
+## 17. Contracts, configuration, and feature inspection
 
 `contracts/base.py:ContractModel` rejects unknown fields and non-finite numeric values. Other contract modules specialize this for experiments, model parameters, requests, history, ingestion metadata, and DataFrames. DataFrame checks validate the relevant columns, dates, numeric values, and binary targets.
 
 `paths.py` loads dotenv configuration and defines the data locations. `TENNIS_DATA_DIR` changes the data root; `TENNIS_RAW_MATCHES_CSV` changes the consolidated source path. `.env.example` documents MLflow, Dagster, provider-key, and web-registry settings. Private `.env` contents are not needed to understand the code.
 
-`ml/feature_quality.py` inspects source coverage before imputation. It distinguishes missing values, invalid observations, and valid zero values by season. That is useful because a filled training table can hide gaps in the source data.
+`ml/feature_quality.py` inspects raw source coverage. It distinguishes missing values, invalid observations, and valid zero values by season. That reveals gaps that neutral comparison values in the training table can hide.
 
-`diagnostics/live_tennis_probe.py` is an explicitly run provider investigation. Normal forecast generation uses `web/upcoming.py`; production result evaluation uses `forecast_evaluation/`.
+Forecast generation uses `web/upcoming_matches.py`; production result evaluation uses `forecast_evaluation/`. Both callers use the Live Tennis API base URL from `paths.py`.
 
-Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, and `diagnostics/live_tennis_probe.py`.
+Evidence: `contracts/`, `paths.py`, `.env.example`, `ml/feature_quality.py`, `web/upcoming_matches.py`, and `forecast_evaluation/collection.py`.
 
 ## 18. How to run the main flows
 
@@ -493,12 +484,12 @@ Evidence: `pyproject.toml`, `.github/workflows/pylint.yml`, and `tests/`.
 - Full replay, retained snapshots, and per-batch model/history copies have runtime and storage costs.
 - The README contains stale statements about localhost binding, restart requirements, ongoing ingestion, and the Compose filename. The source paths cited here establish the behavior described in this walkthrough.
 
-Evidence: `ml/predict.py`, `transforms/{history,player_comparison,player_history}.py`, `contracts/player_history.py`, `web/{__main__,service,upcoming}.py`, `workflows/daily_update.py`, `forecast_evaluation/{reconciliation,metrics}.py`, and `README.md`.
+Evidence: `ml/predict.py`, `transforms/{match_preparation,player_comparison,temporal_features}.py`, `contracts/player_history.py`, `web/{__main__,players,upcoming_matches}.py`, `workflows/daily_update.py`, `forecast_evaluation/{reconciliation,metrics}.py`, and `README.md`.
 
 ## 21. A practical reading order
 
-Read `contracts/player_history.py` to understand what is remembered about a player. Then read `transforms/player_comparison.py` to see how two players become 12 numbers. Next, read `transforms/player_history.py` and `transforms/history.py` to see how those numbers stay chronological.
+Read `contracts/player_history.py` to understand what is remembered about a player. Then read `transforms/player_comparison.py` to see how two players become 12 numbers. Next, read `transforms/temporal_features.py` and `transforms/match_preparation.py` to see how those numbers stay chronological.
 
 Continue with `transforms/training_rows.py`, `ml/dataset.py`, and `ml/experiment.py` to understand how historical comparisons become a fitted model. Then read `ml/predict.py` to see the same comparisons used for a future matchup.
 
-Finally, read `web/service.py`, `web/upcoming.py`, `forecast_evaluation/reconciliation.py`, and `workflows/daily_update.py`. Those modules turn the prediction functions into an application with saved forecasts, observed results, and repeatable maintenance.
+Finally, read `web/players.py`, `web/upcoming_matches.py`, `forecast_evaluation/reconciliation.py`, and `workflows/daily_update.py`. Those modules turn the prediction functions into an application with saved forecasts, observed results, and repeatable maintenance.

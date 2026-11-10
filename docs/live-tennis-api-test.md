@@ -68,21 +68,11 @@ O resultado é favorável para continuar o piloto, mas não habilita predições
 automáticas. O relatório marca `prediction_ready=false` explicitamente. O teste
 não altera datasets, histórico dos jogadores, modelo ou aplicação web.
 
-## Repetir o teste
+## Registro histórico
 
-Configure `LIVE_TENNIS_API_KEY` apenas no `.env` local ignorado pelo Git, ou na
-variável de ambiente correspondente. O exemplo versionado contém somente o campo
-vazio. Não passar a chave como argumento de linha de comando.
-
-```powershell
-uv run python -m tennis_match_prediction.diagnostics.live_tennis_probe --history-path data/curated/player_history.parquet
-uv run pytest tests/test_live_tennis_probe.py -q
-```
-
-Cada execução usa um diretório novo sob `data/tmp/live-tennis-api/`, com respostas
-JSON e `report.json`. Não há paginação automática: se `has_more=true`, o relatório
-marca o conjunto incompleto. O teste compara nomes apenas como sugestões e lista
-problemas de horário, superfície, participantes e ordenação.
+O utilitário exploratório e seus testes foram removidos para simplificar o projeto.
+Este documento preserva os resultados da consulta de 27/10/2026. A aplicação usa
+`web/upcoming_matches.py` para partidas futuras e `forecast_evaluation/collection.py` para resultados.
 
 Relatório da execução real:
 `data/tmp/live-tennis-api/1f54153d2003495eb02b610d91594efe/report.json`.

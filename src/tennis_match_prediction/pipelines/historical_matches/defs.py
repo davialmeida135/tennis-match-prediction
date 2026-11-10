@@ -9,20 +9,15 @@ from dagster import AssetSelection, Definitions, define_asset_job
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
     curated_atp_matches_csv,
-    elo_featured_atp_matches,
-    imputed_atp_matches,
     normalized_atp_matches,
     player_comparison_atp_matches,
     raw_atp_matches,
     training_atp_matches,
     training_atp_matches_csv,
-    winrate_featured_atp_matches,
 )
 from tennis_match_prediction.pipelines.historical_matches.checks import (
     curated_matches_feed_training,
     curated_matches_have_no_walkovers,
-    elo_features_present,
-    imputed_matches_have_no_nulls,
     no_player_identity_left,
     normalized_matches_are_chronological,
     normalized_matches_have_no_walkovers,
@@ -31,18 +26,14 @@ from tennis_match_prediction.pipelines.historical_matches.checks import (
     schema_matches_expectation,
     target_is_balanced,
     target_is_binary,
-    winrate_features_are_probabilities,
 )
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.parquet_io import ParquetDataFrameIOManager
 
 ASSETS = [
     raw_atp_matches,
     normalized_atp_matches,
     player_comparison_atp_matches,
-    winrate_featured_atp_matches,
-    elo_featured_atp_matches,
-    imputed_atp_matches,
     curated_atp_matches,
     curated_atp_matches_csv,
     training_atp_matches,
@@ -54,9 +45,6 @@ ASSET_CHECKS = [
     normalized_matches_have_required_columns,
     normalized_matches_are_chronological,
     normalized_matches_have_no_walkovers,
-    imputed_matches_have_no_nulls,
-    winrate_features_are_probabilities,
-    elo_features_present,
     curated_matches_have_no_walkovers,
     curated_matches_feed_training,
     target_is_binary,

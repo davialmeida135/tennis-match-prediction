@@ -6,10 +6,10 @@ Reviewed November 8, 2026. This inventory describes source behavior, not a certi
 
 | Priority | Concern | Impact/action | Evidence |
 | --- | --- | --- | --- |
-| High | Source dates are not official match timestamps | Preserve conservative batching; stronger chronology requires verified timing evidence. | `transforms/history.py`, `forecast_evaluation/reconciliation.py` |
+| High | Source dates are not official match timestamps | Preserve conservative batching; stronger chronology requires verified timing evidence. | `transforms/match_preparation.py`, `forecast_evaluation/reconciliation.py` |
 | High | README says localhost-only; web CLI binds all interfaces and routes have no authentication layer | Confirm intended exposure and align binding, deployment, and documentation. | `README.md`, `web/__main__.py`, `web/app.py` |
-| Medium | Latest-state inference cannot reconstruct past player state | Preserve forecast snapshots; do not evaluate past matches using current state. | `ml/predict.py`, `web/upcoming.py` |
-| Medium | Provider mapping requires unique normalized names; H2H uses opponent names | Missing/ambiguous identities reduce coverage; use verified ID/alias mapping if required. | `web/upcoming.py`, `transforms/player_comparison.py` |
+| Medium | Latest-state inference cannot reconstruct past player state | Preserve forecast snapshots; do not evaluate past matches using current state. | `ml/predict.py`, `web/upcoming_matches.py` |
+| Medium | Provider mapping requires unique normalized names; H2H uses opponent names | Missing/ambiguous identities reduce coverage; use verified ID/alias mapping if required. | `web/upcoming_matches.py`, `transforms/player_comparison.py` |
 | Medium | Unavailable comparisons become zero | Measure source coverage and consider explicit missingness in feature experiments. | `transforms/player_comparison.py`, `ml/feature_quality.py` |
 | Medium | Probability calibration is not established | Interpret reported probabilities with prospective sample sizes and descriptive bins. | `README.md`, `forecast_evaluation/metrics.py` |
 
@@ -42,7 +42,7 @@ The broad skill scan traversed cached/generated content, so its aggregate code m
 ## Evidence
 
 - `README.md`, `TODO.md`, `docker-compose.yaml`, `.github/workflows/pylint.yml`.
-- `src/tennis_match_prediction/transforms/{history,player_comparison,player_history}.py`.
-- `src/tennis_match_prediction/{ml/artifacts.py,ml/predict.py,ml/feature_quality.py,web/__main__.py,web/app.py,web/service.py,web/upcoming.py}`.
+- `src/tennis_match_prediction/transforms/{match_preparation,player_comparison,temporal_features}.py`.
+- `src/tennis_match_prediction/{ml/artifacts.py,ml/predict.py,ml/feature_quality.py,web/__main__.py,web/app.py,web/players.py,web/upcoming_matches.py}`.
 - `src/tennis_match_prediction/{forecast_evaluation/reconciliation.py,forecast_evaluation/metrics.py,workflows/daily_update.py,pipelines/historical_matches/refresh_history.py}`.
 - November 8 terminal source search, recent-commit path counts, and successful Dagster definition validation.

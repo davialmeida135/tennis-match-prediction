@@ -27,7 +27,7 @@ Partitioning these assets needs either all preceding input partitions on every
 run, or a validated checkpoint from the preceding partition. The first approach
 still replays history; the second needs ordered execution, reproducible state,
 deduplication and replay of later partitions after historical corrections. The
-checkpoint must include any other causal references, such as imputation state.
+checkpoint must include every input used by the shared player-comparison features.
 Partitions alone do not provide incremental correctness.
 
 ## Storage changes required first

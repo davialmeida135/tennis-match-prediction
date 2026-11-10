@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from tennis_match_prediction.forecast_evaluation.service import update_performance
+from tennis_match_prediction.forecast_evaluation.collection import update_performance
 from tennis_match_prediction.paths import DATA_DIR
 
 

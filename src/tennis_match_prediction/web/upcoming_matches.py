@@ -11,16 +11,18 @@ from typing import Any
 
 import requests
 
-from tennis_match_prediction.providers.live_tennis import BASE_URL
-from tennis_match_prediction.storage.json_io import write_json
+from tennis_match_prediction.paths import LIVE_MATCHES_URL
+from tennis_match_prediction.storage.files import write_json
 from tennis_match_prediction.web.contracts import MatchupRequest
-from tennis_match_prediction.web.service import PlayerService, search_key
+from tennis_match_prediction.web.players import PlayerService, search_key
 
 
 class UpcomingService:
     """Serialize refreshes and cache the source for one minute to conserve the free quota."""
 
-    def __init__(self, players: PlayerService, directory: Path, api_key: str | None) -> None:
+    def __init__(
+        self, players: PlayerService, directory: Path, api_key: str | None
+    ) -> None:
         self.players = players
         self.directory = directory
         self.api_key = api_key
@@ -44,7 +46,7 @@ class UpcomingService:
         for page in range(5):
             try:
                 response = requests.get(
-                    f"{BASE_URL}/matches",
+                    f"{LIVE_MATCHES_URL}/matches",
                     headers={"X-API-Key": self.api_key},
                     params={
                         "status": "upcoming",
@@ -58,20 +60,28 @@ class UpcomingService:
                     allow_redirects=False,
                 )
             except requests.RequestException:
-                raise RuntimeError("Cannot reach the match provider. Try again later.") from None
+                raise RuntimeError(
+                    "Cannot reach the match provider. Try again later."
+                ) from None
             if response.status_code != 200:
-                raise RuntimeError(f"Match provider returned HTTP {response.status_code}.")
+                raise RuntimeError(
+                    f"Match provider returned HTTP {response.status_code}."
+                )
             try:
                 payload = response.json()
             except ValueError:
                 raise RuntimeError("Match provider returned invalid JSON.") from None
-            if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            if not isinstance(payload, dict) or not isinstance(
+                payload.get("data"), list
+            ):
                 raise RuntimeError("Match provider returned an invalid match list.")
             for row in payload["data"]:
                 if not isinstance(row, dict) or type(row.get("id")) is not int:
                     raise RuntimeError("Match provider returned an invalid match ID.")
                 if row["id"] in ids:
-                    raise RuntimeError("Match provider repeated an ID across pages. Retry later.")
+                    raise RuntimeError(
+                        "Match provider repeated an ID across pages. Retry later."
+                    )
                 ids.add(row["id"])
                 rows.append(row)
             meta = payload.get("meta")
@@ -81,7 +91,9 @@ class UpcomingService:
                 self._fetched_at = datetime.now(UTC)
                 return self._source
             if more is not True or not payload["data"]:
-                raise RuntimeError("Match provider did not confirm complete pagination.")
+                raise RuntimeError(
+                    "Match provider did not confirm complete pagination."
+                )
         raise RuntimeError(
             "The match list exceeds the five-page refresh budget. No batch published."
         )
@@ -113,7 +125,9 @@ class UpcomingService:
                         )
                     )
                 except ValueError:
-                    skipped.append({"match_id": match["id"], "reason": "incompatible_history"})
+                    skipped.append(
+                        {"match_id": match["id"], "reason": "incompatible_history"}
+                    )
                     continue
                 prediction["match"] = {
                     "id": match["id"],
@@ -126,7 +140,9 @@ class UpcomingService:
                     "provider_player1_id": match["players"]["p2"]["id"],
                 }
                 predictions.append(prediction)
-            predictions.sort(key=lambda row: (row["match"]["scheduled_time"], row["match"]["id"]))
+            predictions.sort(
+                key=lambda row: (row["match"]["scheduled_time"], row["match"]["id"])
+            )
             # Exclude timestamps so repeating the same batch is idempotent.
             identity = {
                 "source": source,
@@ -134,11 +150,14 @@ class UpcomingService:
                 "model_version": self.players.model_version(model_id),
                 "history": self.players.history_version,
                 "predictions": [
-                    {k: v for k, v in row.items() if k != "created_at"} for row in predictions
+                    {k: v for k, v in row.items() if k != "created_at"}
+                    for row in predictions
                 ],
                 "skipped": skipped,
             }
-            batch_id = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+            batch_id = hashlib.sha256(
+                json.dumps(identity, sort_keys=True).encode()
+            ).hexdigest()
             self.directory.mkdir(parents=True, exist_ok=True)
             destination = self.directory / batch_id
             batch = {
@@ -158,14 +177,18 @@ class UpcomingService:
                 "source_match_count": len(source["data"]),
             }
             if not destination.exists():
-                with TemporaryDirectory(dir=self.directory, prefix=".batch-") as temporary:
+                with TemporaryDirectory(
+                    dir=self.directory, prefix=".batch-"
+                ) as temporary:
                     stage = Path(temporary) / "artifacts"
                     self.players.save_prediction_artifacts(model_id, stage)
                     write_json(stage / "source.json", source)
                     write_json(stage / "batch.json", batch)
                     stage.replace(destination)
             else:
-                batch = json.loads((destination / "batch.json").read_text(encoding="utf-8"))
+                batch = json.loads(
+                    (destination / "batch.json").read_text(encoding="utf-8")
+                )
             write_json(self.directory / f"latest-{model_id}.json", {"id": batch_id})
             return self.latest(model_id)
 
@@ -174,11 +197,19 @@ class UpcomingService:
         match: dict[str, Any], now: datetime, names: dict[str, list[str]]
     ) -> tuple[str | None, datetime | None, list[str] | None]:
         state = " ".join(
-            str(match.get(k) or "").lower() for k in ("status", "event_status", "reason")
+            str(match.get(k) or "").lower()
+            for k in ("status", "event_status", "reason")
         )
-        if any(word in state for word in ("postpon", "delay", "cancel", "suspend", "interrupt")):
+        if any(
+            word in state
+            for word in ("postpon", "delay", "cancel", "suspend", "interrupt")
+        ):
             return "postponed_or_cancelled", None, None
-        if match.get("status") != "upcoming" or match.get("live_at") or match.get("score"):
+        if (
+            match.get("status") != "upcoming"
+            or match.get("live_at")
+            or match.get("score")
+        ):
             return "already_started_or_not_upcoming", None, None
         if str(match.get("event_status") or "").strip().casefold() not in {
             "",

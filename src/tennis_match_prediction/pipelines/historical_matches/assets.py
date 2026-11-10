@@ -1,7 +1,7 @@
-"""Historical dataset: normalize/filter, history features, impute, encode, target, publish.
+"""Historical dataset: normalize/filter, shared features, target and publication.
 
 History calculations all receive played matches, cleaned surfaces, and the same
-chronological ordering. Imputation uses earlier observations only. CSV publication
+chronological ordering. Only shared comparison features feed training. CSV publication
 is downstream of dataset construction, so training rows do not depend on exports.
 """
 
@@ -23,44 +23,20 @@ from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE
 from tennis_match_prediction.paths import (
     CURATED_MATCHES_CSV_NAME,
     TRAINING_MATCHES_CSV_NAME,
-    write_curated_csv,
 )
-from tennis_match_prediction.pipelines.historical_matches.config import RawMatchesCsv
+from tennis_match_prediction.pipelines.historical_matches.ingestion import RawMatchesCsv
 from tennis_match_prediction.pipelines.shared.metadata import dataframe_metadata
-from tennis_match_prediction.transforms.curation import (
-    encode_surface,
-    remove_stat_cols,
-    transform_handedness,
-    transform_round,
-    transform_tourney_level,
-)
-from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.imputation import (
-    fill_null_age,
-    fill_null_height,
-    fill_null_rank,
-    fill_null_surface,
-)
-from tennis_match_prediction.transforms.normalization import (
-    preprocess_dates,
-    remove_matches_without_player_ids,
-    remove_wo,
-    sort_by_date,
-    transform_seed_data,
-)
-from tennis_match_prediction.transforms.player_history import (
+from tennis_match_prediction.storage.files import write_curated_csv
+from tennis_match_prediction.transforms.curation import remove_match_statistics
+from tennis_match_prediction.transforms.match_preparation import prepare_matches
+from tennis_match_prediction.transforms.normalization import remove_walkovers
+from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
 from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     TARGET_COLUMN,
     build_training_rows,
-)
-from tennis_match_prediction.transforms.winrate import (
-    calcular_winrate_superficie,
-    calcular_winrate_superficie_ultimas_n,
-    calcular_winrate_total,
-    calcular_winrate_ultimas_n,
 )
 
 # Run a step as soon as its input is updated (declarative automation: enable the
@@ -106,7 +82,7 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
     context.log.info(f"Reading raw matches from {csv_path}")
     # Seed columns combine integers (e.g. 6), CSV floats (6.0) and source codes
     # across seasons. Keeping their raw representation textual makes the Arrow
-    # snapshot deterministic; transform_seed_data parses them downstream.
+    # snapshot deterministic while retaining the original source values.
     frame = pd.read_csv(
         csv_path,
         dtype={
@@ -130,17 +106,13 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
     tags={**DOMAIN_TAGS, "layer": "normalize"},
     description=(
         "Walkovers and unidentified players excluded, surfaces cleaned, dates parsed, "
-        "matches ordered chronologically and seeds expanded into flags."
+        "matches ordered chronologically; source attributes retained for inspection."
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def normalized_atp_matches(raw_atp_matches: pd.DataFrame) -> pd.DataFrame:
-    """Make the dataset chronological and split the seed columns into numeric + flags."""
-    frame = remove_wo(remove_matches_without_player_ids(raw_atp_matches))
-    frame = fill_null_surface(frame)
-    frame = preprocess_dates(frame)
-    frame = sort_by_date(frame)
-    frame = transform_seed_data(frame)
+    """Filter played matches, clean surfaces and establish source chronology."""
+    frame = prepare_matches(raw_atp_matches)
     NORMALIZED_MATCHES.validate_frame(frame)
     return frame
 
@@ -167,68 +139,20 @@ def player_comparison_atp_matches(
 
 
 @asset(
-    group_name="features",
-    kinds={"pandas", "polars"},
-    tags={**DOMAIN_TAGS, "layer": "features"},
-    description="Win rates over the last 10/50 matches, overall and per surface.",
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def winrate_featured_atp_matches(
-    player_comparison_atp_matches: pd.DataFrame,
-) -> pd.DataFrame:
-    """Attach rolling win-rate features computed only from earlier matches."""
-    frame = calcular_winrate_total(player_comparison_atp_matches)
-    frame = calcular_winrate_ultimas_n(frame, n=50)
-    frame = calcular_winrate_ultimas_n(frame, n=10)
-    frame = calcular_winrate_superficie(frame)
-    frame = calcular_winrate_superficie_ultimas_n(frame, n=50)
-    return calcular_winrate_superficie_ultimas_n(frame, n=10)
-
-
-@asset(
-    group_name="features",
-    kinds={"pandas"},
-    tags={**DOMAIN_TAGS, "layer": "features"},
-    description="Pre-match Elo rating per player.",
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def elo_featured_atp_matches(winrate_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
-    """Attach pre-match Elo ratings using the player-history transform's update formula."""
-    return calcular_elo(winrate_featured_atp_matches)
-
-
-@asset(
-    group_name="impute",
-    kinds={"pandas"},
-    tags={**DOMAIN_TAGS, "layer": "impute"},
-    description=(
-        "Missing player attributes filled from prior observations with fixed initial defaults."
-    ),
-    automation_condition=WHEN_INPUT_CHANGES,
-)
-def imputed_atp_matches(elo_featured_atp_matches: pd.DataFrame) -> pd.DataFrame:
-    """Fill player attributes causally after history features and before encoding."""
-    frame = elo_featured_atp_matches
-    frame = fill_null_height(frame)
-    frame = fill_null_age(frame)
-    return fill_null_rank(frame)
-
-
-@asset(
     group_name="curate",
     kinds={"pandas"},
     tags={**DOMAIN_TAGS, "layer": "curate"},
     description=(
-        "Surface, round, tournament level and handedness encoded; per-match statistics "
+        "Shared pre-match comparisons validated; per-match statistics "
         "dropped. Retains player names and winner/loser orientation for inspection."
     ),
     automation_condition=WHEN_INPUT_CHANGES,
 )
 def curated_atp_matches(
-    imputed_atp_matches: pd.DataFrame,
+    player_comparison_atp_matches: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Encode match context and remove outcome statistics before target construction."""
-    frame = remove_wo(imputed_atp_matches)
+    """Keep readable source context and remove outcome statistics before target construction."""
+    frame = remove_walkovers(player_comparison_atp_matches)
     if (
         not set(PLAYER_COMPARISON_FEATURE_COLUMNS).issubset(frame.columns)
         or frame[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].isna().any().any()
@@ -237,11 +161,7 @@ def curated_atp_matches(
             "Missing temporal features. Materialize player_comparison_atp_matches and all "
             "downstream assets together to rebuild the feature chain."
         )
-    frame = encode_surface(frame)
-    frame = transform_round(frame)
-    frame = transform_tourney_level(frame)
-    frame = transform_handedness(frame)
-    return remove_stat_cols(frame)
+    return remove_match_statistics(frame)
 
 
 @asset(

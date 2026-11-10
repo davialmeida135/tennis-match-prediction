@@ -8,57 +8,28 @@ reported in the Dagster UI with the numbers that caused it.
 import pandas as pd
 from dagster import AssetCheckResult, MetadataValue, asset_check
 
-from tennis_match_prediction.contracts.datasets import NORMALIZED_REQUIRED_COLUMNS
+from tennis_match_prediction.contracts.datasets import (
+    NORMALIZED_REQUIRED_COLUMNS,
+    DataFrameContract,
+)
+from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE_COLUMNS
 from tennis_match_prediction.pipelines.historical_matches.assets import (
     curated_atp_matches,
-    elo_featured_atp_matches,
-    imputed_atp_matches,
     normalized_atp_matches,
     raw_atp_matches,
     training_atp_matches,
-    winrate_featured_atp_matches,
 )
-from tennis_match_prediction.pipelines.shared.metadata import columns_present, columns_without_nulls
-from tennis_match_prediction.transforms.history import order_history
+from tennis_match_prediction.pipelines.shared.metadata import columns_present
+from tennis_match_prediction.transforms.match_preparation import order_history
 from tennis_match_prediction.transforms.training_rows import (
     FINAL_COLUMN_ORDER,
     MATCH_COLUMNS,
-    PLAYER_ATTRIBUTE_STEMS,
     TARGET_COLUMN,
 )
 
 # Columns that must always survive the pipeline: the training-row construction step selects
 # exactly this schema and fails loudly when something is missing.
 REQUIRED_COLUMNS = list(NORMALIZED_REQUIRED_COLUMNS)
-
-IMPUTED_COLUMNS = [
-    "surface",
-    "winner_ht",
-    "loser_ht",
-    "winner_age",
-    "loser_age",
-    "winner_rank",
-    "loser_rank",
-    "winner_rank_points",
-    "loser_rank_points",
-]
-
-WINRATE_COLUMNS = [
-    "winner_winrate",
-    "loser_winrate",
-    "winner_winrate_last_10",
-    "loser_winrate_last_10",
-    "winner_winrate_last_50",
-    "loser_winrate_last_50",
-    "winner_winrate_surface",
-    "loser_winrate_surface",
-    "winner_winrate_surface_last_10",
-    "loser_winrate_surface_last_10",
-    "winner_winrate_surface_last_50",
-    "loser_winrate_surface_last_50",
-]
-
-ELO_COLUMNS = ["winner_elo", "loser_elo"]
 
 # player0/player1 are shuffled at random, so the target must land near 50/50.
 TARGET_BALANCE_TOLERANCE = 0.05
@@ -123,60 +94,6 @@ def normalized_matches_have_no_walkovers(normalized_atp_matches: pd.DataFrame) -
 
 
 @asset_check(
-    asset=imputed_atp_matches,
-    name="imputed_columns_have_no_nulls",
-    description="Earlier observations or initial defaults filled missing player attributes.",
-)
-def imputed_matches_have_no_nulls(imputed_atp_matches: pd.DataFrame) -> AssetCheckResult:
-    passed, metadata = columns_without_nulls(imputed_atp_matches, IMPUTED_COLUMNS)
-    return AssetCheckResult(passed=passed, metadata=metadata)
-
-
-@asset_check(
-    asset=winrate_featured_atp_matches,
-    name="winrates_are_probabilities",
-    description="Every win-rate feature is between 0 and 1.",
-)
-def winrate_features_are_probabilities(
-    winrate_featured_atp_matches: pd.DataFrame,
-) -> AssetCheckResult:
-    present = [
-        column for column in WINRATE_COLUMNS if column in winrate_featured_atp_matches.columns
-    ]
-    offenders = {
-        column: {
-            "min": float(winrate_featured_atp_matches[column].min()),
-            "max": float(winrate_featured_atp_matches[column].max()),
-        }
-        for column in present
-        if winrate_featured_atp_matches[column].min() < 0
-        or winrate_featured_atp_matches[column].max() > 1
-    }
-    return AssetCheckResult(
-        passed=not offenders
-        and len(present) == len(WINRATE_COLUMNS)
-        and not winrate_featured_atp_matches[present].isna().any().any(),
-        metadata={
-            "columns_checked": MetadataValue.json(present),
-            "out_of_range": MetadataValue.json(offenders),
-            "missing_columns": MetadataValue.json(sorted(set(WINRATE_COLUMNS).difference(present))),
-        },
-    )
-
-
-@asset_check(
-    asset=elo_featured_atp_matches,
-    name="elo_features_present",
-    description=(
-        "Both player ratings are available before the dataset is curated."
-    ),
-)
-def elo_features_present(elo_featured_atp_matches: pd.DataFrame) -> AssetCheckResult:
-    passed, metadata = columns_present(elo_featured_atp_matches, ELO_COLUMNS)
-    return AssetCheckResult(passed=passed, metadata=metadata)
-
-
-@asset_check(
     asset=curated_atp_matches,
     name="no_walkovers",
     description="Walkovers are excluded from the training dataset.",
@@ -196,10 +113,7 @@ def curated_matches_have_no_walkovers(curated_atp_matches: pd.DataFrame) -> Asse
     blocking=True,
 )
 def curated_matches_feed_training(curated_atp_matches: pd.DataFrame) -> AssetCheckResult:
-    required = [
-        *MATCH_COLUMNS,
-        *(f"{side}_{stem}" for stem in PLAYER_ATTRIBUTE_STEMS for side in ("winner", "loser")),
-    ]
+    required = MATCH_COLUMNS
     missing = [column for column in required if column not in curated_atp_matches.columns]
     return AssetCheckResult(
         passed=not missing,
@@ -280,14 +194,12 @@ def no_player_identity_left(training_atp_matches: pd.DataFrame) -> AssetCheckRes
     blocking=True,
 )
 def schema_matches_expectation(training_atp_matches: pd.DataFrame) -> AssetCheckResult:
-    actual = list(training_atp_matches.columns)
-    missing = [column for column in FINAL_COLUMN_ORDER if column not in actual]
-    return AssetCheckResult(
-        passed=not missing,
-        metadata={
-            "missing_columns": MetadataValue.json(missing),
-            "extra_columns": MetadataValue.json(
-                [column for column in actual if column not in FINAL_COLUMN_ORDER]
-            ),
-        },
-    )
+    errors = DataFrameContract(
+        name="player-oriented training matches",
+        required=tuple(FINAL_COLUMN_ORDER),
+        numeric=PLAYER_COMPARISON_FEATURE_COLUMNS,
+        date_column="tourney_date",
+        target=TARGET_COLUMN,
+        exact_columns=True,
+    ).errors(training_atp_matches)
+    return AssetCheckResult(passed=not errors, metadata={"errors": MetadataValue.json(errors)})
