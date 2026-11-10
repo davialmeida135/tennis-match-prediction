@@ -10,16 +10,9 @@ from tennis_match_prediction.contracts.features import PLAYER_COMPARISON_FEATURE
 from tennis_match_prediction.contracts.player_history import INITIAL_ELO, PlayerHistory
 from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.predict import features_for, predict
-from tennis_match_prediction.transforms.elo import calcular_elo
-from tennis_match_prediction.transforms.history import prepare_history
-from tennis_match_prediction.transforms.player_history import (
+from tennis_match_prediction.transforms.match_preparation import prepare_history
+from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
-)
-from tennis_match_prediction.transforms.winrate import (
-    calcular_winrate_superficie,
-    calcular_winrate_superficie_ultimas_n,
-    calcular_winrate_total,
-    calcular_winrate_ultimas_n,
 )
 
 
@@ -45,24 +38,16 @@ def _matches(numbers: list[object]) -> pd.DataFrame:
 def test_same_source_date_uses_numeric_match_order_for_every_feature() -> None:
     prepared = prepare_history(_matches(["10", "2", "1"]))
     _, features, _ = attach_temporal_features(prepared)
-    elo = calcular_elo(prepared)
     assert features["match_num"].tolist() == [1, 2, 10]
+    first_gain = 125 / (5**0.4)
+    second_gain = (250 / (6**0.4)) / (1 + 10 ** (2 * first_gain / 400))
     assert features["overall_elo_diff"].tolist() == pytest.approx(
-        (elo["winner_elo"] - elo["loser_elo"]).tolist()
+        [0.0, 2 * first_gain, 2 * (first_gain + second_gain)]
     )
     assert features["form_10_diff"].tolist() == [0.0, 1.0, 1.0]
     assert features["surface_form_10_diff"].tolist() == [0.0, 1.0, 1.0]
     assert features["ace_rate_diff"].tolist() == pytest.approx([0.0, 0.1, 0.1])
     assert features["h2h_log_odds"].tolist() == pytest.approx([0, math.log(2), math.log(3)])
-    for transform, suffix in (
-        (calcular_winrate_total, ""),
-        (calcular_winrate_ultimas_n, "_last_50"),
-        (calcular_winrate_superficie, "_surface"),
-        (calcular_winrate_superficie_ultimas_n, "_surface_last_50"),
-    ):
-        winrates = transform(prepared)
-        assert winrates[f"winner_winrate{suffix}"].tolist() == [0.0, 1.0, 1.0]
-        assert winrates[f"loser_winrate{suffix}"].tolist() == [0.0, 0.0, 0.0]
 
 
 def test_later_match_in_same_tournament_cannot_change_prior_features() -> None:
@@ -79,9 +64,6 @@ def test_ambiguous_numbers_share_prior_history_and_apply_results_afterward(numbe
     source = _matches(numbers)
     _, features, history = attach_temporal_features(source)
     assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
-    elo = calcular_elo(source)
-    assert elo["winner_elo"].eq(elo["loser_elo"]).all()
-    assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
     assert history.players["a"].wins == 2
     assert history.players["b"].losses == 2
     # Both results must use the same pre-batch rating and completed-match count.
@@ -127,9 +109,6 @@ def test_tournament_id_cannot_order_same_day_results_for_a_shared_player() -> No
     source = _matches([1, 2]).assign(tourney_id=["event-a", "event-b"])
     _, features, _ = attach_temporal_features(source)
     assert features[list(PLAYER_COMPARISON_FEATURE_COLUMNS)].eq(0.0).all().all()
-    elo = calcular_elo(source)
-    assert elo["winner_elo"].eq(elo["loser_elo"]).all()
-    assert calcular_winrate_total(source)["winner_winrate"].eq(0.0).all()
 
 
 def test_next_period_prediction_matches_historical_features() -> None:

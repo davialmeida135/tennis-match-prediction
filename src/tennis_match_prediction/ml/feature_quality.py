@@ -1,4 +1,4 @@
-"""Measure source coverage before imputation; run with python -m ...ml.feature_quality."""
+"""Measure raw source coverage; run with python -m ...ml.feature_quality."""
 
 import argparse
 import hashlib

@@ -8,7 +8,7 @@ from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.feature_quality import coverage_report
 from tennis_match_prediction.ml.predict import features_for
 from tennis_match_prediction.transforms.player_comparison import calculate_player_comparison
-from tennis_match_prediction.transforms.player_history import attach_temporal_features
+from tennis_match_prediction.transforms.temporal_features import attach_temporal_features
 
 
 def match(number, **updates):

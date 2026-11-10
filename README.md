@@ -251,7 +251,7 @@ package in editable mode, so commands and tests use the installed package withou
 adding the repository root to `PYTHONPATH`. Tests, notebooks, docs, and data stay
 outside `src/`.
 
-`transforms/` holds data normalization, imputation, history calculations, feature
+`transforms/` holds data normalization, history calculations, feature
 formulas, curation, and training-row construction. Pipelines and prediction import
 this shared logic directly. `pipelines/` owns Dagster orchestration and ingestion;
 `ml/` owns training and prediction. `forecast_evaluation/` reconciles saved forecasts
@@ -273,7 +273,7 @@ Read these files in this order:
 2. `src/tennis_match_prediction/pipelines/historical_matches/config.py` — source resource handles annual downloads, validation and consolidation; `src/tennis_match_prediction/pipelines/historical_matches/refresh_history.py` materializes the raw asset with refresh enabled.
 3. `src/tennis_match_prediction/contracts/` — Pydantic models, feature names, and DataFrame validation grouped by responsibility.
 4. `src/tennis_match_prediction/transforms/player_comparison.py` — pure formulas for the model features.
-5. `src/tennis_match_prediction/transforms/player_history.py` — build match comparisons and player history in one chronological pass.
+5. `src/tennis_match_prediction/transforms/temporal_features.py` — build match comparisons and player history in one chronological pass.
 6. `src/tennis_match_prediction/ml/experiment.py` — prepare published rows, fit a model adapter, evaluate, track and save; `ml/train.py` provides the CLI and Python entry point.
 7. `src/tennis_match_prediction/ml/predict.py` — load the model and player-history asset to predict a future match.
 
@@ -327,31 +327,35 @@ The assets in `src/tennis_match_prediction/pipelines/historical_matches/assets.p
 raw_atp_matches
   -> normalized_atp_matches (filter walkovers/missing IDs, clean surface, parse/order dates)
   -> player_comparison_atp_matches (12 pre-match comparisons + player_history asset)
-  -> winrate_featured_atp_matches
-  -> elo_featured_atp_matches
-  -> imputed_atp_matches (earlier observations only)
-  -> curated_atp_matches (encode context, drop per-match statistics)
+  -> curated_atp_matches (validate comparisons, drop per-match statistics)
   -> training_atp_matches (assign player positions, construct target)
   -> training_atp_matches_csv
 ```
 
 `curated_atp_matches_csv` publishes the readable curated dataset directly from
 `curated_atp_matches`. The curated and training exports are branches;
-training-row construction does not depend on CSV publication.
+training-row construction does not depend on CSV publication. Rebuild the historical
+dataset once after upgrading to regenerate the smaller training export. Old
+win-rate, Elo and imputation snapshots are unused. Training can select or reorder
+any subset of the 12 comparison features; experiments requiring removed columns
+need an explicit feature implementation. Raw inputs and the full player-history
+snapshot (including 50 recent matches for the web profiles) remain available.
 
-- `transforms/history.py` supplies source-date parsing, numeric match-number ordering,
-  shared history batches, and played-match filtering.
-- `transforms/elo.py` owns overall and surface Elo updates and the formula shared
-  by historical Elo columns and player history. Both players update from ratings
-  frozen before their history batch.
-- `transforms/curation.py` encodes categoricals and removes outcome statistics for
-  `curated_atp_matches`. Walkover filtering belongs to `transforms/normalization.py`.
-- `transforms/imputation.py` fills height/age from the pooled mean of earlier
-  observed values, rank from the worst earlier rank, and points from the lowest
-  earlier points. Both player sides share these references. Initial defaults are
-  height 180 cm, age 25, rank 2000 and points 0; future rows never affect past fills.
-- `transforms/training_rows.py` assigns winner/loser attributes to player0/player1 and
-  orients signed features with the target. The asset uses random seed 42.
+- `transforms/normalization.py` cleans surfaces, parses source dates, and filters
+  unusable match rows.
+- `transforms/match_preparation.py` coordinates cleaning, numeric match-number ordering,
+  and shared history batches.
+- `transforms/temporal_features.py` computes pre-match comparisons and updates player
+  state in one chronological pass.
+- `transforms/elo.py` owns overall and surface Elo updates. Both players update
+  from ratings frozen before their history batch; there is no separate Elo replay.
+- `transforms/curation.py` removes current-match outcome statistics. The readable
+  curated export retains unencoded source context and missing attribute values.
+- `transforms/training_rows.py` orients the 12 signed comparisons with the target
+  using random seed 42. Training exports contain exactly 14 columns: `tourney_date`,
+  the shared comparison features, and `winner`. Individual attributes, seed/entry
+  flags, categorical encodings, calendar features and separate win-rate/Elo columns
+  are not calculated. Rank, age and serve inputs still update prior player state.
 - `checks.py` checks intermediate and final datasets.
 - `defs.py` registers the assets, checks, and job.
 - `shared/parquet_io.py` persists DataFrames so individual steps can be rerun.

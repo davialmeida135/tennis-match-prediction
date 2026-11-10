@@ -8,7 +8,7 @@ File-backed data pipeline plus shared ML experiment runner and prediction API. S
 
 1. Historical raw resource downloads or consolidates annual ATP CSVs.
 2. Normalize/filter/order history; calculate comparisons and persisted player state.
-3. Compute win rates/Elo, impute prior observations and curate rows.
+3. Validate shared comparisons and remove outcome statistics; retain readable source context.
 4. Orient player0/player1, construct targets and publish training CSV.
 5. Training splits by source date, fits adapter, evaluates and saves artifact/provenance with optional MLflow tracking.
 6. Prediction loads model/history, resolves names, computes shared comparisons and returns probabilities.

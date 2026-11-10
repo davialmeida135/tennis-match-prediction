@@ -6,10 +6,10 @@ import pytest
 from tennis_match_prediction.contracts.player_history import PlayerHistory
 from tennis_match_prediction.contracts.prediction import FutureMatchRequest
 from tennis_match_prediction.ml.predict import features_for
-from tennis_match_prediction.transforms.history import (
+from tennis_match_prediction.transforms.normalization import (
     parse_source_date,
 )
-from tennis_match_prediction.transforms.player_history import (
+from tennis_match_prediction.transforms.temporal_features import (
     attach_temporal_features,
 )
 

@@ -4,8 +4,8 @@ Why an IO manager: assets return data and Dagster decides where it is stored.
 Keeping assets free of `df.to_csv(...)` side effects is what allows a step to be
 re-run without silently overwriting files outside of Dagster's control.
 
-Layout: `<base_dir>/<asset_name>.parquet`, so `data/staging/elo_featured_atp_matches.parquet`
-holds the snapshot of the asset named `elo_featured_atp_matches`.
+Layout: `<base_dir>/<asset_name>.parquet`, so `data/staging/player_comparison_atp_matches.parquet`
+holds the snapshot of the asset named `player_comparison_atp_matches`.
 The final player-history artifact is stored under the curated directory instead.
 """
 
