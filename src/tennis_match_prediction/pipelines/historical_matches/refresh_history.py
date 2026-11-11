@@ -63,7 +63,7 @@ def _refresh_history(source: RawMatchesCsv, output_dir: Path) -> dict[str, Any]:
         raw_path = Path(source.csv_path)
         if source.refresh:
             years = set(source.years) if source.years is not None else None
-            source.refresh_history(raw_path.parent, years)
+            source.download_and_consolidate_seasons(raw_path.parent, years)
         elif not raw_path.exists():
             source.consolidate_seasons(raw_path.parent)
         shutil.copyfile(raw_path, attempt / "source.csv")

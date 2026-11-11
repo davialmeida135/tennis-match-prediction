@@ -267,7 +267,7 @@ class RawMatchesCsv(ConfigurableResource):
             .reset_index(drop=True)
         )
 
-    def refresh_history(
+    def download_and_consolidate_seasons(
         self, raw_directory: Path, years: set[int] | None = None
     ) -> tuple[pd.DataFrame, list[DownloadedSeason]]:
         """Download annual files and atomically rebuild the consolidated historical input."""

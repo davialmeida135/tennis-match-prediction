@@ -67,7 +67,7 @@ def raw_atp_matches(context: AssetExecutionContext, raw_matches_csv: RawMatchesC
         directory = csv_path.parent
         years = set(raw_matches_csv.years) if raw_matches_csv.years is not None else None
         if raw_matches_csv.refresh or not any(directory.glob("[0-9][0-9][0-9][0-9].csv")):
-            _, downloaded = raw_matches_csv.refresh_history(directory, years)
+            _, downloaded = raw_matches_csv.download_and_consolidate_seasons(directory, years)
             context.add_output_metadata(
                 {
                     "downloaded_seasons": MetadataValue.json([item.year for item in downloaded]),

@@ -56,21 +56,21 @@ def test_partial_feed_retains_absent_rows_and_annual_corrections_take_precedence
         years=[2026],
         include_ongoing=True,
     )
-    combined, _ = source.refresh_history(tmp_path, {2026})
+    combined, _ = source.download_and_consolidate_seasons(tmp_path, {2026})
     assert len(combined) == 2
     assert combined["winner_id"].tolist() == ["001", "001"]
     ongoing = results(3)
-    combined, _ = source.refresh_history(tmp_path, {2026})
+    combined, _ = source.download_and_consolidate_seasons(tmp_path, {2026})
     assert len(combined) == 3  # match 2 is absent from the partial feed, not deleted
     annual = pd.concat([results(1), results(2, "002", "001")], ignore_index=True)
-    combined, _ = source.refresh_history(tmp_path, {2026})
+    combined, _ = source.download_and_consolidate_seasons(tmp_path, {2026})
     assert len(combined) == 3
     assert combined.loc[combined["match_num"] == 2, "winner_id"].item() == "002"
     assert len(list((tmp_path / "ongoing_snapshots").glob("*.csv"))) == 2
     previous = (tmp_path / "all.csv").read_bytes()
     ongoing = results(4).drop(columns="winner_id")
     with pytest.raises(ValueError, match="missing columns"):
-        source.refresh_history(tmp_path, {2026})
+        source.download_and_consolidate_seasons(tmp_path, {2026})
     assert (tmp_path / "all.csv").read_bytes() == previous
 
 
